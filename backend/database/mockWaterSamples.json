@@ -1,0 +1,38 @@
+{
+  "version": "mock-v1",
+  "samples": [
+    {
+      "id": "safe-reference",
+      "pH": 6.8,
+      "phStatus": "Normal",
+      "nitrate": 3.5,
+      "nitrateStatus": "Safe",
+      "copper": 0.6,
+      "copperStatus": "Safe",
+      "overallStatus": "Safe",
+      "remarks": "Water quality appears acceptable based on the current estimated values."
+    },
+    {
+      "id": "moderate-reference",
+      "pH": 8.8,
+      "phStatus": "Moderate",
+      "nitrate": 8.2,
+      "nitrateStatus": "Moderate",
+      "copper": 0.9,
+      "copperStatus": "Safe",
+      "overallStatus": "Moderate",
+      "remarks": "One or more estimated values should be reviewed against the calibrated test-strip method."
+    },
+    {
+      "id": "unsafe-reference",
+      "pH": 5.9,
+      "phStatus": "Unsafe",
+      "nitrate": 16.4,
+      "nitrateStatus": "Unsafe",
+      "copper": 1.8,
+      "copperStatus": "Unsafe",
+      "overallStatus": "Unsafe",
+      "remarks": "Estimated values indicate that this water should be reviewed before use."
+    }
+  ]
+}

@@ -1,0 +1,66 @@
+Starting project at C:\Users\vince\Documents\Aquality System\AQUILITY
+Starting Metro Bundler
+Waiting on http://localhost:8087
+Logs for your project will appear below.
+Web .\index.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web .\index.js ▓▓▓▓▓▓▓▓▓▓▓▓▓░░░ 81.4% (828/918)
+Web Bundled 4118ms index.js (994 modules)
+ LOG  [web] Logs will appear in the browser console
+Web .\index.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 109ms index.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Web .\index.js ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Web Bundled 99ms index.js (1 module)
+ LOG  [web] Logs will appear in the browser console
+Unable to resolve "./context/AuthContext" from "App.js"
+[0m [90m 3 |[39m [36mimport[39m { [33mNavigationContainer[39m } [36mfrom[39m [32m'@react-navigation/native'[39m[33m;[39m
+ [90m 4 |[39m [36mimport[39m { [33mGestureHandlerRootView[39m } [36mfrom[39m [32m'react-native-gesture-handler'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 5 |[39m [36mimport[39m { [33mAuthProvider[39m } [36mfrom[39m [32m'./context/AuthContext'[39m[33m;[39m
+ [90m   |[39m                               [31m[1m^[22m[39m
+ [90m 6 |[39m [36mimport[39m [33mAppNavigator[39m [36mfrom[39m [32m'./navigation/AppNavigator'[39m[33m;[39m
+ [90m 7 |[39m
+ [90m 8 |[39m [36mexport[39m [36mdefault[39m [36mfunction[39m [33mApp[39m() {[0m
+
+Import stack:
+
+ App.js
+ | import "./context/AuthContext"
+
+ index.js
+ | import "./App"
+
+ 
+ | import "./index"
+
+Unable to resolve "../../services/waterAnalysisService" from "components\CameraScanner\CameraView.js"
+[0m [90m 23 |[39m [36mimport[39m { createDocumentDetector } [36mfrom[39m [32m'./documentDetector'[39m[33m;[39m
+ [90m 24 |[39m [36mimport[39m { useAuth } [36mfrom[39m [32m'../../context/AuthContext'[39m[33m;[39m
+[31m[1m>[22m[39m[90m 25 |[39m [36mimport[39m { analyzeDocument } [36mfrom[39m [32m'../../services/waterAnalysisService'[39m[33m;[39m
+ [90m    |[39m                                  [31m[1m^[22m[39m
+ [90m 26 |[39m
+ [90m 27 |[39m [36mconst[39m clamp [33m=[39m (value[33m,[39m min[33m,[39m max) [33m=>[39m [33mMath[39m[33m.[39mmin([33mMath[39m[33m.[39mmax(value[33m,[39m min)[33m,[39m max)[33m;[39m
+ [90m 28 |[39m[0m
+
+Import stack:
+
+ components\CameraScanner\CameraView.js
+ | import "../../services/waterAnalysisService"
+
+ screens\Scan\ScanScreen.js
+ | import "../../components/CameraScanner/CameraView"
+
+ navigation\MainTabs.js
+ | import "../screens/Scan/ScanScreen"
+
+ navigation\AppNavigator.js
+ | import "./MainTabs"
+
+ App.js
+ | import "./navigation/AppNavigator"
+
+ index.js
+ | import "./App"
+
+ 
+ | import "./index"
+

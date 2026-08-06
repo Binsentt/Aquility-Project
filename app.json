@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "AQUILITY",
+    "slug": "AQUILITY",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/Aquility-Logo.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "AQUILITY needs camera access to scan test strips.",
+        "NSPhotoLibraryUsageDescription": "AQUILITY needs photo library access so you can upload strip images from your device.",
+        "NSLocationWhenInUseUsageDescription": "AQUILITY needs your location to tag scan results and map nearby water quality.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "AQUILITY can optionally access location while the app is in use for map-based features."
+      },
+      "bundleIdentifier": "com.aquility.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#EAF8FF",
+        "foregroundImage": "./assets/Aquility-Logo.png"
+      },
+      "permissions": [
+        "CAMERA",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "READ_EXTERNAL_STORAGE"
+      ],
+      "package": "com.aquility.app"
+    },
+    "web": {
+      "favicon": "./assets/Aquility-Logo.png"
+    },
+    "plugins": [
+      "expo-font",
+      "expo-secure-store"
+    ]
+  }
+}

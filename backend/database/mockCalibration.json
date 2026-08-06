@@ -1,0 +1,10 @@
+{
+  "version": "mock-v1",
+  "purpose": "Replace this fixture with the client calibration dataset without changing the API.",
+  "markers": {
+    "start": { "expectedPosition": "top", "tolerancePixels": 24 },
+    "end": { "expectedPosition": "bottom", "tolerancePixels": 24 }
+  },
+  "colourSpaces": ["RGB", "HSV", "LAB"],
+  "pads": ["pH", "nitrate", "copper"]
+}
