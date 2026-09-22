@@ -6,5 +6,5 @@
     "end": { "expectedPosition": "bottom", "tolerancePixels": 24 }
   },
   "colourSpaces": ["RGB", "HSV", "LAB"],
-  "pads": ["pH", "nitrate", "copper"]
+  "pads": ["pH", "nitrate"]
 }

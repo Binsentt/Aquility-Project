@@ -63,8 +63,6 @@ export function createWaterAnalysisService({ colorAnalysisEngine, waterTestModel
           phStatus: measurements.phStatus,
           estimatedNitrate: measurements.nitrate,
           nitrateStatus: measurements.nitrateStatus,
-          estimatedCopper: measurements.copper,
-          copperStatus: measurements.copperStatus,
           overallStatus: measurements.overallStatus,
           remarks: measurements.remarks,
         });

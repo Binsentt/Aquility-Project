@@ -49,7 +49,6 @@ export function buildPdfHtml({ user = {}, test = {}, brandImageUri = null } = {}
         <h2 style="font-size: 18px; border-bottom: 1px solid #D8E6EE; padding-bottom: 6px;">Estimated Results</h2>
         <p><strong>pH:</strong> ${escapeHtml(results.pH || 'Unavailable')}<br>
         <strong>Nitrate:</strong> ${escapeHtml(results.Nitrate || 'Unavailable')}<br>
-        <strong>Copper (Cu²⁺):</strong> ${escapeHtml(results['Copper (Cu²⁺)'] || 'Unavailable')}<br>
         <strong>Overall Water Quality:</strong> ${escapeHtml(test.overallStatus || test.status || 'Unavailable')}<br>
         <strong>Remarks:</strong> ${escapeHtml(test.remarks || test.summary || 'Unavailable')}</p>
       </body>

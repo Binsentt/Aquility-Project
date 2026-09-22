@@ -41,7 +41,7 @@ There is intentionally no list-users endpoint in the production API.
 | DELETE | `/water-tests/:id` | Owner | Permanently deletes one owned record and its associated upload file, then returns `204`. |
 | GET | `/water-tests/:id/image?token=:signedToken` | Signed record URL | Streams the captured image only while its owner remains active. A bearer token for the owner is also accepted. Signed URLs expire after `MEDIA_TOKEN_TTL`. |
 
-Water-test responses retain `id`, `imageUri`, `imagePath`, `pH`, `nitrate`, `copper`, `overallStatus`, `gps`, `resultData`, and related fields used by existing screens. The image fields now contain a private signed API URL rather than a public upload path.
+Water-test responses retain `id`, `imageUri`, `imagePath`, `pH`, `nitrate`, `overallStatus`, `gps`, `resultData`, and related fields used by existing screens. The API contract currently supports only the pH and nitrate analysis results, and the image fields contain a private signed API URL rather than a public upload path.
 
 ## Map feed
 
@@ -71,4 +71,4 @@ Guest rows are retained in PostgreSQL for scan-history association. They are arc
 
 ## Mock-analysis replacement boundary
 
-`backend/services/colorAnalysisEngine.js` loads the three JSON fixture files under `backend/database/`. Replace that engine and fixture/reference data when validated calibration formulas are supplied. Preserve the `/analyze-water` response fields so the Expo client remains unchanged.
+`backend/services/colorAnalysisEngine.js` loads the mock JSON fixture files under `backend/database/`. Replace that engine and fixture/reference data when validated calibration formulas are supplied. Preserve the /analyze-water response fields for pH and nitrate so the Expo client remains unchanged.

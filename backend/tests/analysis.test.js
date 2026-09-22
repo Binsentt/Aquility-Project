@@ -17,8 +17,6 @@ test('mock color analysis returns the replaceable safe reference sample', async 
     phStatus: 'Normal',
     nitrate: 3.5,
     nitrateStatus: 'Safe',
-    copper: 0.6,
-    copperStatus: 'Safe',
     overallStatus: 'Safe',
     remarks: 'Water quality appears acceptable based on the current estimated values.',
   });

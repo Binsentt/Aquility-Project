@@ -8,7 +8,6 @@ export function serializeWaterTest(record, authTokenService = null) {
     : { latitude: Number(record.latitude), longitude: Number(record.longitude) };
   const pH = Number(record.estimatedPH);
   const nitrate = formatMeasurement(record.estimatedNitrate, 'mg/L', record.nitrateStatus);
-  const copper = formatMeasurement(record.estimatedCopper, 'mg/L', record.copperStatus);
 
   const imageToken = authTokenService?.issueMediaToken?.({ waterTestId: record.id, userId: record.userId });
   const imageUri = imageToken ? `/api/water-tests/${record.id}/image?token=${encodeURIComponent(imageToken)}` : record.imagePath;
@@ -24,7 +23,6 @@ export function serializeWaterTest(record, authTokenService = null) {
     pH,
     phStatus: record.phStatus,
     nitrate,
-    copper,
     overallStatus: record.overallStatus,
     status: record.overallStatus,
     remarks: record.remarks,
@@ -39,7 +37,6 @@ export function serializeWaterTest(record, authTokenService = null) {
     resultData: {
       pH: pH.toFixed(2),
       Nitrate: `${nitrate.value.toFixed(2)} mg/L`,
-      'Copper (Cu²⁺)': `${copper.value.toFixed(3)} mg/L`,
       'Overall Status': record.overallStatus,
     },
   };

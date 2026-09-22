@@ -37,7 +37,6 @@ export function toSessionUser(user = {}, fallback = {}) {
 export function toScanResult(waterTest = {}, apiBaseUrl) {
   const pH = Number(waterTest.pH);
   const nitrateValue = Number(waterTest.nitrate?.value);
-  const copperValue = Number(waterTest.copper?.value);
   const imageUri = resolveMediaUrl(waterTest.imageUri || waterTest.imagePath, apiBaseUrl);
 
   return {
@@ -50,7 +49,7 @@ export function toScanResult(waterTest = {}, apiBaseUrl) {
     interpretation: 'This result uses replaceable mock calibration data until the validated colour-analysis method is supplied.',
     warnings: [],
     recommendations: [],
-    detectedParameters: ['pH', 'Nitrate', 'Copper (Cu²⁺)'],
+    detectedParameters: ['pH', 'Nitrate'],
     createdAt: waterTest.analyzedAt || waterTest.createdAt || waterTest.capturedAt,
     generatedAt: waterTest.analyzedAt || waterTest.createdAt || waterTest.capturedAt,
     capturedAt: waterTest.capturedAt,
@@ -65,13 +64,11 @@ export function toScanResult(waterTest = {}, apiBaseUrl) {
     resultData: {
       pH: Number.isFinite(pH) ? pH.toFixed(2) : 'Unavailable',
       Nitrate: Number.isFinite(nitrateValue) ? `${nitrateValue.toFixed(2)} ${waterTest.nitrate?.unit || 'mg/L'}` : 'Unavailable',
-      'Copper (Cu²⁺)': Number.isFinite(copperValue) ? `${copperValue.toFixed(3)} ${waterTest.copper?.unit || 'mg/L'}` : 'Unavailable',
       'Overall Status': waterTest.overallStatus || waterTest.status || 'Unavailable',
     },
     pH,
     phStatus: waterTest.phStatus || null,
     nitrate: waterTest.nitrate || null,
-    copper: waterTest.copper || null,
     notes: waterTest.remarks || '',
     files: [],
     mode: 'backend',

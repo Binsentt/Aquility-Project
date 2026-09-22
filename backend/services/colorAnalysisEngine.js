@@ -39,8 +39,6 @@ export function createColorAnalysisEngine({ readJson = readFixture } = {}) {
         phStatus: sample.phStatus,
         nitrate: sample.nitrate,
         nitrateStatus: sample.nitrateStatus,
-        copper: sample.copper,
-        copperStatus: sample.copperStatus,
         overallStatus: sample.overallStatus,
         remarks: sample.remarks,
       };

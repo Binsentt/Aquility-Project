@@ -15,8 +15,6 @@ function toWaterTest(row) {
     phStatus: row.phStatus,
     estimatedNitrate: row.estimatedNitrate,
     nitrateStatus: row.nitrateStatus,
-    estimatedCopper: row.estimatedCopper,
-    copperStatus: row.copperStatus,
     overallStatus: row.overallStatus,
     remarks: row.remarks,
     createdAt: row.createdAt,
@@ -46,8 +44,6 @@ const waterTestColumns = `
   wt.ph_status AS "phStatus",
   wt.estimated_nitrate AS "estimatedNitrate",
   wt.nitrate_status AS "nitrateStatus",
-  wt.estimated_copper AS "estimatedCopper",
-  wt.copper_status AS "copperStatus",
   wt.overall_status AS "overallStatus",
   wt.remarks,
   wt.created_at AS "createdAt",
@@ -67,9 +63,8 @@ export function createWaterTestModel(pool) {
         `WITH inserted AS (
            INSERT INTO water_tests (
              user_id, image_path, latitude, longitude, barangay, municipality, captured_at,
-             estimated_ph, ph_status, estimated_nitrate, nitrate_status, estimated_copper,
-             copper_status, overall_status, remarks
-           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+             estimated_ph, ph_status, estimated_nitrate, nitrate_status, overall_status, remarks
+           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
            RETURNING *
          )
          SELECT ${waterTestColumns.replaceAll('wt.', 'inserted.')}
@@ -78,7 +73,7 @@ export function createWaterTestModel(pool) {
         [
           record.userId, record.imagePath, record.latitude, record.longitude, record.barangay, record.municipality,
           record.capturedAt, record.estimatedPH, record.phStatus, record.estimatedNitrate, record.nitrateStatus,
-          record.estimatedCopper, record.copperStatus, record.overallStatus, record.remarks,
+          record.overallStatus, record.remarks,
         ]
       );
       return toWaterTest(rows[0]);
