@@ -1,4 +1,4 @@
-# AQUILITY deployment checklist
+# AQUALITY deployment checklist
 
 ## Environment
 
@@ -27,7 +27,16 @@ The Expo root `.env` contains only the non-secret `EXPO_PUBLIC_API_BASE_URL`. It
 
 Migrations are transactional and recorded by filename. Production database changes are made solely by new numbered migration files--never by editing an already-applied migration.
 
-For local VS Code PostgreSQL use, create the database first (for example `CREATE DATABASE aquility;`), copy `backend/.env.example` to the ignored `backend/.env`, set `DATABASE_URL=postgresql://username:password@localhost:5432/aquility`, then run the same migration and seed commands. Do not add the local `.env` file to source control.
+For local development through PostgreSQL or the VS Code PostgreSQL extension, use these values without placing the password in documentation:
+
+- Host: `localhost`
+- Port: `5432`
+- Database: `aquality`
+- Username: your local PostgreSQL username
+- Password: your local PostgreSQL password (private)
+- SSL: `false`
+
+Create the database with `CREATE DATABASE aquality;`, copy `backend/.env.example` to the ignored `backend/.env`, set `DATABASE_URL=postgresql://username:password@localhost:5432/aquality`, and run `npm run db:migrate` followed by `npm run db:seed` from `backend`. Do not add the local `.env` file to source control.
 
 ## Backend startup
 
@@ -42,6 +51,8 @@ Place the service behind HTTPS. Set health monitoring to `GET /api/health`. Rest
 
 On startup, the API checks database connectivity before it begins listening. It returns `{ "status": "ok", "database": "connected" }` from health checks when PostgreSQL is reachable and safely reports an unavailable database otherwise. SIGINT/SIGTERM stop the guest archive timer, close the HTTP server, and close the PostgreSQL pool.
 
+In development the server binds to `0.0.0.0:4000` by default so Expo Go on a phone can reach it over the LAN. Production defaults to loopback unless `HOST` is explicitly configured. Do not weaken Windows Firewall globally; allow port 4000 only on a private network when needed.
+
 ## Frontend configuration and build
 
 1. Create root `.env` from `.env.example` and set the deployed API base URL.
@@ -51,6 +62,29 @@ On startup, the API checks database connectivity before it begins listening. It 
 5. On a physical device, register/login, capture and gallery-import a strip, allow/deny GPS, review History and Map, and export PDF/PNG.
 
 Expo SecureStore keeps bearer tokens in device secure storage. AsyncStorage caches only the session-associated profile/history display data for temporary offline fallback; it is never the authoritative source and does not hold bearer tokens.
+
+For Expo Go on a physical Android or iOS device, determine the computer's
+private LAN IPv4 address with `ipconfig` and set
+`EXPO_PUBLIC_API_BASE_URL=http://<LAPTOP_LAN_IP>:4000/api` in the root `.env`
+before starting Expo. Start Metro with:
+
+```powershell
+npx expo start --lan --clear
+```
+
+The backend and phone must be on the same Wi-Fi. The Expo Go QR/deep link must
+use a reachable LAN host, never `exp://127.0.0.1:8081`. If
+`/api/health` does not open in the phone browser, check the server process,
+address, port, Windows Firewall permission for private networks, and Wi-Fi
+client isolation. Tunnel mode is an alternative when LAN access is unavailable:
+
+```powershell
+npx expo start --tunnel --clear
+```
+
+`EXPO_PUBLIC_*` values are client-visible. They may contain the non-secret API
+URL only; never put `DATABASE_URL`, PostgreSQL credentials, or `JWT_SECRET` in
+the Expo root environment.
 
 ## Release acceptance
 
@@ -68,4 +102,4 @@ Expo SecureStore keeps bearer tokens in device secure storage. AsyncStorage cach
 
 ## Remaining client inputs
 
-The client must supply the production `DATABASE_URL`, deployment host/TLS configuration, retention/privacy policy for captured images and GPS data, and validated pH/nitrate/copper calibration formulas with reference data. The current engine intentionally remains mock-only until those inputs arrive.
+The client must supply the production `DATABASE_URL`, deployment host/TLS configuration, retention/privacy policy for captured images and GPS data, and validated pH/nitrate calibration formulas with reference data. The current engine intentionally remains mock-only until those inputs arrive.
