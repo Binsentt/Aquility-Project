@@ -6,7 +6,7 @@ import * as Sharing from 'expo-sharing';
 import { buildPdfHtml } from './reportTemplate';
 import { toSafeExportMessage } from './exportErrors';
 
-const brandLogoSource = require('../assets/Aquility-Logo.png');
+const brandLogoSource = require('../assets/AQUALITY-Logo.png');
 
 function normalizeLocalUri(uri) {
   if (!uri || typeof uri !== 'string') {
@@ -152,9 +152,9 @@ function shouldSkipFilesystemProbe(uri) {
 function assertBackendReportPayload(payload = {}) {
   const imageUri = payload.imageUri || payload.image || payload.uri || payload.images?.[0];
   const resultData = payload.resultData || {};
-  if (!payload.id) throw new Error('This report is not linked to a saved AQUILITY water-test record. Refresh the result and try again.');
+  if (!payload.id) throw new Error('This report is not linked to a saved AQUALITY water-test record. Refresh the result and try again.');
   if (!imageUri) throw new Error('The captured water-test image is unavailable. Refresh the result and try again.');
-  if (!resultData.pH || !resultData.Nitrate || !resultData['Copper (Cu²⁺)']) {
+  if (!resultData.pH || !resultData.Nitrite) {
     throw new Error('The saved water-test analysis is incomplete. Refresh the result and try again.');
   }
 }
@@ -163,7 +163,7 @@ export async function createPdfExport(payload = {}) {
   try {
     assertBackendReportPayload(payload);
     const exportDir = await ensureExportsDirectory();
-    const targetUri = `${exportDir}AQUILITY_Report_${Date.now()}.pdf`;
+    const targetUri = `${exportDir}AQUALITY_Report_${Date.now()}.pdf`;
     const brandImageUri = await resolvePdfBrandImageUri();
     const html = buildPdfHtml({ user: payload?.user, test: payload, brandImageUri });
 
@@ -182,7 +182,7 @@ export async function createPdfExport(payload = {}) {
 
     return {
       uri: verifiedUri,
-      fileName: 'AQUILITY_Report.pdf',
+      fileName: 'AQUALITY_Report.pdf',
     };
   } catch (error) {
     throw new Error(toSafeExportMessage(error, 'Unable to generate the PDF report.'));
@@ -194,7 +194,7 @@ export async function createPngExport(imageUri) {
     const resolvedSourceUri = await resolveExportImageUri(imageUri);
 
     const exportDir = await ensureExportsDirectory();
-    const targetUri = `${exportDir}AQUILITY_Image_${Date.now()}.png`;
+    const targetUri = `${exportDir}AQUALITY_Image_${Date.now()}.png`;
     const result = await ImageManipulator.manipulateAsync(resolvedSourceUri, [], {
       compress: 0.92,
       format: ImageManipulator.SaveFormat.PNG,
@@ -209,14 +209,14 @@ export async function createPngExport(imageUri) {
 
     return {
       uri: verifiedUri,
-      fileName: 'AQUILITY_Image.png',
+      fileName: 'AQUALITY_Image.png',
     };
   } catch (error) {
     throw new Error(toSafeExportMessage(error, 'Unable to create the PNG export.'));
   }
 }
 
-export async function shareExportFile(uri, message = 'AQUILITY export') {
+export async function shareExportFile(uri, message = 'AQUALITY export') {
   try {
     const verifiedUri = await verifyFileExists(uri);
     const isAvailable = await Sharing.isAvailableAsync();

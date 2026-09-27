@@ -10,7 +10,7 @@ export default function ProfileScreen() {
   const navigation = useNavigation();
   const { currentUser, logout } = useAuth();
   const isGuest = Boolean(currentUser?.isGuest);
-  const fullName = currentUser?.fullName || `${currentUser?.firstName || ''} ${currentUser?.lastName || ''}`.trim() || (isGuest ? 'Guest User' : 'AQUILITY User');
+  const fullName = currentUser?.fullName || `${currentUser?.firstName || ''} ${currentUser?.lastName || ''}`.trim() || (isGuest ? 'Guest User' : 'AQUALITY User');
   const email = currentUser?.email || 'Not provided';
   const phone = currentUser?.phoneNumber || currentUser?.contactNumber || 'Not provided';
   const address = [currentUser?.barangay, currentUser?.municipality].filter(Boolean).join(', ') || 'Not provided';
@@ -26,7 +26,7 @@ export default function ProfileScreen() {
         <View style={[styles.headerCard, SHADOWS.strong]}>
           <View style={styles.profileBrand}>
             <LogoMark showLabel={false} size={42} />
-            <Text style={styles.brandName}>AQUILITY</Text>
+            <Text style={styles.brandName}>AQUALITY</Text>
           </View>
           <View style={styles.avatarWrap}>
             <MaterialCommunityIcons name={isGuest ? 'account-group-outline' : 'account-circle'} size={94} color={COLORS.primary} />

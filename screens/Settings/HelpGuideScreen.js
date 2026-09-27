@@ -13,7 +13,7 @@ const guideSteps = [
   },
   {
     title: '2. Capture a clear image',
-    text: 'Center the water-test strip in the guide, then tap Capture. The Gallery button lets you bring in a photo from your device as well.',
+    text: 'Center the colorimetric Microfluidic Paper-based Analytical Device (µPAD) in the guide, then tap Capture. The Gallery button lets you bring in a photo from your device as well.',
     icon: 'camera-outline',
   },
   {
@@ -28,7 +28,7 @@ const guideSteps = [
   },
   {
     title: '5. Analyze and save the result',
-    text: 'Tap Analyze to save a water-test record. The app preserves the image, metadata, and location when permission is granted.',
+    text: 'Tap Analyze to estimate pH and nitrite from the captured image and save a water-test record. The app preserves the image, metadata, and location when permission is granted. These calibration outputs are not scientifically validated.',
     icon: 'chart-line',
   },
   {
@@ -38,7 +38,7 @@ const guideSteps = [
   },
   {
     title: '7. Use the map',
-    text: 'If location permission is granted, saved scans can show their real coordinates on the map. The full map shows anonymous marker status and location context from the current backend feed.',
+    text: 'If location permission is granted, saved scans can show their real coordinates on the map and help users monitor water-quality testing locations.',
     icon: 'map-marker-radius-outline',
   },
   {
@@ -46,11 +46,21 @@ const guideSteps = [
     text: 'From the result and history views, you can create a local PDF or PNG export and share it from your device. Files are kept in the app storage area when supported.',
     icon: 'export-variant',
   },
+  {
+    title: '9. Accounts and privacy',
+    text: 'Registered users can update their profile and permanently delete their account. Guest sessions can be archived on logout; profile details, images, results, GPS coordinates, and timestamps are kept with the backend water-test record while the account is active.',
+    icon: 'account-lock-outline',
+  },
+  {
+    title: '10. Troubleshooting',
+    text: 'If the server cannot be reached, check that the backend is running, the phone and computer share the same Wi-Fi, and the configured LAN API URL is correct. For denied camera, gallery, or location access, enable the permission in device settings and try again.',
+    icon: 'help-circle-outline',
+  },
 ];
 
 const tips = [
   'Use good lighting and keep the subject flat for the best capture quality.',
-  'If location access is granted, AQUILITY can attach the current place to a saved scan.',
+  'If location access is granted, AQUALITY can attach the current place to a saved scan.',
   'Camera, gallery, and location permissions can be managed from Settings.',
   'Results use the current mock analysis settings until approved calibration data and formulas are supplied.',
   'If a permission or export step fails, check the current device settings and retry.',
@@ -67,14 +77,14 @@ export default function HelpGuideScreen() {
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={styles.headerTitle}>Help & Guide</Text>
-          <Text style={styles.headerSubtitle}>Quick tips for using AQUILITY confidently.</Text>
+          <Text style={styles.headerSubtitle}>Quick tips for using AQUALITY confidently.</Text>
         </View>
         <LogoMark showLabel={false} size={34} />
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={[styles.heroCard, SHADOWS.strong]}>
-          <Text style={styles.heroTitle}>How AQUILITY works</Text>
+          <Text style={styles.heroTitle}>How AQUALITY works</Text>
           <Text style={styles.heroText}>
             Capture a photo, review it, and use the result screen to understand what is available in the current app setup.
           </Text>

@@ -13,8 +13,9 @@ function toWaterTest(row) {
     capturedAt: row.capturedAt,
     estimatedPH: row.estimatedPH,
     phStatus: row.phStatus,
-    estimatedNitrate: row.estimatedNitrate,
-    nitrateStatus: row.nitrateStatus,
+    estimatedNitrite: row.estimatedNitrite,
+    nitriteStatus: row.nitriteStatus,
+    analysisData: row.analysisData,
     overallStatus: row.overallStatus,
     remarks: row.remarks,
     createdAt: row.createdAt,
@@ -42,8 +43,9 @@ const waterTestColumns = `
   wt.captured_at AS "capturedAt",
   wt.estimated_ph AS "estimatedPH",
   wt.ph_status AS "phStatus",
-  wt.estimated_nitrate AS "estimatedNitrate",
-  wt.nitrate_status AS "nitrateStatus",
+  wt.estimated_nitrite AS "estimatedNitrite",
+  wt.nitrite_status AS "nitriteStatus",
+  wt.analysis_data AS "analysisData",
   wt.overall_status AS "overallStatus",
   wt.remarks,
   wt.created_at AS "createdAt",
@@ -63,8 +65,8 @@ export function createWaterTestModel(pool) {
         `WITH inserted AS (
            INSERT INTO water_tests (
              user_id, image_path, latitude, longitude, barangay, municipality, captured_at,
-             estimated_ph, ph_status, estimated_nitrate, nitrate_status, overall_status, remarks
-           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+             estimated_ph, ph_status, estimated_nitrite, nitrite_status, analysis_data, overall_status, remarks
+           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
            RETURNING *
          )
          SELECT ${waterTestColumns.replaceAll('wt.', 'inserted.')}
@@ -72,8 +74,8 @@ export function createWaterTestModel(pool) {
          JOIN users u ON u.id = inserted.user_id`,
         [
           record.userId, record.imagePath, record.latitude, record.longitude, record.barangay, record.municipality,
-          record.capturedAt, record.estimatedPH, record.phStatus, record.estimatedNitrate, record.nitrateStatus,
-          record.overallStatus, record.remarks,
+          record.capturedAt, record.estimatedPH, record.phStatus, record.estimatedNitrite, record.nitriteStatus,
+          record.analysisData, record.overallStatus, record.remarks,
         ]
       );
       return toWaterTest(rows[0]);

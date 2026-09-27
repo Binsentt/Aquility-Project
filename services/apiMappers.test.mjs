@@ -8,10 +8,9 @@ const apiWaterTest = {
   imagePath: '/api/water-tests/3ec25331-d511-491f-a1b6-11670bc4a2d6/image?token=short-lived-token',
   pH: 6.8,
   phStatus: 'Normal',
-  nitrate: { value: 3.5, unit: 'mg/L', status: 'Safe' },
-  copper: { value: 0.6, unit: 'mg/L', status: 'Safe' },
-  overallStatus: 'Safe',
-  remarks: 'Water quality appears acceptable based on the current estimated values.',
+  nitrite: { value: 10, unit: 'ppm', status: 'Unvalidated', hue: 30 },
+  overallStatus: 'Unvalidated',
+  remarks: 'Client calibration output requires experimental validation.',
   gps: { latitude: 14.6, longitude: 120.98 },
   barangay: 'San Isidro',
   municipality: 'Sample City',
@@ -23,12 +22,13 @@ test('toScanResult maps API chemistry and GPS to the existing result screen cont
   const scan = toScanResult(apiWaterTest, 'http://localhost:4000');
 
   assert.equal(scan.id, apiWaterTest.analysisId);
+  assert.deepEqual(scan.detectedParameters, ['pH', 'Nitrite']);
+  assert.equal(scan.nitrite.hue, 30);
   assert.deepEqual(scan.location, { latitude: 14.6, longitude: 120.98 });
   assert.deepEqual(scan.resultData, {
     pH: '6.80',
-    Nitrate: '3.50 mg/L',
-    'Copper (Cu²⁺)': '0.600 mg/L',
-    'Overall Status': 'Safe',
+    Nitrite: '10.00 ppm',
+    'Overall Status': 'Unvalidated',
   });
   assert.equal(scan.imageUri, 'http://localhost:4000/api/water-tests/3ec25331-d511-491f-a1b6-11670bc4a2d6/image?token=short-lived-token');
 });

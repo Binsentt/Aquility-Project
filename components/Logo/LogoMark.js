@@ -2,7 +2,7 @@ import React from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 import { COLORS } from '../../styles/theme';
 
-const logoSource = require('../../assets/Aquility-Logo.png');
+const logoSource = require('../../assets/AQUALITY-Logo.png');
 
 export default function LogoMark({ showLabel = true, size = 92 }) {
   return (
@@ -11,9 +11,9 @@ export default function LogoMark({ showLabel = true, size = 92 }) {
         source={logoSource}
         style={{ width: size, height: size }}
         resizeMode="contain"
-        accessibilityLabel="Aquility logo"
+        accessibilityLabel="AQUALITY logo"
       />
-      {showLabel ? <Text style={styles.label}>AQUILITY</Text> : null}
+      {showLabel ? <Text style={styles.label}>AQUALITY</Text> : null}
     </View>
   );
 }

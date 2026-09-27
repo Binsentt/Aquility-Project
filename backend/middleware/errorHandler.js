@@ -60,7 +60,7 @@ export function errorHandler(error, req, res, next) {
           : isForeignKey
             ? 'This action conflicts with related data.'
             : isDatabaseUnavailable
-              ? 'The AQUILITY service is temporarily unavailable. Please try again.'
+              ? 'The AQUALITY service is temporarily unavailable. Please try again.'
         : 'An unexpected server error occurred.';
 
   if (status >= 500) {

@@ -73,7 +73,7 @@ test('visible account and application actions are backed by an implemented flow'
 });
 
 test('privacy and help text describe the implemented backend workflow without placeholders', () => {
-  assert.match(privacyNotice, /AQUILITY service/);
+  assert.match(privacyNotice, /AQUALITY service/);
   assert.doesNotMatch(privacyNotice, /current local session/);
   assert.doesNotMatch(privacyNotice, /project\u2019s existing support channel/);
   assert.doesNotMatch(helpGuide, /tap a marker to open the matching result/);

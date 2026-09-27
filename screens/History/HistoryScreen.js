@@ -48,7 +48,7 @@ export default function HistoryScreen() {
             <MaterialCommunityIcons name="history" size={42} color={COLORS.primary} />
             <Text style={styles.emptyTitle}>No water tests yet</Text>
             <Text style={styles.emptyText}>
-              Completed water-test records will appear here from your AQUILITY profile. Cached records remain visible if you are temporarily offline.
+              Completed water-test records will appear here from your AQUALITY profile. Cached records remain visible if you are temporarily offline.
             </Text>
             <TouchableOpacity
               style={styles.emptyButton}

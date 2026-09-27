@@ -19,15 +19,15 @@ export default function TermsOfUseScreen() {
       </View>
 
       <View style={[styles.card, SHADOWS.strong]}>
-        <Text style={styles.title}>AQUILITY Terms of Use</Text>
+        <Text style={styles.title}>AQUALITY Terms of Use</Text>
         <Text style={styles.paragraph}>
-          AQUILITY is provided for informational water-quality testing assistance. You are responsible for using the app in a lawful and respectful manner.
+          AQUALITY is provided for informational water-quality testing assistance. You are responsible for using the app in a lawful and respectful manner.
         </Text>
         <Text style={styles.paragraph}>
           Users must provide accurate account information when registering or updating their profile. Camera and gallery access are intended for water-test strip capture and image selection. You are responsible for ensuring that you have permission to scan or upload any water-test image you use within the app.
         </Text>
         <Text style={styles.paragraph}>
-          Water-quality results shown in the app are informational only. AQUILITY does not guarantee laboratory-grade analytical accuracy unless a genuine, verified measurement backend or qualified service is explicitly integrated. Any interpretation of results should be done with appropriate caution and professional judgment.
+          Water-quality results shown in the app are informational only. AQUALITY does not guarantee laboratory-grade analytical accuracy unless a genuine, verified measurement backend or qualified service is explicitly integrated. Any interpretation of results should be done with appropriate caution and professional judgment.
         </Text>
         <Text style={styles.paragraph}>
           The app may display generated report data, scan history, and export features for local review. You should not rely on these outputs as a substitute for official testing or certified water-quality analysis where required.
@@ -36,7 +36,7 @@ export default function TermsOfUseScreen() {
           The application, its UI, water-test workflow, and generated reports are for personal and operational use. You may not misuse the app to violate privacy rights, store prohibited content, or cause disruptions to service availability.
         </Text>
         <Text style={styles.paragraph}>
-          The app may be updated over time. Continued use of AQUILITY after updates means you accept the current terms and any new policies. The provider is not liable for damages arising from inaccurate user-provided data, unsupported third-party integrations, or use of the app outside its intended purpose.
+          The app may be updated over time. Continued use of AQUALITY after updates means you accept the current terms and any new policies. The provider is not liable for damages arising from inaccurate user-provided data, unsupported third-party integrations, or use of the app outside its intended purpose.
         </Text>
       </View>
     </ScrollView>

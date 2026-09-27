@@ -87,3 +87,17 @@ test('a rejected account-deletion password preserves the active session', async 
     api.clearAccessToken();
   }
 });
+
+test('network failures become a friendly AQUALITY server connection error', async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async () => { throw new TypeError('fetch failed'); };
+
+  try {
+    await assert.rejects(
+      () => request('/health'),
+      { code: 'NETWORK_UNAVAILABLE', status: 0, message: 'Unable to connect to the AQUALITY server. Make sure your device and development computer are connected to the same network and the server is running.' },
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
+});

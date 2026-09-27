@@ -26,7 +26,7 @@ export default function GuestInfoScreen() {
           <View style={styles.brandRow}>
             <LogoMark showLabel={false} size={54} />
             <View style={styles.brandCopy}>
-              <Text style={styles.eyebrow}>AQUILITY</Text>
+              <Text style={styles.eyebrow}>AQUALITY</Text>
               <Text style={styles.heading}>Guest information</Text>
             </View>
           </View>

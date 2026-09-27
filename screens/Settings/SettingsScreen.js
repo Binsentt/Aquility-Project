@@ -13,7 +13,7 @@ export default function SettingsScreen() {
   const isGuest = currentUser?.isGuest;
   const displayName = isGuest
     ? currentUser?.fullName || 'Guest User'
-    : currentUser?.fullName || `${currentUser?.firstName || 'AQUILITY'} ${currentUser?.lastName || 'User'}`;
+    : currentUser?.fullName || `${currentUser?.firstName || 'AQUALITY'} ${currentUser?.lastName || 'User'}`;
   const [confirmVisible, setConfirmVisible] = useState(false);
   const [confirmType, setConfirmType] = useState('');
   const [deletePassword, setDeletePassword] = useState('');
@@ -107,7 +107,7 @@ export default function SettingsScreen() {
 
         <View style={[styles.section, SHADOWS.strong]}>
           <Text style={styles.sectionTitle}>Preferences</Text>
-          <TouchableOpacity style={styles.categoryRow} onPress={() => Alert.alert('Language', 'English is currently selected for AQUILITY.')} activeOpacity={0.85}>
+          <TouchableOpacity style={styles.categoryRow} onPress={() => Alert.alert('Language', 'English is currently selected for AQUALITY.')} activeOpacity={0.85}>
             <View style={styles.rowLeft}>
               <View style={styles.iconWrap}>
                 <MaterialCommunityIcons name="translate" size={20} color={COLORS.primary} />
@@ -143,7 +143,7 @@ export default function SettingsScreen() {
               </View>
               <View style={styles.textBlock}>
                 <Text style={styles.rowLabel}>Help / Guide</Text>
-                <Text style={styles.rowSubtitle}>How to scan, save, and use AQUILITY</Text>
+                <Text style={styles.rowSubtitle}>How to scan, save, and use AQUALITY</Text>
               </View>
             </View>
             <MaterialCommunityIcons name="chevron-right" size={20} color={COLORS.border} />
@@ -212,7 +212,7 @@ export default function SettingsScreen() {
             <Text style={styles.modalText}>
               {isDeleteAccount
                 ? 'Are you sure you want to permanently delete your account? This action cannot be undone. Your profile, scan history, uploaded images, and associated records will be permanently removed.'
-                : 'Are you sure you want to logout from AQUILITY? You will return to the welcome screen.'}
+                : 'Are you sure you want to logout from AQUALITY? You will return to the welcome screen.'}
             </Text>
             {isDeleteAccount && !isGuest ? (
               <TextInput

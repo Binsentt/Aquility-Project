@@ -1,6 +1,6 @@
 # 💧 AQUALITY
 
-AQUALITY is a smartphone application that works with Microfluidic Paper-based Analytical Devices (µPADs) to help users test water quality quickly and easily. By scanning a colorimetric µPAD with a smartphone camera, the app estimates the pH and nitrate levels of a water sample, displays a simple water-quality assessment, and records the test location through GPS and GIS mapping.
+AQUALITY is a smartphone application that works with Microfluidic Paper-based Analytical Devices (µPADs). The camera analysis estimates pH by matching ROI Lab color to client-provided references with CIEDE2000 and estimates Nitrite using a provisional hue-to-ppm calibration. The image, analysis metadata, and optional GPS location are stored with each test. These calibration outputs have not been experimentally validated and are not certified water-safety measurements.
 
 It is designed as a simple, portable, and low-cost monitoring tool for students, researchers, and communities.
 
@@ -70,11 +70,10 @@ For a physical Android or iOS device, create the ignored root `.env` file and
 replace the placeholder with the laptop's Wi-Fi IPv4 address:
 
 ```powershell
-cd C:\Users\vince\Documents\Aquality System\AQUILITY
+cd <project-folder>
 Copy-Item .env.example .env
 ipconfig
-# Edit .env:
-# EXPO_PUBLIC_API_BASE_URL=http://<laptop-lan-ip>:4000/api
+# Edit .env and set EXPO_PUBLIC_API_BASE_URL to the computer's current LAN IPv4 address.
 ```
 
 The `EXPO_PUBLIC_*` value is included in the client bundle, so it must contain

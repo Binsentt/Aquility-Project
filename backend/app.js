@@ -30,7 +30,7 @@ export function createApp({ authService, authTokenService, userService, waterAna
   const app = express();
   const needsAuthentication = Boolean(authService || userService || waterAnalysisService || waterTestService || mapService);
   if (needsAuthentication && !authTokenService) {
-    throw new Error('authTokenService is required when protected AQUILITY API services are configured.');
+    throw new Error('authTokenService is required when protected AQUALITY API services are configured.');
   }
   const requireAuth = authTokenService ? createRequireAuth(authTokenService, userService) : null;
 

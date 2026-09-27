@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import request from 'supertest';
 import { createApp } from '../app.js';
 
-test('GET /api/health reports the AQUILITY API identity', async () => {
+test('GET /api/health reports the compatibility API service identity', async () => {
   const response = await request(createApp()).get('/api/health');
 
   assert.equal(response.status, 200);

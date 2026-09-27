@@ -30,10 +30,10 @@ export function buildPdfHtml({ user = {}, test = {}, brandImageUri = null } = {}
     <html>
       <body style="font-family: Arial, sans-serif; padding: 28px; color: #17324B; line-height: 1.45;">
         <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 22px;">
-          ${brandImageUri ? `<img data-brand-logo="aquility" src="${escapeHtml(brandImageUri)}" style="width: 48px; height: 48px; object-fit: contain;" />` : ''}
+          ${brandImageUri ? `<img data-brand-logo="aquality" src="${escapeHtml(brandImageUri)}" style="width: 48px; height: 48px; object-fit: contain;" />` : ''}
           <div>
-            <h1 style="font-size: 28px; margin: 0 0 4px;">AQUILITY Water Test Report</h1>
-            <p style="margin: 0; color: #4D6478;">Water-quality test report generated from an AQUILITY record.</p>
+            <h1 style="font-size: 28px; margin: 0 0 4px;">AQUALITY Water Test Report</h1>
+            <p style="margin: 0; color: #4D6478;">Water-quality test report generated from an AQUALITY record.</p>
           </div>
         </div>
         <h2 style="font-size: 18px; border-bottom: 1px solid #D8E6EE; padding-bottom: 6px;">User Information</h2>
@@ -48,7 +48,7 @@ export function buildPdfHtml({ user = {}, test = {}, brandImageUri = null } = {}
         ${stripImage ? `<h2 style="font-size: 18px; border-bottom: 1px solid #D8E6EE; padding-bottom: 6px;">Captured Test Strip</h2><img src="${escapeHtml(stripImage)}" style="width: 100%; max-height: 320px; object-fit: contain; border-radius: 10px; border: 1px solid #D8E6EE;">` : ''}
         <h2 style="font-size: 18px; border-bottom: 1px solid #D8E6EE; padding-bottom: 6px;">Estimated Results</h2>
         <p><strong>pH:</strong> ${escapeHtml(results.pH || 'Unavailable')}<br>
-        <strong>Nitrate:</strong> ${escapeHtml(results.Nitrate || 'Unavailable')}<br>
+        <strong>Nitrite:</strong> ${escapeHtml(results.Nitrite || 'Unavailable')}<br>
         <strong>Overall Water Quality:</strong> ${escapeHtml(test.overallStatus || test.status || 'Unavailable')}<br>
         <strong>Remarks:</strong> ${escapeHtml(test.remarks || test.summary || 'Unavailable')}</p>
       </body>

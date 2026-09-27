@@ -21,8 +21,23 @@ export default function AboutSettings() {
 
       <View style={[styles.card, SHADOWS.strong]}>
         <LogoMark showLabel={false} size={68} />
-        <Text style={styles.title}>AQUILITY</Text>
-        <Text style={styles.subtitle}>Privacy, terms, and application information.</Text>
+        <Text style={styles.title}>AQUALITY</Text>
+        <Text style={styles.subtitle}>Smart Water Quality Monitoring with µPAD Technology.</Text>
+
+        <View style={styles.infoBlock}>
+          <Text style={styles.sectionTitle}>About AQUALITY</Text>
+          <Text style={styles.infoText}>AQUALITY uses Microfluidic Paper-based Analytical Devices (µPADs) and the phone camera to estimate pH and nitrite from client-provided color references that require experimental validation.</Text>
+        </View>
+
+        <View style={styles.infoBlock}>
+          <Text style={styles.sectionTitle}>How it works</Text>
+          <Text style={styles.infoText}>µPAD → Smartphone Camera → ROI Color Analysis → pH + Nitrite Estimates → GPS Storage → GIS Map</Text>
+        </View>
+
+        <View style={styles.infoBlock}>
+          <Text style={styles.sectionTitle}>Designed for</Text>
+          <Text style={styles.infoText}>Students, researchers, and communities who need a simple, portable, and low-cost way to monitor water quality.</Text>
+        </View>
 
         <TouchableOpacity style={styles.row} onPress={() => navigation.navigate('PrivacyNotice')}>
           <Text style={styles.rowLabel}>Privacy Notice</Text>
@@ -74,6 +89,9 @@ const styles = StyleSheet.create({
   card: { backgroundColor: COLORS.white, borderRadius: RADII.card, padding: SPACING.lg },
   title: { fontSize: 18, fontWeight: '900', color: COLORS.navy, marginTop: SPACING.sm },
   subtitle: { color: COLORS.muted, marginTop: SPACING.xs, marginBottom: SPACING.sm },
+  infoBlock: { marginBottom: SPACING.md },
+  sectionTitle: { fontSize: 14, fontWeight: '800', color: COLORS.navy, marginBottom: SPACING.xs },
+  infoText: { color: COLORS.muted, fontSize: 13, lineHeight: 20 },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: SIZES.touchTarget, paddingVertical: SPACING.sm, borderBottomWidth: 1, borderBottomColor: COLORS.soft },
   rowLabel: { color: COLORS.text, fontWeight: '800' },
   rowLink: { color: COLORS.primary, fontWeight: '800' },

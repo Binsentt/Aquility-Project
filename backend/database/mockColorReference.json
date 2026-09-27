@@ -1,6 +1,6 @@
 {
-  "version": "mock-v1",
-  "purpose": "Reference-only mock values; no image pixels are processed in this phase.",
-  "pH": { "normalRange": [6.5, 8.5], "referenceHex": "#5CB85C" },
-  "nitrate": { "safeMgL": 10, "referenceHex": "#E6C84F" }
+  "version": "client-provided-provisional-v1",
+  "purpose": "Legacy fixture retained for compatibility; active pH and Nitrite references are in colorAnalysisCalibration.json.",
+  "pH": { "calibrationFile": "colorAnalysisCalibration.json" },
+  "nitrite": { "calibrationFile": "colorAnalysisCalibration.json" }
 }

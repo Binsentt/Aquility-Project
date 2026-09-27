@@ -26,11 +26,11 @@ export default function RegisterScreen() {
           <View style={styles.brandRow}>
             <LogoMark showLabel={false} size={54} />
             <View style={styles.brandCopy}>
-              <Text style={styles.eyebrow}>AQUILITY</Text>
+              <Text style={styles.eyebrow}>AQUALITY</Text>
               <Text style={styles.heading}>Create account</Text>
             </View>
           </View>
-          <Text style={styles.subheading}>Register once and access the shared AQUILITY dashboard instantly.</Text>
+          <Text style={styles.subheading}>Register once and access the shared AQUALITY dashboard instantly.</Text>
 
           <Formik
             initialValues={{ firstName: '', lastName: '', email: '', password: '', confirmPassword: '', phoneNumber: '' }}

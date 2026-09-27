@@ -23,7 +23,7 @@ The Expo root `.env` contains only the non-secret `EXPO_PUBLIC_API_BASE_URL`. It
 2. Configure `DATABASE_URL` privately.
 3. From `backend`, run `npm ci` and `npm run db:migrate`.
 4. Confirm `schema_migrations` contains every numbered SQL file.
-5. Run `npm run db:seed` only to validate the current mock fixtures; it does not replace production calibration data.
+5. Run `npm run db:seed` to validate the checked-in client calibration structure; it does not insert sample accounts or water-test rows and does not establish scientific validity.
 
 Migrations are transactional and recorded by filename. Production database changes are made solely by new numbered migration files--never by editing an already-applied migration.
 
@@ -102,4 +102,6 @@ the Expo root environment.
 
 ## Remaining client inputs
 
-The client must supply the production `DATABASE_URL`, deployment host/TLS configuration, retention/privacy policy for captured images and GPS data, and validated pH/nitrate calibration formulas with reference data. The current engine intentionally remains mock-only until those inputs arrive.
+The client must supply the production `DATABASE_URL`, deployment host/TLS configuration, retention/privacy policy for captured images and GPS data, confirm that supplied Nitrite hue values use standard HSV degrees, and provide experimental validation before relying on analytical performance. The active engine performs image-based pH and provisional Nitrite analysis; it is not mock-only and does not claim scientific validation.
+
+For local client installation and daily startup commands, see [`../CLIENT_SETUP.md`](../CLIENT_SETUP.md). For the implemented image pipeline and normalized ROI configuration, see [`IMAGE_ANALYSIS.md`](IMAGE_ANALYSIS.md).

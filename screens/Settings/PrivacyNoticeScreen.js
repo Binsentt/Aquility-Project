@@ -19,12 +19,12 @@ export default function PrivacyNoticeScreen() {
       </View>
 
       <View style={[styles.card, SHADOWS.strong]}>
-        <Text style={styles.title}>AQUILITY Privacy Notice</Text>
+        <Text style={styles.title}>AQUALITY Privacy Notice</Text>
         <Text style={styles.paragraph}>
-          AQUILITY is a mobile application for recording water-quality tests, organizing water-test records, and sharing report summaries. The app supports a practical water-quality testing workflow for field and community use.
+          AQUALITY is a mobile application for recording water-quality tests, organizing water-test records, and sharing report summaries. The app supports a practical water-quality testing workflow for field and community use.
         </Text>
         <Text style={styles.paragraph}>
-          The AQUILITY service stores information you provide in your profile, including your name, email, phone number, barangay, municipality, and other contact details. Registered and active guest accounts use this information to associate water-test records with the correct account. A limited offline cache may remain on your device to support temporary offline use.
+          The AQUALITY service stores information you provide in your profile, including your name, email, phone number, barangay, municipality, and other contact details. Registered and active guest accounts use this information to associate water-test records with the correct account. A limited offline cache may remain on your device to support temporary offline use.
         </Text>
         <Text style={styles.paragraph}>
           Captured test-strip images, selected gallery photos, water-test history, and report metadata are stored with their water-test record to support review, export, and history browsing. The offline cache is only a fallback and is not the source of truth for your account or saved results.

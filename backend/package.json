@@ -18,8 +18,9 @@
     "express-rate-limit": "^8.6.1",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.2",
-    "multer": "^2.0.2",
-    "pg": "^8.16.3"
+    "multer": "^2.4.0",
+    "pg": "^8.16.3",
+    "sharp": "^0.35.4"
   },
   "devDependencies": {
     "supertest": "^7.1.1"

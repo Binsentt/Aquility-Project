@@ -61,7 +61,7 @@ const CameraView = React.memo(function CameraView({
     if (permission?.status === 'undetermined') {
       requestPermission().catch(() => {
         if (isMountedRef.current) {
-          Alert.alert('Camera unavailable', 'AQUILITY could not request camera access. Please try again.');
+          Alert.alert('Camera unavailable', 'AQUALITY could not request camera access. Please try again.');
         }
       });
     }
@@ -125,7 +125,7 @@ const CameraView = React.memo(function CameraView({
       if (!mediaPermission.granted) {
         Alert.alert(
           'Photo access required',
-          'Allow AQUILITY to access your photos so you can select a water-test strip image for this analysis.'
+          'Allow AQUALITY to access your photos so you can select a water-test strip image for this analysis.'
         );
         return;
       }
@@ -218,7 +218,7 @@ const CameraView = React.memo(function CameraView({
     }
 
     if (!currentUser?.id) {
-      Alert.alert('Profile required', 'Please create or restore your AQUILITY profile before analysing a water-test strip.');
+      Alert.alert('Profile required', 'Please create or restore your AQUALITY profile before analysing a water-test strip.');
       return;
     }
 
@@ -307,7 +307,7 @@ const CameraView = React.memo(function CameraView({
 
         await requestPermission();
       } catch {
-        Alert.alert('Camera permission unavailable', 'Please open your device settings and allow camera access for AQUILITY.');
+      Alert.alert('Camera permission unavailable', 'Please open your device settings and allow camera access for AQUALITY.');
       }
     };
 

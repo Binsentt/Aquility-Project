@@ -23,7 +23,7 @@ export default function NotificationsSettings() {
       </View>
       <View style={[styles.card, SHADOWS.strong]}>
         <Text style={styles.title}>Notifications</Text>
-        <Text style={styles.subtitle}>Recent alerts and activity from AQUILITY.</Text>
+        <Text style={styles.subtitle}>Recent alerts and activity from AQUALITY.</Text>
 
         <View style={styles.actionRow}>
           <TouchableOpacity style={styles.smallButton} onPress={markAllNotificationsRead} activeOpacity={0.8}>

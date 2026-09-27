@@ -18,12 +18,14 @@ const item = {
   capturedAt: '2026-08-04T00:00:00.000Z',
   estimatedPH: 6.8,
   phStatus: 'Normal',
-  estimatedNitrate: 3.5,
-  nitrateStatus: 'Safe',
-  estimatedCopper: 0.6,
-  copperStatus: 'Safe',
-  overallStatus: 'Safe',
-  remarks: 'Water quality appears acceptable based on the current estimated values.',
+  estimatedNitrite: 10,
+  nitriteStatus: 'Unvalidated',
+  analysisData: {
+    pH: { value: 6, unit: 'pH', measuredRGB: [200, 190, 40], measuredLab: [80, -10, 60], matchedReference: { label: '6' }, deltaE00: 2.1 },
+    nitrite: { value: 10, unit: 'ppm', measuredRGB: [255, 128, 64], hue: 30, calibrationInterval: { hue: [15, 30], ppm: [0, 10] }, interpolationMethod: 'piecewise-linear-clamped' },
+  },
+  overallStatus: 'Unvalidated',
+  remarks: 'Client calibration output requires experimental validation.',
   createdAt: '2026-08-04T00:01:00.000Z',
   user: { id: '8ed82724-1db6-452a-a872-f6e5c81d8b5a', fullName: 'Ana Cruz', email: 'ana@example.test' },
 };
@@ -43,7 +45,10 @@ test('GET /api/water-tests returns authenticated user records with the stable re
     .set('Authorization', 'Bearer valid-token');
 
   assert.equal(response.status, 200);
-  assert.equal(response.body.items[0].overallStatus, 'Safe');
+  assert.equal(response.body.items[0].overallStatus, 'Unvalidated');
+  assert.equal(response.body.items[0].nitrite.value, 10);
+  assert.equal(response.body.items[0].nitrite.unit, 'ppm');
+  assert.equal(response.body.items[0].resultData.Nitrite, '10.00 ppm');
   assert.deepEqual(response.body.items[0].gps, { latitude: 14.6, longitude: 120.98 });
   assert.equal(response.body.items[0].user.passwordHash, undefined);
 });

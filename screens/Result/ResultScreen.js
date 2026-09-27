@@ -57,7 +57,7 @@ export default function ResultScreen() {
         user: record.user || currentUser,
         generatedAt: createdAt,
       });
-      await shareExportFile(exported.uri, 'AQUILITY result exported as PDF.');
+      await shareExportFile(exported.uri, 'AQUALITY result exported as PDF.');
       Alert.alert('PDF export shared', 'The PDF report was generated and shared successfully.');
     } catch (error) {
       Alert.alert('PDF Export Failed', toSafeExportMessage(error, 'Unable to generate or share the PDF report. Please try again.'));
@@ -79,7 +79,7 @@ export default function ResultScreen() {
 
       setSaving(true);
       const exported = await createPngExport(backendImageUri);
-      await shareExportFile(exported.uri, 'AQUILITY scan image exported.');
+      await shareExportFile(exported.uri, 'AQUALITY scan image exported.');
       Alert.alert('PNG export shared', 'The image export was generated and shared successfully.');
     } catch (error) {
       Alert.alert('PNG Export Failed', toSafeExportMessage(error, 'Unable to generate or share the image export. Please try again.'));

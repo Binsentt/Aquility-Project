@@ -35,8 +35,8 @@ export function toSessionUser(user = {}, fallback = {}) {
 }
 
 export function toScanResult(waterTest = {}, apiBaseUrl) {
-  const pH = Number(waterTest.pH);
-  const nitrateValue = Number(waterTest.nitrate?.value);
+  const pH = waterTest.pH == null ? null : Number.isFinite(Number(waterTest.pH)) ? Number(waterTest.pH) : waterTest.pH;
+  const nitriteValue = Number(waterTest.nitrite?.value);
   const imageUri = resolveMediaUrl(waterTest.imageUri || waterTest.imagePath, apiBaseUrl);
 
   return {
@@ -44,12 +44,12 @@ export function toScanResult(waterTest = {}, apiBaseUrl) {
     title: waterTest.title || 'Water Test',
     status: waterTest.overallStatus || waterTest.status || 'Moderate',
     overallStatus: waterTest.overallStatus || waterTest.status || 'Moderate',
-    summary: waterTest.remarks || waterTest.summary || 'Water test result received from the AQUILITY backend.',
-    analysisStatus: 'Backend mock analysis',
-    interpretation: 'This result uses replaceable mock calibration data until the validated colour-analysis method is supplied.',
+    summary: waterTest.remarks || waterTest.summary || 'Water test result received from the AQUALITY backend.',
+    analysisStatus: waterTest.overallStatus === 'Unvalidated' ? 'Color analysis; scientific validation pending' : 'Color analysis',
+    interpretation: 'pH uses client-provided Lab references and CIEDE2000. Nitrite uses provisional client-provided hue calibration. Neither result is a certified laboratory measurement.',
     warnings: [],
     recommendations: [],
-    detectedParameters: ['pH', 'Nitrate'],
+    detectedParameters: ['pH', 'Nitrite'],
     createdAt: waterTest.analyzedAt || waterTest.createdAt || waterTest.capturedAt,
     generatedAt: waterTest.analyzedAt || waterTest.createdAt || waterTest.capturedAt,
     capturedAt: waterTest.capturedAt,
@@ -62,13 +62,14 @@ export function toScanResult(waterTest = {}, apiBaseUrl) {
     user: waterTest.user || null,
     userId: waterTest.userId || waterTest.user?.id || null,
     resultData: {
-      pH: Number.isFinite(pH) ? pH.toFixed(2) : 'Unavailable',
-      Nitrate: Number.isFinite(nitrateValue) ? `${nitrateValue.toFixed(2)} ${waterTest.nitrate?.unit || 'mg/L'}` : 'Unavailable',
+      pH: typeof pH === 'number' ? pH.toFixed(2) : pH || 'Unavailable',
+      Nitrite: Number.isFinite(nitriteValue) ? `${nitriteValue.toFixed(2)} ${waterTest.nitrite?.unit || 'ppm'}` : 'Unavailable',
       'Overall Status': waterTest.overallStatus || waterTest.status || 'Unavailable',
     },
     pH,
+    pHResult: waterTest.pHResult || null,
     phStatus: waterTest.phStatus || null,
-    nitrate: waterTest.nitrate || null,
+    nitrite: waterTest.nitrite || null,
     notes: waterTest.remarks || '',
     files: [],
     mode: 'backend',

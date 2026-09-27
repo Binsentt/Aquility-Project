@@ -51,7 +51,7 @@ export default function ApplicationSettings() {
         setCameraStatus(result.status);
       }
     } catch {
-      Alert.alert('Camera permission unavailable', 'AQUILITY could not request camera access. Please try again.');
+      Alert.alert('Camera permission unavailable', 'AQUALITY could not request camera access. Please try again.');
     }
   };
 

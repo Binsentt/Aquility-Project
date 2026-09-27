@@ -1,4 +1,4 @@
-# AQUILITY API
+# AQUALITY API
 
 Base URL: `EXPO_PUBLIC_API_BASE_URL`, normally `https://api.example.com/api` in production.
 
@@ -34,14 +34,14 @@ There is intentionally no list-users endpoint in the production API.
 
 | Method | Path | Authentication | Contract |
 | --- | --- | --- | --- |
-| POST | `/analyze-water` | Owner | Multipart field `image` plus `userId`, GPS, barangay, municipality, and ISO `capturedAt`. `userId` must equal the token subject. Stores the image and mock analysis; returns the existing result shape. |
+| POST | `/analyze-water` | Owner | Multipart field `image` plus `userId`, GPS, barangay, municipality, and ISO `capturedAt`. `userId` must equal the token subject. Stores the original image and pH + Nitrite analysis. |
 | GET | `/water-tests?userId=:id` | Owner | Returns `{ items }`. The optional `userId` remains accepted for compatibility but must equal the token subject. |
 | GET | `/water-tests/:id` | Owner | Returns a single existing result shape. |
 | PUT | `/water-tests/:id` | Owner | Updates captured location/time metadata only. Stored chemical analysis remains immutable. |
 | DELETE | `/water-tests/:id` | Owner | Permanently deletes one owned record and its associated upload file, then returns `204`. |
 | GET | `/water-tests/:id/image?token=:signedToken` | Signed record URL | Streams the captured image only while its owner remains active. A bearer token for the owner is also accepted. Signed URLs expire after `MEDIA_TOKEN_TTL`. |
 
-Water-test responses retain `id`, `imageUri`, `imagePath`, `pH`, `nitrate`, `overallStatus`, `gps`, `resultData`, and related fields used by existing screens. The API contract currently supports only the pH and nitrate analysis results, and the image fields contain a private signed API URL rather than a public upload path.
+Water-test responses retain `id`, `imageUri`, `imagePath`, `pH`, `pHResult`, `nitrite`, `overallStatus`, `gps`, `resultData`, and related fields used by existing screens. `pHResult` includes measured RGB/Lab, matched reference, and ΔE00; `nitrite` uses ppm and includes measured RGB, hue, interval, and interpolation metadata. New results use `Unvalidated` status because no analytical performance metrics have been established. Historical Nitrate values remain stored but are not exposed as Nitrite. The image fields contain a private signed API URL rather than a public upload path.
 
 ## Map feed
 
@@ -69,6 +69,6 @@ It never includes a user object, name, email, phone number, image URL, chemistry
 
 Guest rows are retained in PostgreSQL for scan-history association. They are archived, not deleted, at guest logout or when the scheduled cleanup finds `guest_expires_at`/`last_active_at` older than `GUEST_ARCHIVE_DAYS`. Archive fields are intentionally absent from public user responses. A guest may permanently delete the account before it is archived; after archival, its old bearer and signed-media tokens are denied.
 
-## Mock-analysis replacement boundary
+## Image analysis and calibration boundary
 
-`backend/services/colorAnalysisEngine.js` loads the mock JSON fixture files under `backend/database/`. Replace that engine and fixture/reference data when validated calibration formulas are supplied. Preserve the /analyze-water response fields for pH and nitrate so the Expo client remains unchanged.
+`backend/services/colorAnalysisEngine.js` decodes the stored image using Sharp and samples configurable normalized ROIs from `backend/database/colorAnalysisCalibration.json`; until strip pad positions are supplied, it uses a documented central 20% crop. pH uses sRGB-to-Lab D65 and CIEDE2000 against the supplied Lab references. Nitrite uses HSV hue in degrees (the client must confirm this is the convention used to generate the supplied points) and piecewise-linear interpolation over the provisional client points. The included µM table is metadata only pending unit/calibration confirmation. These software calculations do not establish accuracy, linearity, LOD, LOQ, precision, selectivity, or regression performance.

@@ -14,7 +14,7 @@ export default function HomeScreen() {
   const { currentUser, scanHistory } = useAuth();
   const displayName = currentUser?.firstName
     ? `${currentUser.firstName} ${currentUser.lastName}`
-    : currentUser?.fullName || 'AQUILITY User';
+    : currentUser?.fullName || 'AQUALITY User';
 
   const recentScans = scanHistory.slice(0, 3);
   const latestScan = scanHistory[0];
@@ -71,18 +71,22 @@ export default function HomeScreen() {
         </View>
 
         <View style={[styles.sectionCard, SHADOWS.card]}>
-          <Text style={styles.sectionTitle}>Next steps</Text>
+          <Text style={styles.sectionTitle}>AQUALITY workflow</Text>
           <View style={styles.reportRow}>
             <MaterialCommunityIcons name="camera-outline" size={16} color={COLORS.primary} />
-            <Text style={styles.reportText}>Capture a water-test strip image to create a new analysis.</Text>
+            <Text style={styles.reportText}>Scan Water Test: Use the smartphone camera to scan a colorimetric µPAD.</Text>
           </View>
           <View style={styles.reportRow}>
-            <MaterialCommunityIcons name="history" size={16} color={COLORS.primary} />
-            <Text style={styles.reportText}>Review your saved results and export them from History.</Text>
+            <MaterialCommunityIcons name="chart-box-outline" size={16} color={COLORS.primary} />
+            <Text style={styles.reportText}>View Results: See the estimated pH and nitrite levels and review their unvalidated color-analysis status.</Text>
           </View>
           <View style={styles.reportRow}>
-            <MaterialCommunityIcons name="shield-account-outline" size={16} color={COLORS.primary} />
-            <Text style={styles.reportText}>Keep your profile current so your guest or registered details stay consistent.</Text>
+            <MaterialCommunityIcons name="map-marker-radius" size={16} color={COLORS.primary} />
+            <Text style={styles.reportText}>Save Location: Associate every test with its GPS location for monitoring.</Text>
+          </View>
+          <View style={styles.reportRow}>
+            <MaterialCommunityIcons name="map-search" size={16} color={COLORS.primary} />
+            <Text style={styles.reportText}>Monitor Through GIS: Review tested water sources and their status on the map.</Text>
           </View>
         </View>
       </ScrollView>

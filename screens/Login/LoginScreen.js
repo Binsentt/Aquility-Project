@@ -26,7 +26,7 @@ export default function LoginScreen() {
           <View style={styles.brandRow}>
             <LogoMark showLabel={false} size={58} />
             <View style={styles.brandCopy}>
-              <Text style={styles.eyebrow}>AQUILITY</Text>
+              <Text style={styles.eyebrow}>AQUALITY</Text>
               <Text style={styles.heading}>Welcome back</Text>
             </View>
           </View>

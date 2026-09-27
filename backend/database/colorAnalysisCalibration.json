@@ -1,0 +1,60 @@
+{
+  "version": "client-provided-provisional-v1",
+  "source": "Client-provided color references and provisional calibration values.",
+  "roi": {
+    "strategy": "configurable-normalized-roi-with-center-crop-fallback",
+    "fallback": { "x": 0.4, "y": 0.4, "width": 0.2, "height": 0.2 },
+    "regions": { "pH": null, "nitrite": null },
+    "note": "No physical pad coordinates were supplied. Configure separate normalized regions after confirming the strip layout; until then, both analyses use the same central fallback crop."
+  },
+  "pH": {
+    "method": "RGB median -> CIE Lab D65 -> nearest reference by CIEDE2000",
+    "references": [
+      { "label": "0-4", "value": "0-4", "exactValue": null, "lab": [50.9, 66.5, 54.0] },
+      { "label": "5", "value": 5, "exactValue": 5, "lab": [65.4, 36.1, 68.7] },
+      { "label": "6", "value": 6, "exactValue": 6, "lab": [86.5, -12.3, 80.4] },
+      { "label": "7", "value": 7, "exactValue": 7, "lab": [58.3, -50.0, 37.6] },
+      { "label": "8", "value": 8, "exactValue": 8, "lab": [49.7, -23.8, -13.4] },
+      { "label": "9", "value": 9, "exactValue": 9, "lab": [36.6, 21.7, -57.6] },
+      { "label": "10-14", "value": "10-14", "exactValue": null, "lab": [33.4, 51.3, -44.4] }
+    ],
+    "rgbExamples": [
+      { "label": "6.0", "value": 6.0, "rgb": [230, 180, 50] },
+      { "label": "6.8", "value": 6.8, "rgb": [210, 200, 40] },
+      { "label": "7.2", "value": 7.2, "rgb": [120, 190, 80] },
+      { "label": "7.6", "value": 7.6, "rgb": [60, 150, 140] },
+      { "label": "8.2", "value": 8.2, "rgb": [80, 100, 180] }
+    ]
+  },
+  "nitrite": {
+    "target": "Nitrite (NO2-)",
+    "reaction": "Griess method, provisional client-described pink color response",
+    "method": "RGB median -> HSV hue -> piecewise linear interpolation",
+    "hueUnit": "degrees (0-360)",
+    "hueUnitRequiresConfirmation": true,
+    "hueUnitNote": "Client hue values are used as supplied; confirm they use the standard 0-360 degree HSV convention before quantitative deployment.",
+    "provisional": true,
+    "huePoints": [15, 30, 50, 90],
+    "ppmValues": [0, 10, 25, 100],
+    "outOfRange": "Clamp to the nearest supplied endpoint and report that the reading was clamped; do not extrapolate."
+  },
+  "nitriteMicromolarReference": {
+    "source": "Client-provided reference table; not used for quantitative output pending unit and calibration confirmation.",
+    "quantitativeUse": false,
+    "requiresConfirmation": true,
+    "rows": [
+      { "totalNitrateViaReduction_uM": "0", "nitriteEquivalent_uM": "0 (undetectable)", "labApprox": [92, -1, 4] },
+      { "totalNitrateViaReduction_uM": "10-60", "nitriteEquivalent_uM": "10-60", "labApprox": [85, 15, 3] },
+      { "totalNitrateViaReduction_uM": "50-100+", "nitriteEquivalent_uM": "50-100+", "labApprox": [55, 55, -5] }
+    ]
+  },
+  "validation": {
+    "accuracy": "not established",
+    "linearity": "not independently validated",
+    "lod": "not established",
+    "loq": "not established",
+    "precision": "not established",
+    "selectivity": "not established",
+    "linearRegression": "not established"
+  }
+}

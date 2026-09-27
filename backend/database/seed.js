@@ -3,11 +3,13 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const databaseDir = dirname(fileURLToPath(import.meta.url));
-const sampleFile = join(databaseDir, 'mockWaterSamples.json');
-const samples = JSON.parse(await readFile(sampleFile, 'utf8'));
+const calibrationFile = join(databaseDir, 'colorAnalysisCalibration.json');
+const calibration = JSON.parse(await readFile(calibrationFile, 'utf8'));
 
-if (!Array.isArray(samples.samples) || samples.samples.length === 0) {
-  throw new Error('mockWaterSamples.json must contain at least one sample.');
+if (!Array.isArray(calibration.pH?.references) || !Array.isArray(calibration.nitrite?.huePoints)
+  || !Array.isArray(calibration.nitrite?.ppmValues)
+  || calibration.nitrite.huePoints.length !== calibration.nitrite.ppmValues.length) {
+  throw new Error('colorAnalysisCalibration.json is missing compatible pH or Nitrite references.');
 }
 
-console.log(`Validated ${samples.samples.length} replaceable mock water samples.`);
+console.log(`Validated pH and Nitrite calibration metadata (${calibration.version}); no experimental performance is implied.`);

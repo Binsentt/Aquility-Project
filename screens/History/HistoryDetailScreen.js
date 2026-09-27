@@ -33,7 +33,7 @@ export default function HistoryDetailScreen({ route, navigation }) {
 
       if (type === 'pdf') {
         const exported = await createPdfExport({ ...record, user: record.user || currentUser, generatedAt: createdAt });
-        await shareExportFile(exported.uri, 'AQUILITY scan result exported as PDF.');
+        await shareExportFile(exported.uri, 'AQUALITY scan result exported as PDF.');
         Alert.alert('PDF export shared', 'The PDF report was generated and shared successfully.');
         return;
       }
@@ -41,7 +41,7 @@ export default function HistoryDetailScreen({ route, navigation }) {
       const backendImageUri = record.imageUri || record.image || record.uri || record.images?.[0];
       if (type === 'image' && backendImageUri) {
         const exported = await createPngExport(backendImageUri);
-        await shareExportFile(exported.uri, 'AQUILITY scan image exported.');
+        await shareExportFile(exported.uri, 'AQUALITY scan image exported.');
         Alert.alert('PNG export shared', 'The image export was generated and shared successfully.');
         return;
       }
@@ -147,7 +147,7 @@ export default function HistoryDetailScreen({ route, navigation }) {
             <MaterialCommunityIcons name="image" size={18} color={COLORS.white} />
             <Text style={styles.exportText}>Image</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.exportBtn, busy && styles.disabledBtn]} onPress={() => Share.share({ message: `${item.title || 'AQUILITY result'}\n\n${item.summary || 'No summary available.'}` })} disabled={busy}>
+          <TouchableOpacity style={[styles.exportBtn, busy && styles.disabledBtn]} onPress={() => Share.share({ message: `${item.title || 'AQUALITY result'}\n\n${item.summary || 'No summary available.'}` })} disabled={busy}>
             <MaterialCommunityIcons name="share" size={18} color={COLORS.white} />
             <Text style={styles.exportText}>Share</Text>
           </TouchableOpacity>

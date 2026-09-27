@@ -1,6 +1,7 @@
 import { apiBaseOrigin, resolveMediaUrl } from './apiMappers.js';
 
 const configuredBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:4000/api';
+const networkUnavailableMessage = 'Unable to connect to the AQUALITY server. Make sure your device and development computer are connected to the same network and the server is running.';
 let accessToken = null;
 let unauthorizedHandler = null;
 let unauthorizedNotification = null;
@@ -44,7 +45,7 @@ async function parseResponse(response) {
   if (response.status === 204) return null;
   const body = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new ApiError(response.status, body?.error?.message || 'The AQUILITY server could not complete this request.', body?.error?.code);
+    throw new ApiError(response.status, body?.error?.message || 'The AQUALITY server could not complete this request.', body?.error?.code);
   }
   return body;
 }
@@ -54,7 +55,12 @@ export async function request(path, options = {}) {
   const headers = options.body instanceof FormData
     ? { Accept: 'application/json', ...authorization, ...(options.headers || {}) }
     : { Accept: 'application/json', 'Content-Type': 'application/json', ...authorization, ...(options.headers || {}) };
-  const response = await fetch(`${getApiBaseUrl()}${path}`, { ...options, headers });
+  let response;
+  try {
+    response = await fetch(`${getApiBaseUrl()}${path}`, { ...options, headers });
+  } catch {
+    throw new ApiError(0, networkUnavailableMessage, 'NETWORK_UNAVAILABLE');
+  }
   try {
     return await parseResponse(response);
   } catch (error) {

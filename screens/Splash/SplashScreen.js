@@ -24,7 +24,7 @@ export default function SplashScreen() {
   return (
     <LinearGradient colors={['#F7FDFF', '#DFF4FB', '#C7ECFC']} style={styles.container}>
       <LogoMark showLabel={false} size={126} />
-      <Text style={styles.title}>AQUILITY</Text>
+      <Text style={styles.title}>AQUALITY</Text>
       <Text style={styles.tagline}>Water-quality testing for field teams and communities</Text>
       <View style={styles.loaderWrap}>
         <LoadingIndicator size={42} />

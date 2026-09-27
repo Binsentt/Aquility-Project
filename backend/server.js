@@ -57,7 +57,7 @@ async function shutdown(signal) {
   }
   server.close(async () => {
     await pool.end().catch(() => undefined);
-    console.log(`AQUILITY API stopped after ${signal}.`);
+    console.log(`AQUALITY API stopped after ${signal}.`);
   });
 }
 
@@ -65,8 +65,8 @@ async function start() {
   try {
     await healthCheck();
     await archiveExpiredGuests();
-    server = app.listen(env.port, () => {
-      console.log(`AQUILITY API listening on port ${env.port}`);
+    server = app.listen(env.port, env.bindHost, () => {
+      console.log(`AQUALITY API listening on ${env.bindHost}:${env.port}`);
     });
     guestArchiveTimer = setInterval(archiveExpiredGuests, env.guestArchiveIntervalMs);
     guestArchiveTimer.unref?.();

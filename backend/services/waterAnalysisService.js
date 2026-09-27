@@ -50,7 +50,7 @@ export function createWaterAnalysisService({ colorAnalysisEngine, waterTestModel
         const barangay = validateOptionalText(metadata?.barangay, 'Barangay', 120);
         const municipality = validateOptionalText(metadata?.municipality, 'Municipality', 120);
         storedFile = await validateStoredImage(file);
-        const measurements = await colorAnalysisEngine.analyze({ imagePath: `/uploads/${storedFile.filename}` });
+        const measurements = await colorAnalysisEngine.analyze({ imagePath: storedFile.path });
         const created = await waterTestModel.create({
           userId: authenticatedUserId,
           imagePath: `/uploads/${storedFile.filename}`,
@@ -59,10 +59,11 @@ export function createWaterAnalysisService({ colorAnalysisEngine, waterTestModel
           barangay,
           municipality,
           capturedAt,
-          estimatedPH: measurements.pH,
+          estimatedPH: typeof measurements.pH.value === 'number' ? measurements.pH.value : null,
           phStatus: measurements.phStatus,
-          estimatedNitrate: measurements.nitrate,
-          nitrateStatus: measurements.nitrateStatus,
+          estimatedNitrite: measurements.nitrite.value,
+          nitriteStatus: measurements.nitriteStatus,
+          analysisData: { pH: measurements.pH, nitrite: measurements.nitrite },
           overallStatus: measurements.overallStatus,
           remarks: measurements.remarks,
         });

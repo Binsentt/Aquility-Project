@@ -9,7 +9,7 @@ import { resetToWelcome } from '../navigation/navigationRef';
 const AuthContext = createContext(null);
 
 function normalizeScanResult(result = {}) {
-  if (result?.analysisId || result?.pH !== undefined || result?.nitrate?.value !== undefined) {
+  if (result?.analysisId || result?.pH !== undefined || result?.nitrite?.value !== undefined) {
     return toScanResult(result, getApiBaseUrl());
   }
 
@@ -38,8 +38,8 @@ export function AuthProvider({ children }) {
   const [notifications, setNotifications] = useState([
     {
       id: 1,
-      title: 'AQUILITY ready',
-      detail: 'Profile and water-test data are synchronised through the AQUILITY service.',
+      title: 'AQUALITY ready',
+      detail: 'Profile and water-test data are synchronised through the AQUALITY service.',
       createdAt: new Date().toISOString(),
       unread: false,
     },
@@ -139,24 +139,24 @@ export function AuthProvider({ children }) {
       password: payload.password,
       accountType: 'registered',
     });
-    if (!response.token) throw new Error('The AQUILITY server did not return a session token.');
+    if (!response.token) throw new Error('The AQUALITY server did not return a session token.');
     setAccessToken(response.token);
     await saveAccessToken(response.token);
     const user = setSession(response.user, []);
-    addNotification('Registration successful', 'Your AQUILITY profile has been created.');
+    addNotification('Registration successful', 'Your AQUALITY profile has been created.');
     return user;
   }, [addNotification, setSession]);
 
   const loginUser = useCallback(async (email, password) => {
     const response = await api.login({ email, password });
-    if (!response.token) throw new Error('The AQUILITY server did not return a session token.');
+    if (!response.token) throw new Error('The AQUALITY server did not return a session token.');
     setAccessToken(response.token);
     await saveAccessToken(response.token);
     const user = setSession(response.user, []);
     try {
       await refreshHistory(user.id);
     } catch {}
-    addNotification('Login successful', 'Your AQUILITY session has been restored.');
+    addNotification('Login successful', 'Your AQUALITY session has been restored.');
     return user;
   }, [addNotification, refreshHistory, setSession]);
 
@@ -165,7 +165,7 @@ export function AuthProvider({ children }) {
       ...toApiProfile(payload),
       accountType: 'guest',
     });
-    if (!response.token) throw new Error('The AQUILITY server did not return a session token.');
+    if (!response.token) throw new Error('The AQUALITY server did not return a session token.');
     setAccessToken(response.token);
     await saveAccessToken(response.token);
     const user = setSession(response.user, []);
@@ -175,7 +175,7 @@ export function AuthProvider({ children }) {
 
   const updateUserProfile = useCallback(async (updates) => {
     if (!currentUser?.id) {
-      throw new Error('No AQUILITY profile is currently active.');
+      throw new Error('No AQUALITY profile is currently active.');
     }
     const response = await api.updateUser(currentUser.id, toApiProfile({ ...currentUser, ...updates }));
     const user = toSessionUser(response.user, currentUser);
@@ -208,7 +208,7 @@ export function AuthProvider({ children }) {
 
   const deleteAccount = useCallback(async (password) => {
     if (!currentUser?.id) {
-      throw new Error('No AQUILITY profile is currently active.');
+      throw new Error('No AQUALITY profile is currently active.');
     }
     await api.deleteAccount(currentUser.isGuest ? null : password);
     await clearSession();
@@ -221,7 +221,7 @@ export function AuthProvider({ children }) {
       if (currentUser?.isGuest) await api.logout();
     } catch {}
     await clearSession();
-    addNotification('Session closed', 'You have logged out from AQUILITY.');
+    addNotification('Session closed', 'You have logged out from AQUALITY.');
     resetToWelcome();
   }, [addNotification, clearSession, currentUser?.isGuest]);
 
