@@ -30,7 +30,7 @@ test('buildPdfHtml includes public user data, strip image, chemistry, GPS, statu
       sourceType: 'Coastal / Pawikan',
       resultData: {
         pH: '6.80',
-        Nitrite: '10.00 ppm',
+        Nitrite: '0.50 ppm',
       },
       overallStatus: 'NOT CLASSIFIED',
       measuredParametersStatus: 'Not classified',
@@ -39,7 +39,7 @@ test('buildPdfHtml includes public user data, strip image, chemistry, GPS, statu
     },
   });
 
-  for (const expected of ['Ana Cruz', 'ana@example.test', '09171234567', 'San Isidro', '6.80', '10.00 ppm', 'Nitrite:', '14.6000', 'AA', 'Pawikan', 'Coastal / Pawikan', 'Not classified', 'Pending laboratory validation', 'acceptable']) {
+  for (const expected of ['Ana Cruz', 'ana@example.test', '09171234567', 'San Isidro', '6.80', '0.50 ppm', 'Nitrite:', '14.6000', 'AA', 'Pawikan', 'Coastal / Pawikan', 'Not classified', 'Pending laboratory validation', 'acceptable']) {
     assert.match(html, new RegExp(expected));
   }
   assert.match(html, /Measured Parameters Status/);
@@ -48,4 +48,19 @@ test('buildPdfHtml includes public user data, strip image, chemistry, GPS, statu
   assert.match(html, /water-tests\/3ec25331-d511-491f-a1b6-11670bc4a2d6\/image\?token=short-lived-token/);
   assert.match(html, /google\.com\/maps/);
   assert.doesNotMatch(html, /Copper|Cu²⁺|Cu2\+/i);
+});
+
+test('buildPdfHtml renders unavailable scientific values without null or NaN text', () => {
+  const html = buildPdfHtml({
+    test: {
+      id: 'unavailable-analysis',
+      resultData: { pH: 'Unavailable', Nitrite: 'Unavailable' },
+      overallStatus: 'NOT CLASSIFIED',
+      remarks: 'Scientific comparison is pending.',
+    },
+  });
+
+  assert.match(html, /pH:<\/strong> Unavailable/);
+  assert.match(html, /Nitrite:<\/strong> Unavailable/);
+  assert.doesNotMatch(html, /NaN|null ppm|undefined/);
 });

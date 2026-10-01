@@ -10,7 +10,7 @@ import { serializeWaterTest } from '../utils/waterTestSerializer.js';
 
 const sampleMeasurements = {
   pH: { value: 6, unit: 'pH', measuredRGB: [200, 190, 40], measuredLab: [80, -10, 60], matchedReference: { label: '6' }, deltaE00: 2.1 },
-  nitrite: { value: 10, unit: 'ppm', measuredRGB: [255, 128, 64], hue: 30, calibrationInterval: { hue: [15, 30], ppm: [0, 10] }, interpolationMethod: 'piecewise-linear-clamped' },
+  nitrite: { value: 0.5, unit: 'ppm', measuredRGB: [190, 172, 187.5], matchState: 'EXACT_OR_IN_RANGE', matchingMethod: 'direct-client-rgb-range' },
   phStatus: 'Unvalidated',
   nitriteStatus: 'Unvalidated',
   overallStatus: 'Unvalidated',
@@ -43,7 +43,7 @@ test('analysis service stores upload metadata and returns a stable result shape'
 
   assert.equal(result.analysisId, '3ec25331-d511-491f-a1b6-11670bc4a2d6');
   assert.equal(result.pH, 6);
-  assert.equal(result.nitrite.value, 10);
+  assert.equal(result.nitrite.value, 0.5);
   assert.equal(result.nitrite.unit, 'ppm');
   assert.equal(result.overallStatus, 'NOT CLASSIFIED');
   assert.deepEqual(result.gps, { latitude: 14.6, longitude: 120.98 });
@@ -169,13 +169,13 @@ test('analysis service rejects inconsistent selected sample class and code', asy
   );
 });
 
-test('water-test serialization retains pH color metadata and Nitrite interpolation output', () => {
+test('water-test serialization retains pH color metadata and direct Nitrite RGB output', () => {
   const result = serializeWaterTest({
     id: '3ec25331-d511-491f-a1b6-11670bc4a2d6',
     imagePath: '/uploads/strip.jpg',
     estimatedPH: 6,
     phStatus: 'Unvalidated',
-    estimatedNitrite: 10,
+    estimatedNitrite: 0.5,
     nitriteStatus: 'Unvalidated',
     analysisData: { pH: sampleMeasurements.pH, nitrite: sampleMeasurements.nitrite },
     overallStatus: 'Unvalidated',
@@ -185,10 +185,11 @@ test('water-test serialization retains pH color metadata and Nitrite interpolati
   assert.equal(result.pH, 6);
   assert.equal(result.pHResult.deltaE00, 2.1);
   assert.deepEqual(result.pHResult.measuredLab, [80, -10, 60]);
-  assert.equal(result.nitrite.value, 10);
+  assert.equal(result.nitrite.value, 0.5);
   assert.equal(result.nitrite.unit, 'ppm');
-  assert.deepEqual(result.nitrite.calibrationInterval.hue, [15, 30]);
-  assert.equal(result.resultData.Nitrite, '10.00 ppm');
+  assert.equal(result.nitrite.matchState, 'EXACT_OR_IN_RANGE');
+  assert.equal(result.nitrite.matchingMethod, 'direct-client-rgb-range');
+  assert.equal(result.resultData.Nitrite, '0.50 ppm');
   assert.equal(result.nitrate, undefined);
   assert.deepEqual(result.labComparison, {
     pH: { labValue: null, absoluteDifference: null, percentDifference: null },

@@ -3,13 +3,43 @@
   "source": "Client-provided color references and provisional calibration values.",
   "thresholds": null,
   "roi": {
-    "strategy": "configurable-normalized-roi-with-center-crop-fallback",
+    "strategy": "client-schematic-fiducial-registration",
     "fallback": { "x": 0.4, "y": 0.4, "width": 0.2, "height": 0.2 },
     "regions": { "pH": null, "nitrite": null },
-    "note": "No physical pad coordinates were supplied. Configure separate normalized regions after confirming the strip layout; until then, both analyses use the same central fallback crop."
+    "fallbackUsage": "development-tests-only",
+    "productionAllowed": true,
+    "registration": {
+      "enabled": true,
+      "source": "client-schematic-image",
+      "lengthMm": 50,
+      "bodyHeightMm": 10,
+      "sensingCircleDiameterMm": 5,
+      "sensingCircleDimensionMeaning": "diameter of the sensing circle shown by the 5 mm extension lines",
+      "squareSideMm": 2.5,
+      "triangleSideMm": 2.5,
+      "outerReferenceSpacingMm": 2.625,
+      "circleSpacingMm": 5,
+      "spacingInterpretation": "ambiguous-edge-versus-center; use normalized schematic relationships until client confirms dimension-line convention",
+      "physicalMeasurementProvenance": "CLIENT_PHYSICAL_MEASUREMENT",
+      "schematicCoordinateProvenance": "CLIENT_SCHEMATIC_DERIVED",
+      "orientation": "square-side -> Nitrite circle -> pH circle -> triangle -> handle",
+      "referencePoint1": "square",
+      "referencePoint2": "triangle",
+      "normalizedTemplate": {
+        "square": { "x": 0.079, "y": 0.5, "width": 0.04, "height": 0.2 },
+        "nitrite": { "x": 0.201, "y": 0.5, "radius": 0.05 },
+        "pH": { "x": 0.401, "y": 0.5, "radius": 0.05 },
+        "triangle": { "x": 0.522, "y": 0.5, "width": 0.04, "height": 0.2 }
+      }
+    },
+    "note": "Production analysis registers the square and triangle reference marks and locates separate Nitrite (left) and pH (right) circles using the client schematic. Template-relative coordinates are not independent millimetre measurements. The legacy fallback is ignored in production and retained only for isolated developer fixtures."
   },
   "pH": {
     "method": "RGB median -> CIE Lab D65 -> nearest reference by CIEDE2000",
+    "maxDeltaE00": null,
+    "clientRgbTolerance": 8,
+    "clientRgbAmbiguityMargin": 0.2,
+    "reliabilityNote": "No client-approved pH acceptance threshold is available. Production analysis must remain unreliable until a provisional threshold is explicitly configured and validated against paired standards.",
     "references": [
       { "label": "0-4", "value": "0-4", "exactValue": null, "lab": [50.9, 66.5, 54.0] },
       { "label": "5", "value": 5, "exactValue": 5, "lab": [65.4, 36.1, 68.7] },
@@ -25,22 +55,63 @@
       { "label": "7.2", "value": 7.2, "rgb": [120, 190, 80] },
       { "label": "7.6", "value": 7.6, "rgb": [60, 150, 140] },
       { "label": "8.2", "value": 8.2, "rgb": [80, 100, 180] }
+    ],
+    "clientRgbRanges": [
+      { "label": "1", "value": 1, "rgbRange": { "r": [167, 169], "g": [132, 134], "b": [122, 123] }, "sourceRgbRange": { "r": [167, 169], "g": [132, 134], "b": [122, 123] }, "provenance": "CLIENT_PROVIDED_PROVISIONAL_CALIBRATION", "usage": "active provisional RGB interval; not analytically validated" },
+      { "label": "2", "value": 2, "rgbRange": { "r": [171, 175], "g": [134, 142], "b": [130, 137] }, "sourceRgbRange": { "r": [171, 175], "g": [134, 142], "b": [130, 137] }, "provenance": "CLIENT_PROVIDED_PROVISIONAL_CALIBRATION", "usage": "active provisional RGB interval; not analytically validated" },
+      { "label": "3", "value": 3, "rgbRange": { "r": [169, 169], "g": [130, 131], "b": [113, 116] }, "sourceRgbRange": { "r": [169, 169], "g": [130, 131], "b": [116, 113] }, "normalizedSourceOrder": "min=113,max=116", "sourceNote": "PH3_BLUE_SOURCE_ORDER_REVERSED: client supplied B range was written as 116-113; normalized only for interval testing.", "provenance": "CLIENT_PROVIDED_PROVISIONAL_CALIBRATION", "usage": "active provisional RGB interval; not analytically validated" },
+      { "label": "4", "value": 4, "rgbRange": { "r": [166, 167], "g": [124, 127], "b": [123, 127] }, "sourceRgbRange": { "r": [166, 167], "g": [124, 127], "b": [123, 127] }, "provenance": "CLIENT_PROVIDED_PROVISIONAL_CALIBRATION", "usage": "active provisional RGB interval; not analytically validated" }
     ]
   },
   "nitrite": {
     "target": "Nitrite (NO2-)",
-    "reaction": "Griess method, provisional client-described pink color response",
-    "method": "RGB median -> HSV hue -> piecewise linear interpolation",
-    "hueUnit": "degrees (0-360)",
-    "hueUnitRequiresConfirmation": true,
-    "hueUnitNote": "Client hue values are used as supplied; confirm they use the standard 0-360 degree HSV convention before quantitative deployment.",
+    "analyte": "Nitrite (NO2-)",
+    "unit": "ppm",
+    "source": "CLIENT_DIRECT_NITRITE_RGB",
+    "reaction": "Griess method, client-provided direct Nitrite reference colors",
+    "method": "Registered left Nitrite ROI median RGB -> discrete inclusive RGB-range matching",
     "provisional": true,
-    "huePoints": [15, 30, 50, 90],
-    "ppmValues": [0, 10, 25, 100],
-    "outOfRange": "Clamp to the nearest supplied endpoint and report that the reading was clamped; do not extrapolate."
+    "matching": {
+      "nearChannelTolerance": 8,
+      "nearDistance": 18,
+      "ambiguityDistance": 2,
+      "distanceMetric": "RGB Euclidean distance to interval midpoint; exact/in-range evaluated first"
+    },
+    "references": [
+      {
+        "label": "0",
+        "value": 0,
+        "sourceRgbRange": { "r": [184, 182], "g": [173, 171], "b": [181, 179] },
+        "rgbRange": { "r": [182, 184], "g": [171, 173], "b": [179, 181] },
+        "provenance": "CLIENT_DIRECT_NITRITE_RGB"
+      },
+      {
+        "label": "0.5",
+        "value": 0.5,
+        "sourceRgbRange": { "r": [190, 190], "g": [172, 172], "b": [187, 188] },
+        "rgbRange": { "r": [190, 190], "g": [172, 172], "b": [187, 188] },
+        "provenance": "CLIENT_DIRECT_NITRITE_RGB"
+      },
+      {
+        "label": "1",
+        "value": 1,
+        "sourceRgbRange": { "r": [193, 212], "g": [172, 194], "b": [173, 192] },
+        "rgbRange": { "r": [193, 212], "g": [172, 194], "b": [173, 192] },
+        "provenance": "CLIENT_DIRECT_NITRITE_RGB"
+      }
+    ],
+    "outOfRange": "Return null with NITRITE_OUTSIDE_CALIBRATION_RANGE or NITRITE_MEASUREMENT_UNRELIABLE; never interpolate or clamp.",
+    "researchMetadata": {
+      "feature": "HSV saturation",
+      "source": "cited secondary paper",
+      "productionUse": false,
+      "note": "HSV H/S/V remain diagnostics only until client-specific calibration validates a production model."
+    }
   },
-  "nitriteMicromolarReference": {
-    "source": "Client-provided reference table; not used for quantitative output pending unit and calibration confirmation.",
+  "legacyNitrateNitriteEquivalentReference": {
+    "active": false,
+    "storageUse": "LEGACY_STORAGE_ONLY",
+    "source": "Historical client-provided reference table; not used for current Nitrite output.",
     "quantitativeUse": false,
     "requiresConfirmation": true,
     "rows": [

@@ -19,11 +19,11 @@ const item = {
   capturedAt: '2026-08-04T00:00:00.000Z',
   estimatedPH: 6.8,
   phStatus: 'Normal',
-  estimatedNitrite: 10,
+  estimatedNitrite: 0.5,
   nitriteStatus: 'Unvalidated',
   analysisData: {
     pH: { value: 6, unit: 'pH', measuredRGB: [200, 190, 40], measuredLab: [80, -10, 60], matchedReference: { label: '6' }, deltaE00: 2.1 },
-    nitrite: { value: 10, unit: 'ppm', measuredRGB: [255, 128, 64], hue: 30, calibrationInterval: { hue: [15, 30], ppm: [0, 10] }, interpolationMethod: 'piecewise-linear-clamped' },
+    nitrite: { value: 0.5, unit: 'ppm', measuredRGB: [190, 172, 187.5], matchState: 'EXACT_OR_IN_RANGE', matchingMethod: 'direct-client-rgb-range' },
   },
   overallStatus: 'Unvalidated',
   remarks: 'Client calibration output requires experimental validation.',
@@ -47,9 +47,9 @@ test('GET /api/water-tests returns authenticated user records with the stable re
 
   assert.equal(response.status, 200);
   assert.equal(response.body.items[0].overallStatus, 'NOT CLASSIFIED');
-  assert.equal(response.body.items[0].nitrite.value, 10);
+  assert.equal(response.body.items[0].nitrite.value, 0.5);
   assert.equal(response.body.items[0].nitrite.unit, 'ppm');
-  assert.equal(response.body.items[0].resultData.Nitrite, '10.00 ppm');
+  assert.equal(response.body.items[0].resultData.Nitrite, '0.50 ppm');
   assert.deepEqual(response.body.items[0].gps, { latitude: 14.6, longitude: 120.98 });
   assert.equal(response.body.items[0].user.passwordHash, undefined);
   assert.equal(response.body.items[0].imageUri, '/api/water-tests/3ec25331-d511-491f-a1b6-11670bc4a2d6/image?token=signed-3ec25331-d511-491f-a1b6-11670bc4a2d6');

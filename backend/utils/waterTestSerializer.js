@@ -54,7 +54,7 @@ export function serializeWaterTest(record, authTokenService = null) {
     scanStatus: 'Completed',
     measuredParametersStatus: record.measuredParametersStatus || 'Not classified',
     scientificValidationStatus: record.scientificValidationStatus || 'Pending laboratory validation',
-    roiLocalizationStatus: record.analysisData?.roiLocalizationStatus || 'PAD LOCALIZATION REQUIRED',
+    roiLocalizationStatus: record.analysisData?.roiLocalizationStatus || 'STRIP REGISTRATION REQUIRED',
     gps: location,
     location,
     actualLatitude: location?.latitude ?? null,

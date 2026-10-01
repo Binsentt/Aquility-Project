@@ -44,7 +44,7 @@ export function toSessionUser(user = {}, fallback = {}) {
 
 export function toScanResult(waterTest = {}, apiBaseUrl) {
   const pH = waterTest.pH == null ? null : Number.isFinite(Number(waterTest.pH)) ? Number(waterTest.pH) : waterTest.pH;
-  const nitriteValue = Number(waterTest.nitrite?.value);
+  const nitriteValue = waterTest.nitrite?.value == null ? null : Number(waterTest.nitrite.value);
   const imageUri = resolveMediaUrl(waterTest.imageUri || waterTest.imagePath, apiBaseUrl);
   const measuredParametersStatus = waterTest.measuredParametersStatus || 'Not classified';
   const scientificValidationStatus = waterTest.scientificValidationStatus || waterTest.scientificStatus || 'Pending laboratory validation';
@@ -72,8 +72,8 @@ export function toScanResult(waterTest = {}, apiBaseUrl) {
     scientificValidationStatus,
     scientificValidationDisplayStatus: displayScientificValidationStatus(scientificValidationStatus),
     laboratoryComparisonStatus,
-    roiLocalizationStatus: waterTest.roiLocalizationStatus || 'PAD LOCALIZATION REQUIRED',
-    interpretation: 'pH uses client-provided Lab references and CIEDE2000. Nitrite uses provisional client-provided hue calibration. Neither result is a certified laboratory measurement.',
+    roiLocalizationStatus: waterTest.roiLocalizationStatus || 'STRIP REGISTRATION REQUIRED',
+    interpretation: 'pH uses provisional client-provided Lab references and CIEDE2000. Nitrite uses three discrete provisional client-provided RGB reference classes (0, 0.5, and 1 ppm); HSV H/S/V are diagnostics only. Neither result is a certified laboratory measurement.',
     warnings: [],
     recommendations: [],
     detectedParameters: ['pH', 'Nitrite'],
@@ -130,4 +130,52 @@ export function markerColorFor(status) {
     default:
       return '#718096';
   }
+}
+
+export function normalizeMapCoordinate(latitude, longitude) {
+  if (latitude == null || longitude == null || String(latitude).trim() === '' || String(longitude).trim() === '') return null;
+  const normalizedLatitude = Number(latitude);
+  const normalizedLongitude = Number(longitude);
+  if (!Number.isFinite(normalizedLatitude) || normalizedLatitude < -90 || normalizedLatitude > 90) return null;
+  if (!Number.isFinite(normalizedLongitude) || normalizedLongitude < -180 || normalizedLongitude > 180) return null;
+  return { latitude: normalizedLatitude, longitude: normalizedLongitude };
+}
+
+export function toMapMarker(payload = {}) {
+  if (!payload || typeof payload !== 'object') return null;
+  if (!['string', 'number'].includes(typeof payload.id)) return null;
+  const id = String(payload.id).trim();
+  const coordinate = normalizeMapCoordinate(payload.latitude, payload.longitude);
+  if (!id || !coordinate) return null;
+
+  const rawDate = payload.capturedAt || payload.createdAt || null;
+  const timestamp = rawDate == null ? null : Date.parse(rawDate);
+  const createdAt = Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : null;
+  const overallStatus = payload.overallStatus || payload.status || 'NOT CLASSIFIED';
+  const sampleClass = payload.sampleClass || null;
+  const siteName = payload.siteName || 'Unknown sampling site';
+
+  return {
+    id,
+    coordinate,
+    title: sampleClass && siteName ? `Class ${sampleClass} — ${siteName}` : (siteName || 'Water Test'),
+    description: overallStatus,
+    barangay: payload.barangay || 'Unavailable',
+    municipality: payload.municipality || 'Unavailable',
+    overallStatus,
+    pinColor: markerColorFor(overallStatus),
+    createdAt,
+    sampleClass,
+    siteName,
+    sourceType: payload.sourceType || null,
+  };
+}
+
+export function filterValidMapMarkers(items) {
+  if (!Array.isArray(items)) return [];
+  return items.map(toMapMarker).filter(Boolean);
+}
+
+export function safeMapFeed(response) {
+  return filterValidMapMarkers(response?.items);
 }

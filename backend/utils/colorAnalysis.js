@@ -94,6 +94,26 @@ export function rgbToHsv([red, green, blue]) {
   return { hue: (hue + 360) % 360, saturation: maximum === 0 ? 0 : chroma / maximum, value: maximum };
 }
 
+export function assessColorQuality(rgb, {
+  minimumSaturation = 0.08,
+  minimumValue = 0.05,
+  maximumLowSaturationValue = 0.995,
+} = {}) {
+  const hsv = rgbToHsv(rgb);
+  const reasons = [];
+  if (hsv.saturation < minimumSaturation) reasons.push('LOW_SATURATION');
+  if (hsv.value < minimumValue) reasons.push('UNDEREXPOSED');
+  if (hsv.value >= maximumLowSaturationValue && hsv.saturation < 0.15) reasons.push('OVEREXPOSED');
+  return {
+    reliable: reasons.length === 0,
+    status: reasons.length === 0 ? 'IMAGE_QUALITY_ACCEPTABLE' : 'IMAGE_QUALITY_INSUFFICIENT',
+    reasons,
+    hue: hsv.hue,
+    saturation: hsv.saturation,
+    value: hsv.value,
+  };
+}
+
 export function deltaE00(firstLab, secondLab) {
   const [lightness1, a1, b1] = firstLab;
   const [lightness2, a2, b2] = secondLab;
@@ -149,50 +169,147 @@ export function deltaE00(firstLab, secondLab) {
   return Math.sqrt(lightnessTerm ** 2 + chromaTerm ** 2 + hueTerm ** 2 + rT * chromaTerm * hueTerm);
 }
 
-export function matchPHReference(measuredLab, references) {
+function normalizedRange(value) {
+  if (!Array.isArray(value) || value.length !== 2) return null;
+  const [first, second] = value;
+  if (!Number.isFinite(first) || !Number.isFinite(second)) return null;
+  return [Math.min(first, second), Math.max(first, second)];
+}
+
+/**
+ * Match a robust pH ROI RGB statistic against client-provided provisional
+ * ranges. This is intentionally separate from the CIELAB reference matcher:
+ * pH 1–4 are supplied as RGB intervals, while pH 0 has no individual client
+ * reference and must never be invented.
+ */
+export function matchPHClientRgbRange(measuredRGB, clientRgbRanges, {
+  tolerance = 8,
+  ambiguityMargin = 0.2,
+} = {}) {
+  if (!Array.isArray(measuredRGB) || measuredRGB.length !== 3
+    || measuredRGB.some((channel) => !Number.isFinite(channel))) return null;
+  if (!Array.isArray(clientRgbRanges) || !Number.isFinite(tolerance) || tolerance <= 0) return null;
+
+  const candidates = clientRgbRanges.map((reference) => {
+    const ranges = ['r', 'g', 'b'].map((channel) => normalizedRange(reference?.rgbRange?.[channel]));
+    if (ranges.some((range) => !range)) return null;
+    const distances = measuredRGB.map((value, index) => {
+      const [minimum, maximum] = ranges[index];
+      return value < minimum ? minimum - value : value > maximum ? value - maximum : 0;
+    });
+    return {
+      reference,
+      ranges,
+      distances,
+      maxDistance: Math.max(...distances),
+      score: distances.reduce((sum, distance) => sum + distance / tolerance, 0),
+    };
+  }).filter(Boolean).sort((left, right) => left.score - right.score);
+
+  const best = candidates[0] || null;
+  if (!best || best.maxDistance > tolerance) return null;
+  const second = candidates[1];
+  if (second && Math.abs(second.score - best.score) < ambiguityMargin) return null;
+
+  return {
+    ...best,
+    status: best.maxDistance === 0 ? 'EXACT_IN_RANGE' : 'NEAR_RANGE',
+    provisional: true,
+    confidence: Math.max(0, 1 - (best.score / 3)),
+    normalizedRanges: best.ranges,
+  };
+}
+
+export function matchPHReference(measuredLab, references, { maxDeltaE00 = null } = {}) {
   const matches = references.map((reference) => ({
     reference,
     deltaE00: deltaE00(measuredLab, reference.lab),
   })).sort((left, right) => left.deltaE00 - right.deltaE00);
-  return matches[0] || null;
+  const best = matches[0] || null;
+  if (!best) return null;
+  if (Number.isFinite(maxDeltaE00) && best.deltaE00 > maxDeltaE00) return null;
+  return {
+    ...best,
+    reliabilityStatus: Number.isFinite(maxDeltaE00)
+      ? 'RELIABLE_WITHIN_PROVISIONAL_THRESHOLD'
+      : 'THRESHOLD_NOT_CONFIGURED',
+    candidates: matches,
+  };
 }
 
-export function interpolateNitriteHue(hue, huePoints, ppmValues) {
-  if (huePoints.length < 2 || huePoints.length !== ppmValues.length) {
-    throw new TypeError('Nitrite calibration requires matching hue and concentration points.');
-  }
-  for (let index = 1; index < huePoints.length; index += 1) {
-    if (huePoints[index] <= huePoints[index - 1]) throw new RangeError('Hue calibration points must increase.');
-  }
-  if (hue < huePoints[0]) {
+function rangeDistance(value, range) {
+  if (value < range[0]) return range[0] - value;
+  if (value > range[1]) return value - range[1];
+  return 0;
+}
+
+/**
+ * Match a registered Nitrite ROI against the three client-provided direct
+ * RGB classes. This is deliberately a discrete classifier: there is no
+ * interpolation, extrapolation, or endpoint clamping without validated
+ * calibration data.
+ */
+export function matchNitriteClientRgbRange(measuredRGB, references, {
+  nearChannelTolerance = 8,
+  nearDistance = 18,
+  ambiguityDistance = 2,
+} = {}) {
+  const invalid = !Array.isArray(measuredRGB) || measuredRGB.length !== 3
+    || measuredRGB.some((channel) => !Number.isFinite(channel))
+    || !Array.isArray(references);
+  if (invalid) return { matchState: 'OUTSIDE_REFERENCE_SPACE', value: null, candidates: [] };
+
+  const candidates = references.map((reference) => {
+    const ranges = ['r', 'g', 'b'].map((channel) => normalizedRange(reference?.rgbRange?.[channel]));
+    if (ranges.some((range) => !range)) return null;
+    const channelDistances = measuredRGB.map((value, index) => rangeDistance(value, ranges[index]));
+    const midpointRGB = ranges.map(([minimum, maximum]) => (minimum + maximum) / 2);
+    const distance = Math.hypot(...measuredRGB.map((value, index) => value - midpointRGB[index]));
     return {
-      ppm: ppmValues[0],
-      calibrationInterval: { hue: [huePoints[0], huePoints[1]], ppm: [ppmValues[0], ppmValues[1]], position: 'below-range' },
-      clamped: true,
+      reference,
+      ranges,
+      midpointRGB,
+      channelDistances,
+      maxChannelDistance: Math.max(...channelDistances),
+      distance,
+    };
+  }).filter(Boolean).sort((left, right) => left.distance - right.distance);
+
+  const exact = candidates.filter(({ maxChannelDistance }) => maxChannelDistance === 0);
+  const base = {
+    value: null,
+    unit: 'ppm',
+    provisional: true,
+    source: 'CLIENT_DIRECT_NITRITE_RGB',
+    candidates,
+    closestReference: candidates[0]?.reference || null,
+    distance: candidates[0]?.distance ?? null,
+    channelDistances: candidates[0]?.channelDistances || null,
+  };
+  if (exact.length !== 1) {
+    if (exact.length > 1) return { ...base, matchState: 'AMBIGUOUS' };
+  } else {
+    const match = exact[0];
+    return {
+      ...base,
+      ...match,
+      value: match.reference.value,
+      matchState: 'EXACT_OR_IN_RANGE',
     };
   }
 
-  for (let index = 0; index < huePoints.length - 1; index += 1) {
-    const startHue = huePoints[index];
-    const endHue = huePoints[index + 1];
-    if (hue <= endHue) {
-      const ratio = (hue - startHue) / (endHue - startHue);
-      return {
-        ppm: ppmValues[index] + ratio * (ppmValues[index + 1] - ppmValues[index]),
-        calibrationInterval: { hue: [startHue, endHue], ppm: [ppmValues[index], ppmValues[index + 1]] },
-        clamped: false,
-      };
-    }
+  const near = candidates.filter(({ maxChannelDistance, distance }) => (
+    maxChannelDistance <= nearChannelTolerance && distance <= nearDistance
+  ));
+  if (!near.length) return { ...base, matchState: 'OUTSIDE_REFERENCE_SPACE' };
+  if (near.length > 1 && near[1].distance - near[0].distance <= ambiguityDistance) {
+    return { ...base, matchState: 'AMBIGUOUS', candidates: near };
   }
-
-  const last = huePoints.length - 1;
+  const match = near[0];
   return {
-    ppm: ppmValues[last],
-    calibrationInterval: {
-      hue: [huePoints[last - 1], huePoints[last]],
-      ppm: [ppmValues[last - 1], ppmValues[last]],
-      position: 'above-range',
-    },
-    clamped: true,
+    ...base,
+    ...match,
+    value: match.reference.value,
+    matchState: 'NEAR_REFERENCE',
   };
 }

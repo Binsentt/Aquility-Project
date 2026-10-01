@@ -105,6 +105,6 @@ the Expo root environment.
 
 ## Remaining client inputs
 
-The client must supply the production `DATABASE_URL`, deployment host/TLS configuration, retention/privacy policy for captured images and GPS data, confirm that supplied Nitrite hue values use standard HSV degrees, and provide experimental validation before relying on analytical performance. The active engine performs image-based pH and provisional Nitrite analysis; it is not mock-only and does not claim scientific validation.
+The client must supply the production `DATABASE_URL`, deployment host/TLS configuration, retention/privacy policy for captured images and GPS data, the physical µPAD geometry/reference point and separate pH/Nitrite detection zones, and paired experimental calibration/validation before relying on analytical performance. Until the geometry is configured, the active engine rejects image analysis with `STRIP_REGISTRATION_FAILED`; it never uses a central crop. Once configured, the engine performs image-based pH and direct client-RGB Nitrite class matching for 0, 0.5, and 1 ppm only. Historical Nitrate-after-reduction metadata is not active Nitrite calibration. The implementation does not claim scientific validation.
 
 For local client installation and daily startup commands, see [`../CLIENT_SETUP.md`](../CLIENT_SETUP.md). For the implemented image pipeline and normalized ROI configuration, see [`IMAGE_ANALYSIS.md`](IMAGE_ANALYSIS.md).
