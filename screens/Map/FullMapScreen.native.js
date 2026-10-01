@@ -5,7 +5,7 @@ import * as Location from 'expo-location';
 import MapView, { Callout, Marker } from 'react-native-maps';
 import { useAuth } from '../../context/AuthContext';
 import { COLORS, RADII, SHADOWS, SPACING } from '../../styles/theme';
-import { markerColorFor } from '../../services/apiMappers';
+import { filterValidMapMarkers, normalizeMapCoordinate, safeMapFeed } from '../../services/apiMappers';
 import { api } from '../../services/apiClient';
 
 export default function FullMapScreen({ navigation }) {
@@ -19,7 +19,7 @@ export default function FullMapScreen({ navigation }) {
 
     api.listMapMarkers()
       .then((response) => {
-        if (isMounted) setMapFeed(Array.isArray(response.items) ? response.items : []);
+        if (isMounted) setMapFeed(safeMapFeed(response));
       })
       .catch(() => {
         if (isMounted) {
@@ -44,8 +44,13 @@ export default function FullMapScreen({ navigation }) {
           return;
         }
         const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        const coordinates = normalizeMapCoordinate(location?.coords?.latitude, location?.coords?.longitude);
+        if (!coordinates) {
+          if (isMounted) setStatusMessage('Unable to read a valid current location right now.');
+          return;
+        }
         if (isMounted) {
-          setUserLocation(location.coords);
+          setUserLocation(coordinates);
           setStatusMessage('Your current location is ready.');
         }
       } catch {
@@ -59,39 +64,21 @@ export default function FullMapScreen({ navigation }) {
   }, []);
 
   const markers = useMemo(() => {
-    const fallbackMarkers = scanHistory
-      .filter((scan) => scan?.location?.latitude && scan?.location?.longitude)
-      .map((scan) => ({
-        id: scan.id,
-        latitude: scan.location.latitude,
-        longitude: scan.location.longitude,
-        overallStatus: scan.overallStatus || scan.status || 'NOT CLASSIFIED',
-        capturedAt: scan.capturedAt || scan.createdAt,
-        barangay: scan.barangay || scan.user?.barangay || null,
-        municipality: scan.municipality || scan.user?.municipality || null,
-        sampleClass: scan.sampleClass || null,
-        siteName: scan.siteName || 'Unknown sampling site',
-        sourceType: scan.sourceType || null,
-      }));
+    const history = Array.isArray(scanHistory) ? scanHistory : [];
+    const fallbackMarkers = filterValidMapMarkers(history.map((scan) => ({
+      id: scan?.id,
+      latitude: scan?.location?.latitude,
+      longitude: scan?.location?.longitude,
+      overallStatus: scan?.overallStatus || scan?.status,
+      capturedAt: scan?.capturedAt || scan?.createdAt,
+      barangay: scan?.barangay || scan?.user?.barangay,
+      municipality: scan?.municipality || scan?.user?.municipality,
+      sampleClass: scan?.sampleClass,
+      siteName: scan?.siteName,
+      sourceType: scan?.sourceType,
+    })));
 
-    return (mapFeed || fallbackMarkers)
-      .filter((scan) => Number.isFinite(Number(scan?.latitude)) && Number.isFinite(Number(scan?.longitude)))
-      .map((scan) => ({
-        id: scan.id,
-        coordinate: { latitude: Number(scan.latitude), longitude: Number(scan.longitude) },
-        title: scan.sampleClass && scan.siteName
-          ? `Class ${scan.sampleClass} — ${scan.siteName}`
-          : (scan.siteName || 'Water Test'),
-        description: scan.overallStatus || 'Not classified',
-        barangay: scan.barangay || 'Unavailable',
-        municipality: scan.municipality || 'Unavailable',
-        overallStatus: scan.overallStatus || 'NOT CLASSIFIED',
-        pinColor: markerColorFor(scan.overallStatus),
-        createdAt: scan.capturedAt || scan.createdAt,
-        sampleClass: scan.sampleClass || null,
-        siteName: scan.siteName || 'Unknown sampling site',
-        sourceType: scan.sourceType || null,
-      }));
+    return mapFeed || fallbackMarkers;
   }, [mapFeed, scanHistory]);
 
   const defaultRegion = userLocation
@@ -118,7 +105,7 @@ export default function FullMapScreen({ navigation }) {
                   <Text style={styles.calloutText}>{marker.barangay}, {marker.municipality}</Text>
                   <Text style={styles.calloutText}>Source: {marker.sourceType || 'Unknown'}</Text>
                   <Text style={[styles.calloutText, { color: marker.pinColor }]}>Status: {marker.overallStatus}</Text>
-                  <Text style={styles.calloutText}>Tested: {new Date(marker.createdAt || Date.now()).toLocaleDateString()}</Text>
+                  <Text style={styles.calloutText}>Tested: {marker.createdAt ? new Date(marker.createdAt).toLocaleDateString() : 'Date unavailable'}</Text>
                 </View>
               </Callout>
             </Marker>

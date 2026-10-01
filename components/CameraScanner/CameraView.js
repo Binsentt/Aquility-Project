@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Alert,
-  SafeAreaView,
   Image,
   ScrollView,
   Modal,
@@ -17,7 +16,7 @@ import * as Location from 'expo-location';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Linking from 'expo-linking';
 import { PinchGestureHandler, State } from 'react-native-gesture-handler';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import ScannerOverlay from './ScannerOverlay';
 import CaptureButton from './CaptureButton';
 import GalleryButton from './GalleryButton';
@@ -212,7 +211,7 @@ const CameraView = React.memo(function CameraView({
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         quality: 0.9,
         allowsEditing: false,
       });
