@@ -5,6 +5,7 @@ import { createApp } from '../app.js';
 
 const authTokenService = {
   verifyAccessToken: () => ({ userId: '8ed82724-1db6-452a-a872-f6e5c81d8b5a' }),
+  issueMediaToken: ({ waterTestId }) => `signed-${waterTestId}`,
 };
 
 const item = {
@@ -51,6 +52,36 @@ test('GET /api/water-tests returns authenticated user records with the stable re
   assert.equal(response.body.items[0].resultData.Nitrite, '10.00 ppm');
   assert.deepEqual(response.body.items[0].gps, { latitude: 14.6, longitude: 120.98 });
   assert.equal(response.body.items[0].user.passwordHash, undefined);
+  assert.equal(response.body.items[0].imageUri, '/api/water-tests/3ec25331-d511-491f-a1b6-11670bc4a2d6/image?token=signed-3ec25331-d511-491f-a1b6-11670bc4a2d6');
+  assert.notEqual(response.body.items[0].imageUri, item.imagePath);
+});
+
+test('GET water-test detail and PUT preserve private signed image URLs', async () => {
+  const app = createApp({
+    authTokenService,
+    waterTestService: {
+      async list() { return [item]; },
+      async getById() { return item; },
+      async update() { return item; },
+      async remove() {},
+    },
+  });
+
+  const detail = await request(app)
+    .get(`/api/water-tests/${item.id}`)
+    .set('Authorization', 'Bearer valid-token');
+  assert.equal(detail.status, 200);
+  assert.equal(detail.body.imageUri, `/api/water-tests/${item.id}/image?token=signed-${item.id}`);
+  assert.equal(/\/uploads\//.test(detail.body.imageUri), false);
+  assert.notEqual(detail.body.imageUri, item.imagePath);
+
+  const update = await request(app)
+    .put(`/api/water-tests/${item.id}`)
+    .set('Authorization', 'Bearer valid-token')
+    .send({});
+  assert.equal(update.status, 200);
+  assert.equal(update.body.imageUri, `/api/water-tests/${item.id}/image?token=signed-${item.id}`);
+  assert.equal(/\/uploads\//.test(update.body.imageUri), false);
 });
 
 test('DELETE /api/water-tests/:id returns no content', async () => {
