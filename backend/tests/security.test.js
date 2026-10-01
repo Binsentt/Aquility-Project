@@ -52,6 +52,9 @@ function createSecureApp() {
           capturedAt: '2026-08-04T00:00:00.000Z',
           barangay: 'San Isidro',
           municipality: 'Sample City',
+          sampleClass: 'AA',
+          siteName: 'Pawikan',
+          sourceType: 'Coastal / Pawikan',
         }];
       },
     },
@@ -180,6 +183,9 @@ test('authenticated map feed contains only anonymous marker data', async () => {
     capturedAt: '2026-08-04T00:00:00.000Z',
     barangay: 'San Isidro',
     municipality: 'Sample City',
+    sampleClass: 'AA',
+    siteName: 'Pawikan',
+    sourceType: 'Coastal / Pawikan',
   }]);
   assert.equal('user' in response.body.items[0], false);
   assert.equal('imagePath' in response.body.items[0], false);

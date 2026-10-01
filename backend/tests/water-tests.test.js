@@ -45,7 +45,7 @@ test('GET /api/water-tests returns authenticated user records with the stable re
     .set('Authorization', 'Bearer valid-token');
 
   assert.equal(response.status, 200);
-  assert.equal(response.body.items[0].overallStatus, 'Unvalidated');
+  assert.equal(response.body.items[0].overallStatus, 'NOT CLASSIFIED');
   assert.equal(response.body.items[0].nitrite.value, 10);
   assert.equal(response.body.items[0].nitrite.unit, 'ppm');
   assert.equal(response.body.items[0].resultData.Nitrite, '10.00 ppm');

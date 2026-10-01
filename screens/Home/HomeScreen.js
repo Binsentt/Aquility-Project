@@ -40,9 +40,10 @@ export default function HomeScreen() {
           </View>
 
           <View style={styles.heroStats}>
-            <StatCard title="Latest scan" value={latestScan ? latestScan.status : 'No scans yet'} style={styles.statCard} />
+            <StatCard title="Latest scan" value={latestScan ? latestScan.scanStatus || 'Completed' : 'No scans yet'} style={styles.statCard} />
             <StatCard title="Last updated" value={latestScan ? new Date(latestScan.createdAt).toLocaleDateString() : '—'} style={styles.statCard} />
-            <StatCard title="Analysis" value={latestScan ? latestScan.analysisStatus : 'Pending'} style={styles.statCard} />
+            <StatCard title="Analysis" value={latestScan ? latestScan.analysisStatus || 'Completed' : 'Pending'} style={styles.statCard} />
+            <StatCard title="Measured parameters" value={latestScan ? latestScan.measuredParametersStatus || 'Not classified' : 'Pending'} style={styles.statCard} />
           </View>
 
           <PrimaryButton title="Start Water Analysis" onPress={() => navigation.navigate('Scan')} style={styles.actionButton} />
@@ -78,7 +79,7 @@ export default function HomeScreen() {
           </View>
           <View style={styles.reportRow}>
             <MaterialCommunityIcons name="chart-box-outline" size={16} color={COLORS.primary} />
-            <Text style={styles.reportText}>View Results: See the estimated pH and nitrite levels and review their unvalidated color-analysis status.</Text>
+            <Text style={styles.reportText}>View Results: See the estimated pH and nitrite levels, measured-parameter status, and laboratory-validation note.</Text>
           </View>
           <View style={styles.reportRow}>
             <MaterialCommunityIcons name="map-marker-radius" size={16} color={COLORS.primary} />

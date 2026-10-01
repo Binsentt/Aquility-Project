@@ -165,7 +165,13 @@ export async function createPdfExport(payload = {}) {
     const exportDir = await ensureExportsDirectory();
     const targetUri = `${exportDir}AQUALITY_Report_${Date.now()}.pdf`;
     const brandImageUri = await resolvePdfBrandImageUri();
-    const html = buildPdfHtml({ user: payload?.user, test: payload, brandImageUri });
+    const sourceImageUri = payload.imageUri || payload.image || payload.uri || payload.images?.[0];
+    const resolvedImageUri = await resolveExportImageUri(sourceImageUri);
+    const html = buildPdfHtml({
+      user: payload?.user,
+      test: { ...payload, imageUri: resolvedImageUri },
+      brandImageUri,
+    });
 
     if (!html.trim()) {
       throw new Error('PDF content was empty.');

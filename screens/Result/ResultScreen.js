@@ -112,7 +112,7 @@ export default function ResultScreen() {
             <View style={styles.statusRow}>
               <View style={styles.statusBadge}>
                 <MaterialCommunityIcons name="information-outline" size={16} color={COLORS.primary} />
-                <Text style={styles.statusText}>{payload.status || 'Analysis unavailable'}</Text>
+                <Text style={styles.statusText}>{payload.scanStatus || 'Completed'}</Text>
               </View>
             </View>
           </View>
@@ -129,14 +129,44 @@ export default function ResultScreen() {
             </View>
             <View style={styles.metaRow}>
               <Text style={styles.metaLabel}>Analysis status</Text>
-              <Text style={styles.metaValue}>{payload.analysisStatus || 'Analysis unavailable'}</Text>
+              <Text style={styles.metaValue}>{payload.analysisStatus || 'Completed'}</Text>
             </View>
-            {payload.location ? (
+            <View style={styles.metaRow}>
+              <Text style={styles.metaLabel}>Measured Parameters Status</Text>
+              <Text style={styles.metaValue}>{payload.measuredParametersStatus || 'Not classified'}</Text>
+            </View>
+            <View style={styles.metaRow}>
+              <Text style={styles.metaLabel}>Scientific Validation</Text>
+              <Text style={styles.metaValue}>{payload.scientificValidationStatus || 'Pending laboratory validation'}</Text>
+            </View>
+            {payload.location && Number.isFinite(Number(payload.location.latitude)) && Number.isFinite(Number(payload.location.longitude)) ? (
               <View style={styles.metaRow}>
                 <Text style={styles.metaLabel}>Location</Text>
-                <Text style={styles.metaValue}>{payload.location.latitude.toFixed(4)}, {payload.location.longitude.toFixed(4)}</Text>
+                <Text style={styles.metaValue}>{Number(payload.location.latitude).toFixed(4)}, {Number(payload.location.longitude).toFixed(4)}</Text>
               </View>
             ) : null}
+            {payload.gpsAccuracyMeters != null ? (
+              <View style={styles.metaRow}>
+                <Text style={styles.metaLabel}>GPS accuracy</Text>
+                <Text style={styles.metaValue}>±{Number(payload.gpsAccuracyMeters).toFixed(1)} m</Text>
+              </View>
+            ) : null}
+            <View style={styles.metaRow}>
+              <Text style={styles.metaLabel}>Sample</Text>
+              <Text style={styles.metaValue}>{payload.sampleCode || 'Not selected'}</Text>
+            </View>
+            <View style={styles.metaRow}>
+              <Text style={styles.metaLabel}>Sample class</Text>
+              <Text style={styles.metaValue}>{payload.sampleClass || 'Unknown'}</Text>
+            </View>
+            <View style={styles.metaRow}>
+              <Text style={styles.metaLabel}>Sampling site</Text>
+              <Text style={styles.metaValue}>{payload.siteName || 'Unknown sampling site'}</Text>
+            </View>
+            <View style={styles.metaRow}>
+              <Text style={styles.metaLabel}>Water source</Text>
+              <Text style={styles.metaValue}>{payload.sourceType || 'Unknown'}</Text>
+            </View>
             <Text style={styles.summaryText}>{payload.summary || 'No summary available yet.'}</Text>
             <Text style={styles.secondaryText}>{payload.interpretation || 'Results are estimates based on the current water-test analysis settings.'}</Text>
             {backendError ? <Text style={styles.secondaryText}>{backendError}</Text> : null}

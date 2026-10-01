@@ -1,8 +1,9 @@
 import { HttpError } from '../middleware/errorHandler.js';
 import { serializeWaterTest } from '../utils/waterTestSerializer.js';
-import { validateCapturedAt, validateCoordinates, validateOptionalText } from '../utils/validation.js';
+import { validateCapturedAt, validateCoordinates, validateGpsAccuracy, validateOptionalText, validateSampleCode, validateSampleNumber } from '../utils/validation.js';
 import { readFile, rename, unlink } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { matchSampleSite } from './sampleSites.js';
 
 function imageExtension(buffer) {
   if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return 'jpg';
@@ -27,7 +28,7 @@ async function removeUpload(file) {
   await unlink(file.path).catch(() => undefined);
 }
 
-export function createWaterAnalysisService({ colorAnalysisEngine, waterTestModel, userModel, authTokenService = null }) {
+export function createWaterAnalysisService({ colorAnalysisEngine, waterTestModel, userModel, authTokenService = null, debugLogger = null, sampleSiteMatcher = matchSampleSite }) {
   return {
     async analyze({ file, metadata, authenticatedUserId }) {
       if (!file?.filename) {
@@ -47,26 +48,59 @@ export function createWaterAnalysisService({ colorAnalysisEngine, waterTestModel
 
         const { latitude, longitude } = validateCoordinates(metadata?.gpsLatitude, metadata?.gpsLongitude);
         const capturedAt = validateCapturedAt(metadata?.capturedAt);
+        const gpsCapturedAt = validateCapturedAt(metadata?.gpsCapturedAt || metadata?.capturedAt);
+        const gpsAccuracyMeters = validateGpsAccuracy(metadata?.gpsAccuracyMeters);
         const barangay = validateOptionalText(metadata?.barangay, 'Barangay', 120);
         const municipality = validateOptionalText(metadata?.municipality, 'Municipality', 120);
+        const sampleCode = validateSampleCode(metadata?.sampleCode);
+        const sampleNumber = validateSampleNumber(metadata?.sampleNumber);
+        const sampleSite = sampleSiteMatcher(latitude, longitude) || {
+          classCode: null,
+          siteName: 'Unknown sampling site',
+          sourceType: null,
+          latitude: null,
+          longitude: null,
+        };
+        const requestedSampleClass = validateOptionalText(metadata?.sampleClass, 'Sample class', 8)
+          || (sampleCode ? sampleCode.split('-')[0] : null);
+        if (requestedSampleClass && sampleSite.classCode && requestedSampleClass !== sampleSite.classCode) {
+          throw new HttpError(400, 'INVALID_SAMPLE_SITE', 'The sampling-site class does not match the captured GPS location.');
+        }
+        const resolvedSampleClass = sampleSite.classCode || (sampleCode ? requestedSampleClass : null);
         storedFile = await validateStoredImage(file);
-        const measurements = await colorAnalysisEngine.analyze({ imagePath: storedFile.path });
+        const measurements = await colorAnalysisEngine.analyze({ imagePath: storedFile.path, debugLogger });
+        debugLogger?.('analysis-complete', { status: measurements.overallStatus || null });
+        debugLogger?.('db-save-start', { userPresent: true });
         const created = await waterTestModel.create({
           userId: authenticatedUserId,
           imagePath: `/uploads/${storedFile.filename}`,
           latitude,
           longitude,
+          sampleClass: resolvedSampleClass,
+          siteName: sampleSite.siteName === 'Unknown sampling site' ? null : sampleSite.siteName,
+          sourceType: sampleSite.sourceType,
+          sampleCode,
+          sampleNumber,
           barangay,
           municipality,
           capturedAt,
+          gpsAccuracyMeters,
+          gpsCapturedAt,
+          canonicalLatitude: Number.isFinite(Number(sampleSite.latitude)) ? Number(sampleSite.latitude) : null,
+          canonicalLongitude: Number.isFinite(Number(sampleSite.longitude)) ? Number(sampleSite.longitude) : null,
           estimatedPH: typeof measurements.pH.value === 'number' ? measurements.pH.value : null,
           phStatus: measurements.phStatus,
           estimatedNitrite: measurements.nitrite.value,
           nitriteStatus: measurements.nitriteStatus,
-          analysisData: { pH: measurements.pH, nitrite: measurements.nitrite },
+          measuredParametersStatus: measurements.measuredParametersStatus,
+          scientificValidationStatus: measurements.scientificValidationStatus,
+          labPH: null,
+          labNitrite: null,
+          analysisData: { pH: measurements.pH, nitrite: measurements.nitrite, roiLocalizationStatus: measurements.roiLocalizationStatus },
           overallStatus: measurements.overallStatus,
           remarks: measurements.remarks,
         });
+        debugLogger?.('db-save-complete', { recordCreated: true });
 
         return serializeWaterTest(created, authTokenService);
       } catch (error) {

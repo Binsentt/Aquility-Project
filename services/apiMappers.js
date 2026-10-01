@@ -38,14 +38,25 @@ export function toScanResult(waterTest = {}, apiBaseUrl) {
   const pH = waterTest.pH == null ? null : Number.isFinite(Number(waterTest.pH)) ? Number(waterTest.pH) : waterTest.pH;
   const nitriteValue = Number(waterTest.nitrite?.value);
   const imageUri = resolveMediaUrl(waterTest.imageUri || waterTest.imagePath, apiBaseUrl);
+  const measuredParametersStatus = waterTest.measuredParametersStatus || 'Not classified';
+  const scientificValidationStatus = waterTest.scientificValidationStatus || waterTest.scientificStatus || 'Pending laboratory validation';
+  const overallStatus = waterTest.overallStatus && waterTest.overallStatus !== 'Unvalidated'
+    ? waterTest.overallStatus
+    : 'NOT CLASSIFIED';
+  const persisted = Boolean(waterTest.analysisId || waterTest.id);
 
   return {
     id: waterTest.analysisId || waterTest.id,
     title: waterTest.title || 'Water Test',
-    status: waterTest.overallStatus || waterTest.status || 'Moderate',
-    overallStatus: waterTest.overallStatus || waterTest.status || 'Moderate',
+    status: overallStatus,
+    overallStatus,
     summary: waterTest.remarks || waterTest.summary || 'Water test result received from the AQUALITY backend.',
-    analysisStatus: waterTest.overallStatus === 'Unvalidated' ? 'Color analysis; scientific validation pending' : 'Color analysis',
+    scanStatus: waterTest.scanStatus || (persisted ? 'Completed' : 'Pending'),
+    analysisStatus: waterTest.analysisStatus || (persisted ? 'Completed' : 'Pending'),
+    scientificStatus: scientificValidationStatus,
+    measuredParametersStatus,
+    scientificValidationStatus,
+    roiLocalizationStatus: waterTest.roiLocalizationStatus || 'PAD LOCALIZATION REQUIRED',
     interpretation: 'pH uses client-provided Lab references and CIEDE2000. Nitrite uses provisional client-provided hue calibration. Neither result is a certified laboratory measurement.',
     warnings: [],
     recommendations: [],
@@ -57,19 +68,31 @@ export function toScanResult(waterTest = {}, apiBaseUrl) {
     imageUri,
     image: imageUri,
     location: waterTest.gps || waterTest.location || null,
+    actualLatitude: waterTest.actualLatitude ?? waterTest.gps?.latitude ?? waterTest.location?.latitude ?? null,
+    actualLongitude: waterTest.actualLongitude ?? waterTest.gps?.longitude ?? waterTest.location?.longitude ?? null,
     barangay: waterTest.barangay || null,
     municipality: waterTest.municipality || null,
+    sampleClass: waterTest.sampleClass || waterTest.sampleSite?.classCode || null,
+    siteName: waterTest.siteName || waterTest.sampleSite?.siteName || 'Unknown sampling site',
+    sourceType: waterTest.sourceType || waterTest.sampleSite?.sourceType || null,
     user: waterTest.user || null,
     userId: waterTest.userId || waterTest.user?.id || null,
     resultData: {
       pH: typeof pH === 'number' ? pH.toFixed(2) : pH || 'Unavailable',
       Nitrite: Number.isFinite(nitriteValue) ? `${nitriteValue.toFixed(2)} ${waterTest.nitrite?.unit || 'ppm'}` : 'Unavailable',
-      'Overall Status': waterTest.overallStatus || waterTest.status || 'Unavailable',
+      'Measured Parameters Status': measuredParametersStatus,
+      'Scientific Validation': scientificValidationStatus,
     },
     pH,
     pHResult: waterTest.pHResult || null,
     phStatus: waterTest.phStatus || null,
     nitrite: waterTest.nitrite || null,
+    sampleCode: waterTest.sampleCode || null,
+    sampleNumber: waterTest.sampleNumber == null ? null : Number(waterTest.sampleNumber),
+    gpsAccuracyMeters: waterTest.gpsAccuracyMeters == null ? null : Number(waterTest.gpsAccuracyMeters),
+    gpsCapturedAt: waterTest.gpsCapturedAt || null,
+    canonicalLocation: waterTest.canonicalLocation || null,
+    labComparison: waterTest.labComparison || { pH: null, Nitrite: null },
     notes: waterTest.remarks || '',
     files: [],
     mode: 'backend',
@@ -84,7 +107,11 @@ export function markerColorFor(status) {
     case 'unsafe':
       return '#D92D20';
     case 'moderate':
-    default:
       return '#D48A00';
+    case 'not classified':
+    case 'not_classified':
+    case 'unvalidated':
+    default:
+      return '#718096';
   }
 }

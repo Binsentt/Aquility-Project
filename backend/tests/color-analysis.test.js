@@ -96,7 +96,11 @@ test('analysis decodes an image, samples its ROI, and returns pH plus Nitrite me
     assert.equal(result.nitrite.value, interpolateNitriteHue(result.nitrite.hue, huePoints, ppmValues).ppm);
     assert.equal(result.nitrite.unit, 'ppm');
     assert.equal(result.nitrite.interpolationMethod, 'piecewise-linear-clamped');
-    assert.equal(result.overallStatus, 'Unvalidated');
+    assert.equal(result.scanStatus, 'Completed');
+    assert.equal(result.measuredParametersStatus, 'Not classified');
+    assert.equal(result.scientificValidationStatus, 'Pending laboratory validation');
+    assert.equal(result.overallStatus, 'NOT CLASSIFIED');
+    assert.equal(result.roiLocalizationStatus, 'PAD LOCALIZATION REQUIRED');
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
@@ -125,7 +129,7 @@ test('analysis decodes every image format accepted by the upload middleware', as
   }
 });
 
-test('analysis returns a safe invalid-image error when Sharp cannot decode the upload', async () => {
+test('analysis returns a strip-format error when Sharp cannot decode the upload', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'aquility-invalid-image-'));
   const imagePath = join(directory, 'corrupt.png');
   await writeFile(imagePath, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00]));
@@ -133,8 +137,46 @@ test('analysis returns a safe invalid-image error when Sharp cannot decode the u
   try {
     await assert.rejects(
       () => createColorAnalysisEngine().analyze({ imagePath }),
-      { code: 'INVALID_IMAGE', status: 400, message: 'The uploaded image could not be decoded. Please select a valid JPEG, PNG, or WebP image.' }
+      { code: 'INVALID_STRIP_FORMAT', status: 422, message: 'Test strip not detected. Please capture a clear JPEG, PNG, or WebP image of the water-test strip.' }
     );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('analysis uses separate configured pad ROIs instead of one shared center crop', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'aquility-separate-rois-'));
+  const imagePath = join(directory, 'sample.png');
+  const pixels = Buffer.alloc(20 * 20 * 3, 0);
+  for (let y = 0; y < 20; y += 1) {
+    for (let x = 0; x < 20; x += 1) {
+      const color = x < 10 ? [255, 128, 64] : [64, 128, 255];
+      pixels.set(color, (y * 20 + x) * 3);
+    }
+  }
+  await sharp(pixels, { raw: { width: 20, height: 20, channels: 3 } }).png().toFile(imagePath);
+
+  try {
+    const baseCalibration = JSON.parse(await (await import('node:fs/promises')).readFile(
+      new URL('../database/colorAnalysisCalibration.json', import.meta.url), 'utf8'
+    ));
+    const result = await createColorAnalysisEngine({
+      readJson: async () => ({
+        ...baseCalibration,
+        roi: {
+          ...baseCalibration.roi,
+          fallback: { x: 0, y: 0, width: 1, height: 1 },
+          regions: {
+            pH: { x: 0, y: 0, width: 0.5, height: 1 },
+            nitrite: { x: 0.5, y: 0, width: 0.5, height: 1 },
+          },
+        },
+      }),
+    }).analyze({ imagePath });
+
+    assert.notDeepEqual(result.pH.measuredRGB, result.nitrite.measuredRGB);
+    assert.equal(result.pH.roi.strategy, 'configured-normalized-roi');
+    assert.equal(result.nitrite.roi.strategy, 'configured-normalized-roi');
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

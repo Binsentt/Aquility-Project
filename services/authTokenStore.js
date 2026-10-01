@@ -1,7 +1,11 @@
 import * as SecureStore from 'expo-secure-store';
 
-const ACCESS_TOKEN_KEY = 'aquility:access-token';
+const ACCESS_TOKEN_KEY = 'aquility.access-token';
 let memoryToken = null;
+
+function normalizeToken(token) {
+  return typeof token === 'string' && token.trim() ? token.trim() : null;
+}
 
 async function canUseSecureStore() {
   try {
@@ -12,22 +16,33 @@ async function canUseSecureStore() {
 }
 
 export async function getStoredAccessToken() {
-  if (await canUseSecureStore()) {
-    return SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
+  try {
+    if (await canUseSecureStore()) {
+      memoryToken = normalizeToken(await SecureStore.getItemAsync(ACCESS_TOKEN_KEY));
+    }
+  } catch {
+    // Keep the in-memory session available when the native store is unavailable.
   }
   return memoryToken;
 }
 
 export async function saveAccessToken(token) {
-  memoryToken = token || null;
-  if (await canUseSecureStore()) {
-    await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, token);
+  memoryToken = normalizeToken(token);
+  if (!memoryToken) return;
+  try {
+    if (await canUseSecureStore()) await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, memoryToken);
+  } catch {
+    // The caller can continue with the in-memory token when SecureStore is unavailable.
   }
 }
 
 export async function clearStoredAccessToken() {
   memoryToken = null;
-  if (await canUseSecureStore()) {
-    await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
+  try {
+    if (await canUseSecureStore()) {
+      await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
+    }
+  } catch {
+    // Clearing in-memory state is still safe when SecureStore is unavailable.
   }
 }

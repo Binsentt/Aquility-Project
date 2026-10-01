@@ -26,6 +26,7 @@ The Expo root `.env` contains only the non-secret `EXPO_PUBLIC_API_BASE_URL`. It
 5. Run `npm run db:seed` to validate the checked-in client calibration structure; it does not insert sample accounts or water-test rows and does not establish scientific validity.
 
 Migrations are transactional and recorded by filename. Production database changes are made solely by new numbered migration files--never by editing an already-applied migration.
+The current schema includes `007_add_scientific_sample_metadata.sql` for optional sample codes, GPS accuracy/capture time, canonical-site coordinates, status separation, and nullable lab comparison values.
 
 For local development through PostgreSQL or the VS Code PostgreSQL extension, use these values without placing the password in documentation:
 

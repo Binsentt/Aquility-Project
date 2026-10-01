@@ -1,6 +1,6 @@
 import { serializeWaterTest } from '../utils/waterTestSerializer.js';
 import { HttpError } from '../middleware/errorHandler.js';
-import { assertUuid, validateCapturedAt, validateCoordinates, validateOptionalText } from '../utils/validation.js';
+import { assertUuid, validateCapturedAt, validateCoordinates, validateOptionalMeasurement, validateOptionalText } from '../utils/validation.js';
 
 export function createWaterTestController({ waterTestService, authTokenService }) {
   return {
@@ -31,6 +31,8 @@ export function createWaterTestController({ waterTestService, authTokenService }
         const waterTest = await waterTestService.update(id, req.auth.userId, {
           ...coordinates,
           capturedAt,
+          labPH: validateOptionalMeasurement(req.body?.labPH, 'Laboratory pH', { max: 14 }),
+          labNitrite: validateOptionalMeasurement(req.body?.labNitrite, 'Laboratory Nitrite', { max: 100000 }),
           barangay: validateOptionalText(req.body?.barangay, 'Barangay', 120),
           municipality: validateOptionalText(req.body?.municipality, 'Municipality', 120),
         });

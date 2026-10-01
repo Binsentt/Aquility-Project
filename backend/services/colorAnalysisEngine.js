@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 import { HttpError } from '../middleware/errorHandler.js';
 import { extractRoiStatistics, interpolateNitriteHue, matchPHReference, rgbToHsv, rgbToLab } from '../utils/colorAnalysis.js';
+import { classifyMeasurements, MEASUREMENT_STATUS } from './measurementClassification.js';
 
 const databaseDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'database');
 
@@ -20,7 +21,7 @@ export function createColorAnalysisEngine({ readJson = readFixture } = {}) {
   }
 
   return {
-    async analyze({ imagePath }) {
+    async analyze({ imagePath, debugLogger = null }) {
       if (!imagePath) {
         throw new Error('An image path is required for analysis.');
       }
@@ -28,6 +29,7 @@ export function createColorAnalysisEngine({ readJson = readFixture } = {}) {
       const calibration = await loadCalibration();
       let decodedImage;
       try {
+        debugLogger?.('sharp-decode-start');
         decodedImage = await sharp(imagePath)
           .rotate()
           .toColourspace('srgb')
@@ -35,8 +37,10 @@ export function createColorAnalysisEngine({ readJson = readFixture } = {}) {
           .raw()
           .toBuffer({ resolveWithObject: true });
       } catch {
-        throw new HttpError(400, 'INVALID_IMAGE', 'The uploaded image could not be decoded. Please select a valid JPEG, PNG, or WebP image.');
+        debugLogger?.('sharp-decode-failed');
+        throw new HttpError(422, 'INVALID_STRIP_FORMAT', 'Test strip not detected. Please capture a clear JPEG, PNG, or WebP image of the water-test strip.');
       }
+      debugLogger?.('sharp-decode-complete', { width: decodedImage.info.width, height: decodedImage.info.height });
       const { data, info } = decodedImage;
       const fallbackRoi = calibration.roi.fallback;
       const roiFor = (parameter) => calibration.roi.regions[parameter] || fallbackRoi;
@@ -57,6 +61,14 @@ export function createColorAnalysisEngine({ readJson = readFixture } = {}) {
       });
 
       if (!phMatch) throw new Error('No pH color references are configured.');
+
+      const classification = classifyMeasurements({
+        pH: phMatch.reference.exactValue,
+        nitrite: nitriteEstimate.ppm,
+        thresholds: calibration.thresholds || null,
+      });
+      const hasSeparateConfiguredRois = Boolean(calibration.roi.regions.pH && calibration.roi.regions.nitrite);
+      const roiLocalizationStatus = hasSeparateConfiguredRois ? 'Configured pad ROIs' : 'PAD LOCALIZATION REQUIRED';
 
       return {
         pH: {
@@ -89,10 +101,14 @@ export function createColorAnalysisEngine({ readJson = readFixture } = {}) {
             ppmValues: calibration.nitrite.ppmValues,
           },
         },
-        phStatus: 'Unvalidated',
-        nitriteStatus: 'Unvalidated',
-        overallStatus: 'Unvalidated',
-        remarks: 'Color matching and provisional Nitrite interpolation were performed using client-provided references. The physical ROI layout and analytical method require experimental validation; this is not a certified water-safety assessment.',
+        phStatus: 'Estimated',
+        nitriteStatus: 'Estimated',
+        scanStatus: 'Completed',
+        measuredParametersStatus: classification.status,
+        scientificValidationStatus: MEASUREMENT_STATUS.SCIENTIFIC_PENDING,
+        overallStatus: 'NOT CLASSIFIED',
+        roiLocalizationStatus,
+        remarks: `Color matching and provisional Nitrite interpolation were performed using client-provided references. ${roiLocalizationStatus}. ${classification.reason || 'Approved classification limits are configured.'} The analytical method requires experimental validation; this is not a certified water-safety assessment.`,
       };
     },
   };

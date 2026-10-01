@@ -22,7 +22,7 @@ export default function HistoryScreen() {
     if (!searchQuery.trim()) return scanHistory;
 
     return scanHistory.filter((item) => {
-      const haystack = `${item.title || ''} ${item.status || ''} ${item.summary || ''}`.toLowerCase();
+      const haystack = `${item.title || ''} ${item.status || ''} ${item.scanStatus || ''} ${item.sampleClass || ''} ${item.siteName || ''} ${item.sourceType || ''} ${item.summary || ''}`.toLowerCase();
       return haystack.includes(searchQuery.trim().toLowerCase());
     });
   }, [scanHistory, searchQuery]);
@@ -66,8 +66,8 @@ export default function HistoryScreen() {
             >
               <View style={styles.cardTop}>
                 <Text style={styles.cardTitle}>{item.title || 'Scan Result'}</Text>
-                <Text style={[styles.cardStatus, item.status === 'Analysis unavailable' ? styles.unavailableStatus : null]}>
-                  {item.status || 'Not available'}
+                <Text style={[styles.cardStatus, item.scanStatus === 'Pending' ? styles.unavailableStatus : null]}>
+                  {item.scanStatus || 'Completed'}
                 </Text>
               </View>
 
@@ -76,6 +76,10 @@ export default function HistoryScreen() {
               ) : null}
 
               <Text style={styles.cardDate}>{new Date(item.createdAt || Date.now()).toLocaleString()}</Text>
+              <Text style={styles.cardSite}>
+                {item.sampleClass || 'Unknown'} · {item.siteName || 'Unknown sampling site'} · {item.sourceType || 'Unknown source'}
+              </Text>
+                <Text style={styles.cardScientific}>Measured parameters: {item.measuredParametersStatus || 'Not classified'}</Text>
               <Text numberOfLines={2} style={styles.cardSummary}>
                 {item.summary || 'No summary available.'}
               </Text>
@@ -188,6 +192,17 @@ const styles = StyleSheet.create({
   },
   cardDate: {
     marginTop: 2,
+    color: COLORS.muted,
+    fontSize: 12,
+  },
+  cardSite: {
+    marginTop: 6,
+    color: COLORS.text,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  cardScientific: {
+    marginTop: 4,
     color: COLORS.muted,
     fontSize: 12,
   },

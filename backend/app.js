@@ -14,6 +14,9 @@ import createWaterTestRoutes from './routes/waterTestRoutes.js';
 import createMapRoutes from './routes/mapRoutes.js';
 import createMediaRoutes from './routes/mediaRoutes.js';
 import createAccountRoutes from './routes/accountRoutes.js';
+import { createAnalysisDebugLogger } from './utils/analysisDebug.js';
+
+export const REQUEST_BODY_LIMIT = '50mb';
 
 function corsOptions() {
   const origins = env.corsOrigin.split(',').map((origin) => origin.trim()).filter(Boolean);
@@ -33,12 +36,14 @@ export function createApp({ authService, authTokenService, userService, waterAna
     throw new Error('authTokenService is required when protected AQUALITY API services are configured.');
   }
   const requireAuth = authTokenService ? createRequireAuth(authTokenService, userService) : null;
+  const analysisDebugLogger = createAnalysisDebugLogger(env.analysisDebug);
 
   app.disable('x-powered-by');
   app.use(requestContext);
   app.use(helmet({ crossOriginResourcePolicy: false }));
   app.use(cors(corsOptions()));
-  app.use(express.json({ limit: '2mb' }));
+  app.use(express.json({ limit: REQUEST_BODY_LIMIT }));
+  app.use(express.urlencoded({ extended: true, limit: REQUEST_BODY_LIMIT }));
   app.use('/api/health', createHealthRoutes({ healthCheck }));
   if (authService) {
     const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 15, standardHeaders: true, legacyHeaders: false, message: { error: { code: 'RATE_LIMITED', message: 'Too many login attempts. Please try again later.' } } });
@@ -53,7 +58,7 @@ export function createApp({ authService, authTokenService, userService, waterAna
   }
   if (waterAnalysisService) {
     const analysisLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 30, standardHeaders: true, legacyHeaders: false, message: { error: { code: 'RATE_LIMITED', message: 'Too many analysis requests. Please try again later.' } } });
-    app.use('/api/analyze-water', requireAuth, analysisLimiter, createAnalysisRoutes({ waterAnalysisService }));
+    app.use('/api/analyze-water', requireAuth, analysisLimiter, createAnalysisRoutes({ waterAnalysisService, debugLogger: analysisDebugLogger }));
   }
   if (waterTestService) {
     app.use('/api/water-tests/:id/image', createMediaRoutes({ waterTestService, authTokenService, userService }));

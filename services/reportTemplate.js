@@ -44,12 +44,16 @@ export function buildPdfHtml({ user = {}, test = {}, brandImageUri = null } = {}
         <strong>Municipality:</strong> ${escapeHtml(user.municipality || test.municipality || 'Unavailable')}</p>
         <h2 style="font-size: 18px; border-bottom: 1px solid #D8E6EE; padding-bottom: 6px;">Test Information</h2>
         <p><strong>Date and time:</strong> ${escapeHtml(formatDate(test.capturedAt || test.generatedAt || test.createdAt))}<br>
-        <strong>GPS coordinates:</strong> ${escapeHtml(`${latitude}, ${longitude}`)}${mapUrl ? `<br><strong>Map location:</strong> <a href="${escapeHtml(mapUrl)}">Open map location</a>` : ''}</p>
+        <strong>GPS coordinates:</strong> ${escapeHtml(`${latitude}, ${longitude}`)}<br>
+        <strong>Sample class:</strong> ${escapeHtml(test.sampleClass || 'Unknown')}<br>
+        <strong>Sampling site:</strong> ${escapeHtml(test.siteName || 'Unknown sampling site')}<br>
+        <strong>Water source:</strong> ${escapeHtml(test.sourceType || 'Unknown')}${mapUrl ? `<br><strong>Map location:</strong> <a href="${escapeHtml(mapUrl)}">Open map location</a>` : ''}</p>
         ${stripImage ? `<h2 style="font-size: 18px; border-bottom: 1px solid #D8E6EE; padding-bottom: 6px;">Captured Test Strip</h2><img src="${escapeHtml(stripImage)}" style="width: 100%; max-height: 320px; object-fit: contain; border-radius: 10px; border: 1px solid #D8E6EE;">` : ''}
         <h2 style="font-size: 18px; border-bottom: 1px solid #D8E6EE; padding-bottom: 6px;">Estimated Results</h2>
         <p><strong>pH:</strong> ${escapeHtml(results.pH || 'Unavailable')}<br>
         <strong>Nitrite:</strong> ${escapeHtml(results.Nitrite || 'Unavailable')}<br>
-        <strong>Overall Water Quality:</strong> ${escapeHtml(test.overallStatus || test.status || 'Unavailable')}<br>
+        <strong>Measured Parameters Status:</strong> ${escapeHtml(test.measuredParametersStatus || results['Measured Parameters Status'] || 'Not classified')}<br>
+        <strong>Scientific Validation:</strong> ${escapeHtml(test.scientificValidationStatus || results['Scientific Validation'] || 'Pending laboratory validation')}<br>
         <strong>Remarks:</strong> ${escapeHtml(test.remarks || test.summary || 'Unavailable')}</p>
       </body>
     </html>

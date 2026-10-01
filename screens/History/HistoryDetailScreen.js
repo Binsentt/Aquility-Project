@@ -1,27 +1,92 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, Alert, ScrollView, Share } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { COLORS, LAYOUT, RADII, SHADOWS, SIZES, SPACING } from '../../styles/theme';
 import { createPdfExport, createPngExport, shareExportFile } from '../../services/exportService';
 import { toSafeExportMessage } from '../../services/exportErrors';
 import { loadBackendWaterTest } from '../../services/waterTestRecordService';
 
+function safeImageDebugUrl(uri) {
+  if (!uri || typeof uri !== 'string') return null;
+  try {
+    const parsed = new URL(uri);
+    return `${parsed.origin}${parsed.pathname}`;
+  } catch {
+    return uri.split('?')[0];
+  }
+}
+
+function logHistoryImage(event, recordId, imageUri) {
+  if (typeof __DEV__ === 'undefined' || !__DEV__) return;
+  console.info('[AQUALITY HISTORY IMAGE DEBUG]', {
+    event,
+    recordId: recordId || null,
+    imageUriExists: Boolean(imageUri),
+    imageUrl: safeImageDebugUrl(imageUri),
+  });
+}
+
 export default function HistoryDetailScreen({ route, navigation }) {
   const { currentUser, deleteScanResult } = useAuth();
-  const item = route.params?.item || {};
+  const routeItem = route.params?.item || {};
+  const [detailItem, setDetailItem] = useState(routeItem);
+  const [detailLoading, setDetailLoading] = useState(Boolean(routeItem.id));
+  const [detailError, setDetailError] = useState(null);
+  const [imageState, setImageState] = useState(
+    routeItem.imageUri || routeItem.image || routeItem.uri || routeItem.images?.[0] ? 'loading' : 'unavailable'
+  );
+  const item = detailItem || routeItem;
   const imageUri = item.imageUri || item.image || item.uri || (Array.isArray(item.images) ? item.images[0] : null);
   const createdAt = item.createdAt || new Date().toISOString();
   const [busy, setBusy] = useState(false);
+
+  const refreshDetail = useCallback(async (isActive = () => true) => {
+    if (!routeItem.id) {
+      if (isActive()) setDetailLoading(false);
+      return null;
+    }
+
+    if (isActive()) {
+      setDetailLoading(true);
+      setDetailError(null);
+    }
+
+    try {
+      const record = await loadBackendWaterTest(routeItem.id);
+      if (isActive()) setDetailItem(record);
+      return record;
+    } catch (error) {
+      if (isActive()) setDetailError(error?.message || 'Unable to refresh this saved water-test record.');
+      throw error;
+    } finally {
+      if (isActive()) setDetailLoading(false);
+    }
+  }, [routeItem.id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      refreshDetail(() => active).catch(() => undefined);
+      return () => { active = false; };
+    }, [refreshDetail])
+  );
+
+  useEffect(() => {
+    setImageState(imageUri ? 'loading' : 'unavailable');
+  }, [imageUri]);
 
   const summaryFields = useMemo(
     () => [
       { label: 'Status', value: item.status || 'Not available' },
       { label: 'Analysis status', value: item.analysisStatus || 'Not available' },
+      { label: 'Measured Parameters Status', value: item.measuredParametersStatus || 'Not classified' },
+      { label: 'Scientific Validation', value: item.scientificValidationStatus || 'Pending laboratory validation' },
       { label: 'Scan date', value: new Date(createdAt).toLocaleString() },
       { label: 'Result summary', value: item.summary || 'Not available' },
     ],
-    [createdAt, item.analysisStatus, item.status, item.summary]
+    [createdAt, item.analysisStatus, item.measuredParametersStatus, item.scientificValidationStatus, item.status, item.summary]
   );
 
   const handleExport = async (type) => {
@@ -93,7 +158,31 @@ export default function HistoryDetailScreen({ route, navigation }) {
         <Text style={styles.title}>{item.title || 'Analysis Report'}</Text>
         <Text style={styles.meta}>{new Date(createdAt).toLocaleString()}</Text>
 
-        {imageUri ? <Image source={{ uri: imageUri }} style={styles.preview} /> : null}
+        {detailLoading ? <Text style={styles.loadingText}>Refreshing saved record…</Text> : null}
+
+        {imageUri && imageState !== 'unavailable' ? (
+          <View style={styles.previewWrap}>
+            {imageState === 'loading' ? <Text style={styles.loadingText}>Loading image...</Text> : null}
+            <Image
+              source={{ uri: imageUri }}
+              style={styles.preview}
+              onLoadStart={() => setImageState('loading')}
+              onLoad={() => {
+                setImageState('loaded');
+                logHistoryImage('load-success', item.id, imageUri);
+              }}
+              onError={() => {
+                setImageState('unavailable');
+                logHistoryImage('load-failure', item.id, imageUri);
+              }}
+            />
+          </View>
+        ) : (
+          <View style={styles.imageUnavailable}>
+            <Text style={styles.loadingText}>Image unavailable</Text>
+            {item.id ? <TouchableOpacity onPress={() => refreshDetail().catch(() => undefined)}><Text style={styles.retryText}>Retry</Text></TouchableOpacity> : null}
+          </View>
+        )}
 
         {summaryFields.map((field) => (
           <View key={field.label} style={styles.fieldRow}>
@@ -102,12 +191,42 @@ export default function HistoryDetailScreen({ route, navigation }) {
           </View>
         ))}
 
-        {item.location ? (
+        {item.location && Number.isFinite(Number(item.location.latitude)) && Number.isFinite(Number(item.location.longitude)) ? (
           <View style={styles.fieldRow}>
             <Text style={styles.fieldLabel}>Location</Text>
-            <Text style={styles.fieldValue}>{item.location.latitude.toFixed(4)}, {item.location.longitude.toFixed(4)}</Text>
+            <Text style={styles.fieldValue}>{Number(item.location.latitude).toFixed(4)}, {Number(item.location.longitude).toFixed(4)}</Text>
           </View>
         ) : null}
+
+        <View style={styles.fieldRow}>
+          <Text style={styles.fieldLabel}>Sample</Text>
+          <Text style={styles.fieldValue}>{item.sampleCode || 'Not selected'}</Text>
+        </View>
+        {item.gpsAccuracyMeters != null ? (
+          <View style={styles.fieldRow}>
+            <Text style={styles.fieldLabel}>GPS accuracy</Text>
+            <Text style={styles.fieldValue}>±{Number(item.gpsAccuracyMeters).toFixed(1)} m</Text>
+          </View>
+        ) : null}
+
+        {item.sampleClass || item.siteName || item.sourceType ? (
+          <>
+            <View style={styles.fieldRow}>
+              <Text style={styles.fieldLabel}>Sample class</Text>
+              <Text style={styles.fieldValue}>{item.sampleClass || 'Unknown'}</Text>
+            </View>
+            <View style={styles.fieldRow}>
+              <Text style={styles.fieldLabel}>Sampling site</Text>
+              <Text style={styles.fieldValue}>{item.siteName || 'Unknown sampling site'}</Text>
+            </View>
+            <View style={styles.fieldRow}>
+              <Text style={styles.fieldLabel}>Water source</Text>
+              <Text style={styles.fieldValue}>{item.sourceType || 'Unknown'}</Text>
+            </View>
+          </>
+        ) : null}
+
+        {detailError ? <Text style={styles.errorText}>{detailError}</Text> : null}
 
         {item.resultData && Object.keys(item.resultData).length > 0 ? (
           <View style={styles.metricsWrap}>
@@ -168,7 +287,12 @@ const styles = StyleSheet.create({
   card: { backgroundColor: COLORS.white, borderRadius: RADII.card, padding: SPACING.lg },
   title: { fontSize: 18, fontWeight: '900', color: COLORS.navy },
   meta: { color: COLORS.muted, marginTop: SPACING.xs, marginBottom: SPACING.sm },
-  preview: { width: '100%', height: 220, borderRadius: RADII.control, marginBottom: SPACING.sm },
+  previewWrap: { marginBottom: SPACING.sm },
+  preview: { width: '100%', height: 220, borderRadius: RADII.control, marginTop: SPACING.xs },
+  loadingText: { color: COLORS.muted, lineHeight: 20, marginTop: SPACING.xs },
+  imageUnavailable: { backgroundColor: COLORS.soft, borderRadius: RADII.control, padding: SPACING.md, marginBottom: SPACING.sm },
+  retryText: { color: COLORS.primary, fontWeight: '800', marginTop: SPACING.xs },
+  errorText: { color: COLORS.danger, lineHeight: 20, marginTop: SPACING.md },
   fieldRow: { marginTop: 8 },
   fieldLabel: { color: COLORS.muted, fontSize: 12 },
   fieldValue: { color: COLORS.text, fontWeight: '800', marginTop: 4 },

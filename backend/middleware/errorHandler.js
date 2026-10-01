@@ -52,7 +52,7 @@ export function errorHandler(error, req, res, next) {
   const message = error instanceof HttpError
     ? error.message
     : isMulterLimit
-      ? 'The water-test image exceeds the 10 MB limit.'
+      ? 'The water-test image exceeds the 50 MB limit.'
       : isBadJson
         ? 'The request body is not valid JSON.'
         : isDuplicate

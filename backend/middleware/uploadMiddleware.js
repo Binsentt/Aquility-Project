@@ -7,6 +7,7 @@ import { HttpError } from './errorHandler.js';
 
 const uploadDirectory = resolve(process.cwd(), env.uploadDir);
 mkdirSync(uploadDirectory, { recursive: true });
+export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 
 const storage = multer.diskStorage({
   destination: (req, file, callback) => callback(null, uploadDirectory),
@@ -15,7 +16,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: MAX_UPLOAD_BYTES },
   fileFilter: (req, file, callback) => {
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) {
       callback(new HttpError(400, 'INVALID_IMAGE', 'The water-test upload must be an image.'));

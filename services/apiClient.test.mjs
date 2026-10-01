@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { api, request, setUnauthorizedHandler } from './apiClient.js';
+import { api, getApiBaseUrl, normalizeImageAsset, request, setUnauthorizedHandler } from './apiClient.js';
 
 function jsonResponse(status, body) {
   return {
@@ -100,4 +100,78 @@ test('network failures become a friendly AQUALITY server connection error', asyn
   } finally {
     global.fetch = originalFetch;
   }
+});
+
+test('network failures retain the transport cause and request URL for diagnostics', async () => {
+  const originalFetch = global.fetch;
+  const transportError = new TypeError('fetch failed: connection reset');
+  global.fetch = async () => { throw transportError; };
+
+  try {
+    await assert.rejects(
+      () => request('/analyze-water'),
+      (error) => {
+        assert.equal(error.code, 'NETWORK_UNAVAILABLE');
+        assert.equal(error.cause, transportError);
+        assert.equal(error.requestUrl, `${getApiBaseUrl()}/analyze-water`);
+        return true;
+      },
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('analysis uploads use FormData without overriding the multipart boundary header', async () => {
+  const originalFetch = global.fetch;
+  const requests = [];
+  global.fetch = async (url, options) => {
+    requests.push({ url, options });
+    return jsonResponse(201, { analysisId: 'analysis-1' });
+  };
+
+  try {
+    api.setAccessToken('secure-token');
+    await api.analyzeWater({
+      imageUri: 'file:///tmp/water-strip.jpg',
+      userId: 'user-1',
+      capturedAt: '2026-08-04T00:00:00.000Z',
+    });
+
+    assert.equal(requests.length, 1);
+    assert.match(requests[0].url, /\/analyze-water$/);
+    assert.equal(requests[0].options.headers['Content-Type'], undefined);
+    assert.equal(requests[0].options.headers.Authorization, 'Bearer secure-token');
+    assert.equal(requests[0].options.body instanceof FormData, true);
+    assert.equal(requests[0].options.body.get('userId'), 'user-1');
+    assert.equal(requests[0].options.body.get('capturedAt'), '2026-08-04T00:00:00.000Z');
+    assert.equal(requests[0].options.body.get('image') instanceof Blob, true);
+  } finally {
+    global.fetch = originalFetch;
+    api.clearAccessToken();
+  }
+});
+
+test('analysis upload preserves gallery filename and supported MIME metadata', () => {
+  assert.deepEqual(
+    normalizeImageAsset('content://media/strip-01.png', {
+      fileName: 'strip-01.png',
+      mimeType: 'image/png',
+    }),
+    {
+      uri: 'content://media/strip-01.png',
+      name: 'strip-01.png',
+      type: 'image/png',
+    },
+  );
+});
+
+test('analysis upload does not relabel an unsupported gallery format as JPEG', () => {
+  const asset = normalizeImageAsset('content://media/strip-01.heic', {
+    fileName: 'strip-01.heic',
+    mimeType: 'image/heic',
+  });
+
+  assert.equal(asset.name, 'strip-01.heic');
+  assert.equal(asset.type, 'image/heic');
 });

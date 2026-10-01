@@ -13,6 +13,7 @@ import {
 import { CameraView as ExpoCameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Linking from 'expo-linking';
 import { PinchGestureHandler, State } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,8 +24,66 @@ import ThumbnailStrip from './ThumbnailStrip';
 import { createDocumentDetector } from './documentDetector';
 import { useAuth } from '../../context/AuthContext';
 import { analyzeDocument } from '../../services/waterAnalysisService';
+import { getApiBaseUrl } from '../../services/apiClient';
+import { nativeMultipartFetch, prepareNativeMultipartFile } from '../../services/nativeMultipartUpload';
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+const scannerDebugEnabled = process.env.NODE_ENV === 'development' || process.env.EXPO_PUBLIC_AQUALITY_DEBUG === 'true';
+
+function uriScheme(uri) {
+  return typeof uri === 'string' && uri.includes(':') ? uri.split(':', 1)[0].toLowerCase() : 'unknown';
+}
+
+function logScannerUpload({ uri, asset, userId, imageUriExists = null }) {
+  if (!scannerDebugEnabled) return;
+  console.info('[AQUALITY SCANNER DEBUG]', {
+    source: asset?.source || 'unknown',
+    imageUriScheme: uriScheme(uri),
+    imageUriPresent: Boolean(uri),
+    imageUriExists,
+    filename: asset?.name || asset?.fileName || null,
+    mimeType: asset?.type || asset?.mimeType || null,
+    userIdPresent: Boolean(userId),
+    apiBaseUrl: getApiBaseUrl(),
+    event: 'analyze-request-start',
+  });
+}
+
+function analysisErrorPresentation(error) {
+  switch (error?.code) {
+    case 'NETWORK_UNAVAILABLE':
+      return { title: 'Unable to connect', message: error.message };
+    case 'INVALID_IMAGE':
+      return { title: 'Unsupported image', message: 'Please select a JPEG, PNG, or WebP image of the water-test strip.' };
+    case 'IMAGE_TOO_LARGE':
+      return { title: 'Image too large', message: 'Please select a water-test image smaller than 50 MB.' };
+    case 'IMAGE_UNREADABLE':
+      return { title: 'Image unavailable', message: 'The captured image is no longer available. Please capture the water-test strip again.' };
+    case 'UPLOAD_PREPARATION_FAILED':
+      return { title: 'Upload preparation failed', message: 'Unable to prepare the captured image for upload. Please capture the water-test strip again.' };
+    case 'INVALID_STRIP_FORMAT':
+      return { title: 'Test Strip Not Detected', message: 'Please capture a clear image of the water-test strip and try again.' };
+    case 'AUTH_REQUIRED':
+    case 'TOKEN_EXPIRED':
+    case 'TOKEN_INVALID':
+    case 'ACCOUNT_INACTIVE':
+      return { title: 'Session expired', message: 'Please sign in again before analysing a water-test strip.' };
+    case 'DATABASE_UNAVAILABLE':
+      return { title: 'Server unavailable', message: 'The AQUALITY server is temporarily unable to save this analysis. Please try again.' };
+    default:
+      return { title: 'Analysis failed', message: error?.message || 'Unable to process this water-test strip right now.' };
+  }
+}
+
+async function inspectLocalImage(uri) {
+  if (typeof uri !== 'string' || !uri.startsWith('file://')) return { known: false, exists: null };
+  try {
+    const info = await FileSystem.getInfoAsync(uri);
+    return { known: true, exists: Boolean(info?.exists) };
+  } catch {
+    return { known: false, exists: null };
+  }
+}
 
 const CameraView = React.memo(function CameraView({
   navigation,
@@ -49,6 +108,7 @@ const CameraView = React.memo(function CameraView({
   const [showReview, setShowReview] = useState(false);
   const [submitCommitted, setSubmitCommitted] = useState(false);
   const detectorRef = useRef(createDocumentDetector());
+  const imageAssetsRef = useRef(new Map());
   const { addScanResult, currentUser } = useAuth();
   const insets = useSafeAreaInsets();
   const submitLockRef = useRef(false);
@@ -71,14 +131,16 @@ const CameraView = React.memo(function CameraView({
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
+      imageAssetsRef.current.clear();
       if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
     };
   }, []);
 
   const handleImageCaptured = useCallback(
-    (uri) => {
+    (uri, asset = {}) => {
       if (!uri) return;
 
+      imageAssetsRef.current.set(uri, { ...asset, uri });
       setCapturedImages((current) => [uri, ...current].slice(0, 12));
       setSelectedImage(uri);
       setIsDocumentAligned(true);
@@ -107,7 +169,13 @@ const CameraView = React.memo(function CameraView({
       });
 
       if (photo?.uri && isMountedRef.current) {
-        handleImageCaptured(photo.uri);
+        handleImageCaptured(photo.uri, {
+          source: 'camera',
+          name: 'water-strip.jpg',
+          type: 'image/jpeg',
+          width: photo.width,
+          height: photo.height,
+        });
       }
     } catch {
       if (isMountedRef.current) {
@@ -136,8 +204,16 @@ const CameraView = React.memo(function CameraView({
         allowsEditing: false,
       });
 
-      if (!result.canceled && result.assets?.[0]?.uri && isMountedRef.current) {
-        handleImageCaptured(result.assets[0].uri);
+      const asset = result.assets?.[0];
+      if (!result.canceled && asset?.uri && isMountedRef.current) {
+        handleImageCaptured(asset.uri, {
+          source: 'gallery',
+          fileName: asset.fileName,
+          mimeType: asset.mimeType,
+          width: asset.width,
+          height: asset.height,
+          fileSize: asset.fileSize,
+        });
       }
     } catch {
       if (isMountedRef.current) {
@@ -233,13 +309,36 @@ const CameraView = React.memo(function CameraView({
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status === 'granted') {
           const currentLocation = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-          location = currentLocation?.coords || null;
+          location = currentLocation?.coords
+            ? { ...currentLocation.coords, timestamp: currentLocation.timestamp || Date.now() }
+            : null;
         }
       } catch {}
 
+      const imageUri = capturedImages[0];
+      const imageAsset = imageAssetsRef.current.get(imageUri) || { source: 'unknown', uri: imageUri };
+      const imageInfo = await inspectLocalImage(imageUri);
+      if (imageInfo.known && !imageInfo.exists) {
+        throw Object.assign(new Error('The captured image is no longer available.'), { code: 'IMAGE_UNREADABLE' });
+      }
+      logScannerUpload({ uri: imageUri, asset: imageAsset, userId: currentUser.id, imageUriExists: imageInfo.exists });
+      let preparedUpload;
+      try {
+        preparedUpload = await prepareNativeMultipartFile(imageUri, imageAsset);
+      } catch (error) {
+        if (error?.code) throw error;
+        throw Object.assign(new Error('Unable to prepare the captured image for upload.'), {
+          code: 'UPLOAD_PREPARATION_FAILED',
+          cause: error,
+        });
+      }
       const result = await analyzeDocument({
         images: capturedImages,
-        imageUri: capturedImages[0],
+        imageUri,
+        imageAsset,
+        imageFile: preparedUpload.file,
+        uploadDiagnostics: preparedUpload,
+        multipartFetch: nativeMultipartFetch,
         userId: currentUser.id,
         location,
         barangay: currentUser.barangay,
@@ -263,7 +362,8 @@ const CameraView = React.memo(function CameraView({
     } catch (error) {
       if (isMountedRef.current) {
         setSubmitCommitted(false);
-        Alert.alert('Analysis failed', error?.message || 'Unable to process this water-test strip right now.');
+        const presentation = analysisErrorPresentation(error);
+        Alert.alert(presentation.title, presentation.message);
       }
     } finally {
       if (isMountedRef.current) {
@@ -276,6 +376,7 @@ const CameraView = React.memo(function CameraView({
   const recentImages = useMemo(() => capturedImages.slice(0, 6), [capturedImages]);
 
   const handleRemoveImage = useCallback((uriToRemove) => {
+    imageAssetsRef.current.delete(uriToRemove);
     setCapturedImages((current) => current.filter((item) => item !== uriToRemove));
     setSelectedImage((current) => (current === uriToRemove ? null : current));
     setShowReview(false);

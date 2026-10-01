@@ -65,10 +65,13 @@ export default function FullMapScreen({ navigation }) {
         id: scan.id,
         latitude: scan.location.latitude,
         longitude: scan.location.longitude,
-        overallStatus: scan.overallStatus || scan.status || 'Moderate',
+        overallStatus: scan.overallStatus || scan.status || 'NOT CLASSIFIED',
         capturedAt: scan.capturedAt || scan.createdAt,
         barangay: scan.barangay || scan.user?.barangay || null,
         municipality: scan.municipality || scan.user?.municipality || null,
+        sampleClass: scan.sampleClass || null,
+        siteName: scan.siteName || 'Unknown sampling site',
+        sourceType: scan.sourceType || null,
       }));
 
     return (mapFeed || fallbackMarkers)
@@ -76,13 +79,18 @@ export default function FullMapScreen({ navigation }) {
       .map((scan) => ({
         id: scan.id,
         coordinate: { latitude: Number(scan.latitude), longitude: Number(scan.longitude) },
-        title: 'Water Test',
-        description: scan.overallStatus || 'Moderate',
+        title: scan.sampleClass && scan.siteName
+          ? `Class ${scan.sampleClass} — ${scan.siteName}`
+          : (scan.siteName || 'Water Test'),
+        description: scan.overallStatus || 'Not classified',
         barangay: scan.barangay || 'Unavailable',
         municipality: scan.municipality || 'Unavailable',
-        overallStatus: scan.overallStatus || 'Moderate',
+        overallStatus: scan.overallStatus || 'NOT CLASSIFIED',
         pinColor: markerColorFor(scan.overallStatus),
         createdAt: scan.capturedAt || scan.createdAt,
+        sampleClass: scan.sampleClass || null,
+        siteName: scan.siteName || 'Unknown sampling site',
+        sourceType: scan.sourceType || null,
       }));
   }, [mapFeed, scanHistory]);
 
@@ -108,6 +116,7 @@ export default function FullMapScreen({ navigation }) {
                 <View style={styles.callout}>
                   <Text style={styles.calloutTitle}>{marker.title}</Text>
                   <Text style={styles.calloutText}>{marker.barangay}, {marker.municipality}</Text>
+                  <Text style={styles.calloutText}>Source: {marker.sourceType || 'Unknown'}</Text>
                   <Text style={[styles.calloutText, { color: marker.pinColor }]}>Status: {marker.overallStatus}</Text>
                   <Text style={styles.calloutText}>Tested: {new Date(marker.createdAt || Date.now()).toLocaleDateString()}</Text>
                 </View>

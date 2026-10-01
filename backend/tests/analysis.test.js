@@ -45,9 +45,76 @@ test('analysis service stores upload metadata and returns a stable result shape'
   assert.equal(result.pH, 6);
   assert.equal(result.nitrite.value, 10);
   assert.equal(result.nitrite.unit, 'ppm');
-  assert.equal(result.overallStatus, 'Unvalidated');
+  assert.equal(result.overallStatus, 'NOT CLASSIFIED');
   assert.deepEqual(result.gps, { latitude: 14.6, longitude: 120.98 });
   assert.equal(result.imagePath, '/uploads/strip.jpg');
+});
+
+test('analysis service stores actual GPS alongside server-matched sampling-site identity', async () => {
+  let createdRecord;
+  const service = createWaterAnalysisService({
+    colorAnalysisEngine: { async analyze() { return sampleMeasurements; } },
+    sampleSiteMatcher: () => ({
+      classCode: 'AA',
+      siteName: 'Pawikan',
+      sourceType: 'Coastal / Pawikan',
+      distanceMeters: 12,
+    }),
+    waterTestModel: {
+      async create(record) {
+        createdRecord = record;
+        return { id: '3ec25331-d511-491f-a1b6-11670bc4a2d6', createdAt: '2026-08-04T00:00:00.000Z', ...record };
+      },
+    },
+  });
+
+  const result = await service.analyze({
+    file: { filename: 'strip.jpg' },
+    metadata: {
+      userId: '8ed82724-1db6-452a-a872-f6e5c81d8b5a',
+      gpsLatitude: '14.6',
+      gpsLongitude: '120.98',
+      capturedAt: '2026-08-04T00:00:00.000Z',
+    },
+    authenticatedUserId: '8ed82724-1db6-452a-a872-f6e5c81d8b5a',
+  });
+
+  assert.equal(createdRecord.latitude, 14.6);
+  assert.equal(createdRecord.longitude, 120.98);
+  assert.equal(createdRecord.sampleClass, 'AA');
+  assert.equal(createdRecord.siteName, 'Pawikan');
+  assert.equal(createdRecord.sourceType, 'Coastal / Pawikan');
+  assert.equal(result.sampleClass, 'AA');
+  assert.equal(result.siteName, 'Pawikan');
+});
+
+test('analysis service preserves an explicitly selected sample code when canonical coordinates are not configured', async () => {
+  let createdRecord;
+  const service = createWaterAnalysisService({
+    colorAnalysisEngine: { async analyze() { return sampleMeasurements; } },
+    waterTestModel: {
+      async create(record) {
+        createdRecord = record;
+        return { id: 'sample-code-record', createdAt: '2026-08-04T00:00:00.000Z', ...record };
+      },
+    },
+  });
+
+  await service.analyze({
+    file: { filename: 'strip.jpg' },
+    metadata: {
+      sampleCode: 'AA-03',
+      gpsLatitude: '14.6',
+      gpsLongitude: '120.98',
+      capturedAt: '2026-08-04T00:00:00.000Z',
+    },
+    authenticatedUserId: '8ed82724-1db6-452a-a872-f6e5c81d8b5a',
+  });
+
+  assert.equal(createdRecord.sampleCode, 'AA-03');
+  assert.equal(createdRecord.sampleNumber, null);
+  assert.equal(createdRecord.sampleClass, 'AA');
+  assert.equal(createdRecord.siteName, null);
 });
 
 test('water-test serialization retains pH color metadata and Nitrite interpolation output', () => {
@@ -71,6 +138,10 @@ test('water-test serialization retains pH color metadata and Nitrite interpolati
   assert.deepEqual(result.nitrite.calibrationInterval.hue, [15, 30]);
   assert.equal(result.resultData.Nitrite, '10.00 ppm');
   assert.equal(result.nitrate, undefined);
+  assert.deepEqual(result.labComparison, {
+    pH: { labValue: null, absoluteDifference: null, percentDifference: null },
+    Nitrite: { labValue: null, absoluteDifference: null, percentDifference: null },
+  });
 });
 
 test('legacy Nitrate-only records do not serialize their concentration as Nitrite', () => {
@@ -86,7 +157,7 @@ test('legacy Nitrate-only records do not serialize their concentration as Nitrit
 
   assert.equal(result.nitrite.value, null);
   assert.equal(result.resultData.Nitrite, 'Unavailable');
-  assert.equal(result.overallStatus, 'Unvalidated');
+  assert.equal(result.overallStatus, 'NOT CLASSIFIED');
   assert.match(result.remarks, /cannot be interpreted as Nitrite/);
 });
 
@@ -103,6 +174,35 @@ test('analysis endpoint rejects a request without an image', async () => {
 
   assert.equal(response.status, 400);
   assert.equal(response.body.error.code, 'IMAGE_REQUIRED');
+});
+
+test('analysis endpoint receives multipart images above the former 10 MB limit', async () => {
+  const userId = '8ed82724-1db6-452a-a872-f6e5c81d8b5a';
+  let receivedFile;
+  const app = createApp({
+    authTokenService: { verifyAccessToken: () => ({ userId }) },
+    waterAnalysisService: {
+      async analyze({ file, metadata, authenticatedUserId }) {
+        receivedFile = { filename: file.filename, mimetype: file.mimetype, size: file.size, metadata, authenticatedUserId };
+        await rm(file.path, { force: true });
+        return { analysisId: 'analysis-1', overallStatus: 'Unvalidated' };
+      },
+    },
+  });
+
+  const response = await request(app)
+    .post('/api/analyze-water')
+    .set('Authorization', 'Bearer valid-token')
+    .field('userId', userId)
+    .field('capturedAt', '2026-08-04T00:00:00.000Z')
+    .attach('image', Buffer.alloc(11 * 1024 * 1024, 1), { filename: 'strip.jpg', contentType: 'image/jpeg' });
+
+  assert.equal(response.status, 201);
+  assert.equal(response.body.analysisId, 'analysis-1');
+  assert.equal(receivedFile.mimetype, 'image/jpeg');
+  assert.equal(receivedFile.size, 11 * 1024 * 1024);
+  assert.equal(receivedFile.authenticatedUserId, userId);
+  assert.equal(receivedFile.metadata.userId, userId);
 });
 
 test('analysis service rejects overlong location metadata before storing a water test', async () => {

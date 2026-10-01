@@ -5,7 +5,7 @@
 1. Ensure PostgreSQL is installed and running, then create the local database with `CREATE DATABASE aquality;` from `psql` or the VS Code PostgreSQL extension.
 2. Copy `.env.example` to `.env`. Keep it private and set `DATABASE_URL=postgresql://username:password@localhost:5432/aquality`, a unique `JWT_SECRET` of at least 32 characters, `DATABASE_SSL=false`, and `HOST=0.0.0.0` for a phone on the same private LAN.
 3. Install dependencies with `npm install`.
-4. Run `npm run db:migrate` to create or advance the schema. Applied files are recorded in `schema_migrations`.
+4. Run `npm run db:migrate` to create or advance the schema through migration 007. Applied files are recorded in `schema_migrations`.
 5. Run `npm run db:seed` to validate the configured client calibration structure.
 6. Start the API with `npm start`, then verify `GET http://localhost:4000/api/health` returns `database: "connected"`.
 
@@ -24,6 +24,6 @@ See [`../docs/DEPLOYMENT.md`](../docs/DEPLOYMENT.md) for environment, local Post
 - Logs intentionally exclude credentials, authorization headers, request bodies, and profile data.
 
 ## Color analysis and calibration limits
-The active analysis path is image-based: pH uses sRGB/D65 Lab and CIEDE2000; Nitrite uses standard HSV degrees and provisional piecewise-linear ppm interpolation. The configurable normalized ROI falls back to the central 20% until physical pad coordinates are confirmed. Sharp performs Node-side decoding; no Python or ImageJ runtime is required. Neither parameter has experimental validation. See [`../CLIENT_SETUP.md`](../CLIENT_SETUP.md) for the client workflow and [`../docs/IMAGE_ANALYSIS.md`](../docs/IMAGE_ANALYSIS.md) for calibration and ROI details.
+The active analysis path is image-based: pH uses sRGB/D65 Lab and CIEDE2000; Nitrite uses standard HSV degrees and provisional piecewise-linear ppm interpolation. The configurable normalized ROI falls back to the central 20% until physical pad coordinates are confirmed and reports `PAD LOCALIZATION REQUIRED`. Successful persistence is separate from scientific validation: `scanStatus` is `Completed`, values are `Estimated`, measured parameters remain `Not classified` without approved thresholds, and scientific validation remains `Pending laboratory validation`. Sharp performs Node-side decoding; no Python or ImageJ runtime is required. Neither parameter has experimental validation. See [`../CLIENT_SETUP.md`](../CLIENT_SETUP.md) for the client workflow and [`../docs/IMAGE_ANALYSIS.md`](../docs/IMAGE_ANALYSIS.md) for calibration and ROI details.
 
 The supplied micromolar reference table is retained as metadata only and is not used for quantitative output.

@@ -92,3 +92,39 @@ export function validateCapturedAt(value, { required = true } = {}) {
   if (!value || Number.isNaN(date.valueOf())) throw new HttpError(400, 'INVALID_CAPTURE_TIME', 'Capture time must be a valid ISO date.');
   return date.toISOString();
 }
+
+export function validateSampleCode(value) {
+  const sampleCode = text(value, 'Sample code', { maxLength: 6 });
+  if (!sampleCode) return null;
+  if (!/^(AA|A|C)-(0[1-9]|1[0-5])$/.test(sampleCode)) {
+    throw new HttpError(400, 'INVALID_SAMPLE_CODE', 'Sample code must be AA-01 to AA-15, A-01 to A-15, or C-01 to C-15.');
+  }
+  return sampleCode;
+}
+
+export function validateSampleNumber(value) {
+  if (value == null || value === '') return null;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 15) {
+    throw new HttpError(400, 'INVALID_SAMPLE_NUMBER', 'Sample number must be between 1 and 15.');
+  }
+  return parsed;
+}
+
+export function validateGpsAccuracy(value) {
+  if (value == null || value === '') return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100000) {
+    throw new HttpError(400, 'INVALID_LOCATION_ACCURACY', 'GPS accuracy must be a non-negative distance.');
+  }
+  return parsed;
+}
+
+export function validateOptionalMeasurement(value, field, { max = Number.POSITIVE_INFINITY } = {}) {
+  if (value == null || value === '') return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > max) {
+    throw new HttpError(400, 'INVALID_INPUT', `${field} must be a valid measurement.`);
+  }
+  return parsed;
+}

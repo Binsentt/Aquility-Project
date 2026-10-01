@@ -32,4 +32,5 @@ export const env = {
   guestArchiveDays: asPositiveInteger(process.env.GUEST_ARCHIVE_DAYS, 30),
   guestArchiveIntervalMs: asPositiveInteger(process.env.GUEST_ARCHIVE_INTERVAL_MS, 6 * 60 * 60 * 1000),
   logRequests: asBoolean(process.env.LOG_REQUESTS),
+  analysisDebug: asBoolean(process.env.AQUALITY_DEBUG_ANALYSIS),
 };

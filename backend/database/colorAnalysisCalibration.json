@@ -1,6 +1,7 @@
 {
   "version": "client-provided-provisional-v1",
   "source": "Client-provided color references and provisional calibration values.",
+  "thresholds": null,
   "roi": {
     "strategy": "configurable-normalized-roi-with-center-crop-fallback",
     "fallback": { "x": 0.4, "y": 0.4, "width": 0.2, "height": 0.2 },

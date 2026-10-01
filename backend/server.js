@@ -13,6 +13,7 @@ import { createMapService } from './services/mapService.js';
 import { createGuestLifecycleService } from './services/guestLifecycleService.js';
 import { createAccountService } from './services/accountService.js';
 import { createUploadDeletionService } from './services/uploadDeletionService.js';
+import { createAnalysisDebugLogger } from './utils/analysisDebug.js';
 
 const pool = createPool();
 const userModel = createUserModel(pool);
@@ -21,6 +22,7 @@ const authTokenService = createAuthTokenService();
 const guestLifecycleService = createGuestLifecycleService({ userModel, guestArchiveDays: env.guestArchiveDays });
 const uploadDeletionService = createUploadDeletionService();
 const healthCheck = () => pool.query('SELECT 1');
+const analysisDebugLogger = createAnalysisDebugLogger(env.analysisDebug);
 const app = createApp({
   authService: createAuthService({ userModel }),
   authTokenService,
@@ -31,6 +33,7 @@ const app = createApp({
     waterTestModel,
     userModel,
     authTokenService,
+    debugLogger: analysisDebugLogger,
   }),
   waterTestService: createWaterTestService({ waterTestModel, pool, uploadDeletionService }),
   accountService: createAccountService({ pool, userModel, waterTestModel, uploadDeletionService }),

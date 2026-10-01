@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json.schemastore.org/eas.json",
+  "build": {
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://aquality-api-production.up.railway.app/api"
+      }
+    },
+    "production": {
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://aquality-api-production.up.railway.app/api"
+      }
+    }
+  }
+}
