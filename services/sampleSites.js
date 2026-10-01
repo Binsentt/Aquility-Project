@@ -8,6 +8,19 @@ export const SAMPLE_SITES = Object.freeze({
   C: Object.freeze({ classCode: 'C', name: 'Fish Farm', sourceType: 'Fish Farm / Aquaculture', latitude: null, longitude: null, radiusMeters: 500 }),
 });
 
+export function sampleSiteForClass(classCode, sites = SAMPLE_SITES) {
+  const site = sites?.[classCode];
+  if (!site) return null;
+  return {
+    classCode: site.classCode,
+    siteName: site.name,
+    sourceType: site.sourceType,
+    latitude: site.latitude == null ? null : Number(site.latitude),
+    longitude: site.longitude == null ? null : Number(site.longitude),
+    distanceMeters: null,
+  };
+}
+
 function toRadians(value) {
   return value * (Math.PI / 180);
 }

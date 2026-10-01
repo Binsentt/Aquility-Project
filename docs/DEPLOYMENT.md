@@ -15,7 +15,7 @@ Required production values:
 - `GUEST_ARCHIVE_DAYS=30`: inactivity period before an active guest is archived.
 - `GUEST_ARCHIVE_INTERVAL_MS=21600000`: server-side interval for the idempotent guest archive cleanup job.
 
-The Expo root `.env` contains only the non-secret `EXPO_PUBLIC_API_BASE_URL`. It must point at the deployed `/api` URL reachable from Android devices. No database or JWT credential belongs in the mobile app.
+The Expo root `.env` contains only the non-secret `EXPO_PUBLIC_API_BASE_URL` and optional `EXPO_PUBLIC_ALLOW_LOCAL_API` flag. The default and EAS value is `https://aquality-api-production.up.railway.app/api`; private localhost/LAN URLs are ignored unless the allow flag is explicitly `true`. No database or JWT credential belongs in the mobile app.
 
 ## Database migration
 
@@ -56,7 +56,7 @@ In development the server binds to `0.0.0.0:4000` by default so Expo Go on a pho
 
 ## Frontend configuration and build
 
-1. Create root `.env` from `.env.example` and set the deployed API base URL.
+1. Create root `.env` from `.env.example`; it already defaults to the deployed Railway API. Set `EXPO_PUBLIC_ALLOW_LOCAL_API=true` only for an intentional local/LAN backend run.
 2. Install with `npm ci`.
 3. Run the test suite and `npx expo export --platform android --clear`.
 4. Build through the client’s approved Expo/EAS Android release process.
@@ -64,10 +64,12 @@ In development the server binds to `0.0.0.0:4000` by default so Expo Go on a pho
 
 Expo SecureStore keeps bearer tokens in device secure storage. AsyncStorage caches only the session-associated profile/history display data for temporary offline fallback; it is never the authoritative source and does not hold bearer tokens.
 
-For Expo Go on a physical Android or iOS device, determine the computer's
-private LAN IPv4 address with `ipconfig` and set
+For intentional local Expo Go testing on a physical Android or iOS device,
+determine the computer's private LAN IPv4 address with `ipconfig` and set both
+`EXPO_PUBLIC_ALLOW_LOCAL_API=true` and
 `EXPO_PUBLIC_API_BASE_URL=http://<LAPTOP_LAN_IP>:4000/api` in the root `.env`
-before starting Expo. Start Metro with:
+before starting Expo. Without the explicit flag, the Railway API remains the
+selected endpoint. Start Metro with:
 
 ```powershell
 npx expo start --lan --clear

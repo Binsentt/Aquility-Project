@@ -9,6 +9,7 @@ import {
   SafeAreaView,
   Image,
   ScrollView,
+  Modal,
 } from 'react-native';
 import { CameraView as ExpoCameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
@@ -29,6 +30,12 @@ import { nativeMultipartFetch, prepareNativeMultipartFile } from '../../services
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const scannerDebugEnabled = process.env.NODE_ENV === 'development' || process.env.EXPO_PUBLIC_AQUALITY_DEBUG === 'true';
+const SAMPLE_CLASSES = [
+  { code: 'AA', siteName: 'Pawikan', sourceType: 'Coastal / Pawikan' },
+  { code: 'A', siteName: 'Well', sourceType: 'Well / Groundwater' },
+  { code: 'C', siteName: 'Fish Farm', sourceType: 'Fish Farm / Aquaculture' },
+];
+const SAMPLE_NUMBERS = Array.from({ length: 15 }, (_, index) => index + 1);
 
 function uriScheme(uri) {
   return typeof uri === 'string' && uri.includes(':') ? uri.split(':', 1)[0].toLowerCase() : 'unknown';
@@ -105,6 +112,9 @@ const CameraView = React.memo(function CameraView({
   const [isDocumentAligned, setIsDocumentAligned] = useState(false);
   const [alignmentMessage, setAlignmentMessage] = useState('Center the water-test strip in the guide.');
   const [selectedImage, setSelectedImage] = useState(null);
+  const [selectedSampleClass, setSelectedSampleClass] = useState(null);
+  const [selectedSampleNumber, setSelectedSampleNumber] = useState(null);
+  const [sampleSelectionVisible, setSampleSelectionVisible] = useState(false);
   const [showReview, setShowReview] = useState(false);
   const [submitCommitted, setSubmitCommitted] = useState(false);
   const detectorRef = useRef(createDocumentDetector());
@@ -116,6 +126,9 @@ const CameraView = React.memo(function CameraView({
   const focusTimerRef = useRef(null);
   const isMountedRef = useRef(true);
   const bottomInset = Math.max(insets.bottom, 16);
+  const selectedSampleCode = selectedSampleClass && selectedSampleNumber
+    ? `${selectedSampleClass}-${String(selectedSampleNumber).padStart(2, '0')}`
+    : null;
 
   useEffect(() => {
     if (permission?.status === 'undetermined') {
@@ -293,6 +306,11 @@ const CameraView = React.memo(function CameraView({
       return;
     }
 
+    if (!selectedSampleClass || !selectedSampleNumber) {
+      setSampleSelectionVisible(true);
+      return;
+    }
+
     if (!currentUser?.id) {
       Alert.alert('Profile required', 'Please create or restore your AQUALITY profile before analysing a water-test strip.');
       return;
@@ -344,6 +362,9 @@ const CameraView = React.memo(function CameraView({
         barangay: currentUser.barangay,
         municipality: currentUser.municipality,
         capturedAt: new Date().toISOString(),
+        sampleClass: selectedSampleClass,
+        sampleCode: selectedSampleCode,
+        sampleNumber: selectedSampleNumber,
       });
 
       if (!isMountedRef.current) {
@@ -371,7 +392,7 @@ const CameraView = React.memo(function CameraView({
         setProcessing(false);
       }
     }
-  }, [addScanResult, capturedImages, currentUser, navigation, processing, submitCommitted]);
+  }, [addScanResult, capturedImages, currentUser, navigation, processing, selectedSampleClass, selectedSampleCode, selectedSampleNumber, submitCommitted]);
 
   const recentImages = useMemo(() => capturedImages.slice(0, 6), [capturedImages]);
 
@@ -498,7 +519,56 @@ const CameraView = React.memo(function CameraView({
       <View style={[styles.assistBanner, { top: insets.top + 68 }]} pointerEvents="box-none">
         <Text style={styles.assistTitle}>{autoScan ? 'Assisted capture' : 'Manual capture'}</Text>
         <Text style={[styles.assistText, isDocumentAligned && styles.assistTextActive]}>{alignmentMessage}</Text>
+        <TouchableOpacity style={styles.samplePickerButton} onPress={() => setSampleSelectionVisible(true)} activeOpacity={0.85}>
+          <Text style={styles.samplePickerText}>{selectedSampleCode ? `Sample ${selectedSampleCode} · ${SAMPLE_CLASSES.find((entry) => entry.code === selectedSampleClass)?.siteName}` : 'Select sample class and number'}</Text>
+        </TouchableOpacity>
       </View>
+
+      <Modal
+        visible={sampleSelectionVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSampleSelectionVisible(false)}
+      >
+        <View style={styles.sampleModalBackdrop}>
+          <View style={styles.sampleModalCard}>
+            <Text style={styles.sampleModalTitle}>Select water sample</Text>
+            <Text style={styles.sampleModalHint}>Choose the study class and sample number before analysis.</Text>
+            <Text style={styles.sampleModalLabel}>Sample class</Text>
+            <View style={styles.sampleOptionRow}>
+              {SAMPLE_CLASSES.map((entry) => (
+                <TouchableOpacity
+                  key={entry.code}
+                  style={[styles.sampleOption, selectedSampleClass === entry.code && styles.sampleOptionSelected]}
+                  onPress={() => setSelectedSampleClass(entry.code)}
+                >
+                  <Text style={[styles.sampleOptionText, selectedSampleClass === entry.code && styles.sampleOptionTextSelected]}>{entry.code}</Text>
+                  <Text style={[styles.sampleOptionSubtext, selectedSampleClass === entry.code && styles.sampleOptionTextSelected]}>{entry.siteName}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={styles.sampleModalLabel}>Sample number</Text>
+            <View style={styles.sampleNumberGrid}>
+              {SAMPLE_NUMBERS.map((number) => (
+                <TouchableOpacity
+                  key={number}
+                  style={[styles.sampleNumberOption, selectedSampleNumber === number && styles.sampleOptionSelected]}
+                  onPress={() => setSelectedSampleNumber(number)}
+                >
+                  <Text style={[styles.sampleOptionText, selectedSampleNumber === number && styles.sampleOptionTextSelected]}>{String(number).padStart(2, '0')}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity
+              style={[styles.sampleConfirmButton, (!selectedSampleClass || !selectedSampleNumber) && styles.sampleConfirmDisabled]}
+              disabled={!selectedSampleClass || !selectedSampleNumber}
+              onPress={() => setSampleSelectionVisible(false)}
+            >
+              <Text style={styles.sampleConfirmText}>{selectedSampleCode ? `Use ${selectedSampleCode}` : 'Select a sample'}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {recentImages.length ? (
         <View style={[styles.thumbnailPanel, { bottom: 132 + bottomInset }]}>
@@ -621,6 +691,63 @@ const styles = StyleSheet.create({
   assistTitle: { color: '#fff', fontSize: 12, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.6 },
   assistText: { marginTop: 4, color: '#D6EAF8', fontSize: 13 },
   assistTextActive: { color: '#6FE7FF' },
+  samplePickerButton: {
+    marginTop: 8,
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(19, 114, 164, 0.72)',
+  },
+  samplePickerText: { color: '#fff', fontSize: 12, fontWeight: '800' },
+  sampleModalBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+  },
+  sampleModalCard: {
+    backgroundColor: '#F7FBFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 20,
+    paddingBottom: 28,
+  },
+  sampleModalTitle: { color: '#082744', fontSize: 20, fontWeight: '900' },
+  sampleModalHint: { color: '#527087', marginTop: 6, lineHeight: 20 },
+  sampleModalLabel: { color: '#17324B', fontSize: 13, fontWeight: '800', marginTop: 16, marginBottom: 8 },
+  sampleOptionRow: { flexDirection: 'row', gap: 8 },
+  sampleOption: {
+    flex: 1,
+    minHeight: 54,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: '#E7F1F8',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sampleOptionSelected: { backgroundColor: '#0D4C7A' },
+  sampleOptionText: { color: '#17324B', fontSize: 14, fontWeight: '900' },
+  sampleOptionSubtext: { color: '#527087', fontSize: 10, marginTop: 2 },
+  sampleOptionTextSelected: { color: '#fff' },
+  sampleNumberGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  sampleNumberOption: {
+    width: 42,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: '#E7F1F8',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sampleConfirmButton: {
+    marginTop: 20,
+    minHeight: 48,
+    borderRadius: 14,
+    backgroundColor: '#0D4C7A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sampleConfirmDisabled: { opacity: 0.45 },
+  sampleConfirmText: { color: '#fff', fontWeight: '900' },
   bottomControls: {
     position: 'absolute',
     left: 0,

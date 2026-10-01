@@ -1,6 +1,6 @@
 # AQUALITY API
 
-Base URL: `EXPO_PUBLIC_API_BASE_URL`, normally `https://api.example.com/api` in production.
+Base URL: `EXPO_PUBLIC_API_BASE_URL`, defaulting to `https://aquality-api-production.up.railway.app/api`. Local or LAN URLs require `EXPO_PUBLIC_ALLOW_LOCAL_API=true`.
 
 Protected routes require `Authorization: Bearer <token>`. Errors use this additive shape:
 

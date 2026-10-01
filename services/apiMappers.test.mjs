@@ -29,7 +29,10 @@ test('toScanResult maps API chemistry and GPS to the existing result screen cont
   assert.equal(scan.analysisStatus, 'Completed');
   assert.equal(scan.scientificStatus, 'Pending laboratory validation');
   assert.equal(scan.measuredParametersStatus, 'Not classified');
+  assert.equal(scan.measuredParametersDisplayStatus, 'Awaiting approved limits');
   assert.equal(scan.scientificValidationStatus, 'Pending laboratory validation');
+  assert.equal(scan.scientificValidationDisplayStatus, 'Pending laboratory comparison');
+  assert.equal(scan.laboratoryComparisonStatus, 'Not entered yet');
   assert.deepEqual(scan.detectedParameters, ['pH', 'Nitrite']);
   assert.equal(scan.nitrite.hue, 30);
   assert.deepEqual(scan.location, { latitude: 14.6, longitude: 120.98 });
@@ -41,8 +44,8 @@ test('toScanResult maps API chemistry and GPS to the existing result screen cont
   assert.deepEqual(scan.resultData, {
     pH: '6.80',
     Nitrite: '10.00 ppm',
-    'Measured Parameters Status': 'Not classified',
-    'Scientific Validation': 'Pending laboratory validation',
+    'Measured Parameters Status': 'Awaiting approved limits',
+    'Scientific Validation': 'Pending laboratory comparison',
   });
   assert.equal(scan.imageUri, 'http://localhost:4000/api/water-tests/3ec25331-d511-491f-a1b6-11670bc4a2d6/image?token=short-lived-token');
 });
@@ -67,4 +70,15 @@ test('toScanResult does not invent a safety class when the backend has no classi
   assert.equal(scan.overallStatus, 'NOT CLASSIFIED');
   assert.equal(scan.measuredParametersStatus, 'Not classified');
   assert.equal(scan.scientificValidationStatus, 'Pending laboratory validation');
+  assert.equal(scan.measuredParametersDisplayStatus, 'Awaiting approved limits');
+  assert.equal(scan.scientificValidationDisplayStatus, 'Pending laboratory comparison');
+});
+
+test('toScanResult labels laboratory comparison only when a lab value exists', () => {
+  const scan = toScanResult({
+    analysisId: 'scan-with-lab-value',
+    labComparison: { pH: { labValue: 7.1 }, Nitrite: { labValue: null } },
+  }, 'http://localhost:4000/api');
+
+  assert.equal(scan.laboratoryComparisonStatus, 'Entered');
 });

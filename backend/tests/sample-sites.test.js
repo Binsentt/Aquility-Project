@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { matchSampleSite } from '../services/sampleSites.js';
+import { matchSampleSite, sampleSiteForClass } from '../services/sampleSites.js';
 
 const configuredSites = {
   AA: { classCode: 'AA', name: 'Pawikan', sourceType: 'Coastal / Pawikan', latitude: 14.7000, longitude: 120.9000, radiusMeters: 500 },
@@ -31,4 +31,18 @@ test('the fifteen samples in each class retain one canonical site identity', () 
     assert.equal(records[0].classCode, classCode);
     assert.equal(records[0].siteName, site.name);
   }
+});
+
+test('selected sample classes resolve their authoritative study-site identity without GPS', () => {
+  assert.deepEqual(sampleSiteForClass('AA'), {
+    classCode: 'AA',
+    siteName: 'Pawikan',
+    sourceType: 'Coastal / Pawikan',
+    latitude: null,
+    longitude: null,
+    distanceMeters: null,
+  });
+  assert.equal(sampleSiteForClass('A').siteName, 'Well');
+  assert.equal(sampleSiteForClass('C').siteName, 'Fish Farm');
+  assert.equal(sampleSiteForClass('invalid'), null);
 });

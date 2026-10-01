@@ -114,7 +114,59 @@ test('analysis service preserves an explicitly selected sample code when canonic
   assert.equal(createdRecord.sampleCode, 'AA-03');
   assert.equal(createdRecord.sampleNumber, null);
   assert.equal(createdRecord.sampleClass, 'AA');
-  assert.equal(createdRecord.siteName, null);
+  assert.equal(createdRecord.siteName, 'Pawikan');
+  assert.equal(createdRecord.sourceType, 'Coastal / Pawikan');
+});
+
+test('analysis service maps selected sample metadata to its study site independently of GPS', async () => {
+  let createdRecord;
+  const service = createWaterAnalysisService({
+    colorAnalysisEngine: { async analyze() { return sampleMeasurements; } },
+    waterTestModel: {
+      async create(record) {
+        createdRecord = record;
+        return { id: 'selected-sample-record', createdAt: '2026-08-04T00:00:00.000Z', ...record };
+      },
+    },
+  });
+
+  const result = await service.analyze({
+    file: { filename: 'strip.jpg' },
+    metadata: {
+      sampleClass: 'C',
+      sampleCode: 'C-15',
+      sampleNumber: '15',
+      gpsLatitude: '14.6',
+      gpsLongitude: '120.98',
+      capturedAt: '2026-08-04T00:00:00.000Z',
+    },
+    authenticatedUserId: '8ed82724-1db6-452a-a872-f6e5c81d8b5a',
+  });
+
+  assert.equal(createdRecord.sampleClass, 'C');
+  assert.equal(createdRecord.sampleCode, 'C-15');
+  assert.equal(createdRecord.sampleNumber, 15);
+  assert.equal(createdRecord.siteName, 'Fish Farm');
+  assert.equal(createdRecord.sourceType, 'Fish Farm / Aquaculture');
+  assert.equal(createdRecord.canonicalLatitude, null);
+  assert.equal(createdRecord.canonicalLongitude, null);
+  assert.equal(result.siteName, 'Fish Farm');
+});
+
+test('analysis service rejects inconsistent selected sample class and code', async () => {
+  const service = createWaterAnalysisService({
+    colorAnalysisEngine: { async analyze() { return sampleMeasurements; } },
+    waterTestModel: { async create() { throw new Error('should not save'); } },
+  });
+
+  await assert.rejects(
+    service.analyze({
+      file: { filename: 'strip.jpg' },
+      metadata: { sampleClass: 'AA', sampleCode: 'C-01', sampleNumber: 1, capturedAt: '2026-08-04T00:00:00.000Z' },
+      authenticatedUserId: '8ed82724-1db6-452a-a872-f6e5c81d8b5a',
+    }),
+    (error) => error.code === 'INVALID_SAMPLE_SITE'
+  );
 });
 
 test('water-test serialization retains pH color metadata and Nitrite interpolation output', () => {

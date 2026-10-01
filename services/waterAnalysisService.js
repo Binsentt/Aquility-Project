@@ -1,9 +1,11 @@
 import { api, getApiBaseUrl } from './apiClient';
 import { toScanResult } from './apiMappers';
-import { matchSampleSite } from './sampleSites';
+import { matchSampleSite, sampleSiteForClass } from './sampleSites';
 
 export async function analyzeWaterTest(imageUri, metadata = {}) {
-  const sampleSite = metadata.sampleSite || matchSampleSite(metadata.location?.latitude, metadata.location?.longitude);
+  const sampleSite = metadata.sampleSite
+    || sampleSiteForClass(metadata.sampleClass)
+    || matchSampleSite(metadata.location?.latitude, metadata.location?.longitude);
   const waterTest = await api.analyzeWater({
     imageUri,
     imageAsset: metadata.imageAsset,
@@ -17,7 +19,7 @@ export async function analyzeWaterTest(imageUri, metadata = {}) {
     gpsCapturedAt: metadata.location?.timestamp ? new Date(metadata.location.timestamp).toISOString() : metadata.capturedAt,
     barangay: metadata.barangay,
     municipality: metadata.municipality,
-    sampleClass: sampleSite?.classCode,
+    sampleClass: metadata.sampleClass || sampleSite?.classCode,
     sampleCode: metadata.sampleCode,
     sampleNumber: metadata.sampleNumber,
     siteName: sampleSite?.siteName === 'Unknown sampling site' ? null : sampleSite?.siteName,
@@ -34,6 +36,7 @@ export async function analyzeDocument(input = {}) {
     location: input.location || null,
     barangay: input.barangay,
     municipality: input.municipality,
+    sampleClass: input.sampleClass,
     sampleCode: input.sampleCode,
     sampleNumber: input.sampleNumber,
     capturedAt: input.capturedAt,

@@ -8,6 +8,7 @@ import TopHeader from '../../components/Header/TopHeader';
 import StatCard from '../../components/Card/StatCard';
 import PrimaryButton from '../../components/Button/PrimaryButton';
 import { COLORS, LAYOUT, RADII, SHADOWS, SIZES, SPACING } from '../../styles/theme';
+import { displayMeasuredParametersStatus } from '../../services/apiMappers';
 
 export default function HomeScreen() {
   const navigation = useNavigation();
@@ -43,7 +44,7 @@ export default function HomeScreen() {
             <StatCard title="Latest scan" value={latestScan ? latestScan.scanStatus || 'Completed' : 'No scans yet'} style={styles.statCard} />
             <StatCard title="Last updated" value={latestScan ? new Date(latestScan.createdAt).toLocaleDateString() : '—'} style={styles.statCard} />
             <StatCard title="Analysis" value={latestScan ? latestScan.analysisStatus || 'Completed' : 'Pending'} style={styles.statCard} />
-            <StatCard title="Measured parameters" value={latestScan ? latestScan.measuredParametersStatus || 'Not classified' : 'Pending'} style={styles.statCard} />
+            <StatCard title="Measured parameters" value={latestScan ? latestScan.measuredParametersDisplayStatus || displayMeasuredParametersStatus(latestScan.measuredParametersStatus) : 'Pending'} style={styles.statCard} />
           </View>
 
           <PrimaryButton title="Start Water Analysis" onPress={() => navigation.navigate('Scan')} style={styles.actionButton} />

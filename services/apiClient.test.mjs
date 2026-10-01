@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { api, getApiBaseUrl, getNetworkUnavailableMessage, normalizeImageAsset, request, setUnauthorizedHandler } from './apiClient.js';
+import { ApiError, api, getApiBaseUrl, getNetworkUnavailableMessage, normalizeImageAsset, request, setUnauthorizedHandler } from './apiClient.js';
 
 function jsonResponse(status, body) {
   return {
@@ -88,6 +88,26 @@ test('a rejected account-deletion password preserves the active session', async 
   }
 });
 
+test('HTTP authentication failures remain ApiError responses rather than transport failures', async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async () => jsonResponse(401, { error: { code: 'INVALID_CREDENTIALS', message: 'Invalid credentials.' } });
+
+  try {
+    await assert.rejects(
+      () => api.login({ email: 'user@example.test', password: 'wrong-password' }),
+      (error) => {
+        assert.equal(error instanceof ApiError, true);
+        assert.equal(error.code, 'INVALID_CREDENTIALS');
+        assert.equal(error.status, 401);
+        assert.equal(error.message, 'Invalid credentials.');
+        return true;
+      },
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test('network failures become a friendly AQUALITY server connection error', async () => {
   const originalFetch = global.fetch;
   global.fetch = async () => { throw new TypeError('fetch failed'); };
@@ -95,7 +115,7 @@ test('network failures become a friendly AQUALITY server connection error', asyn
   try {
     await assert.rejects(
       () => request('/health'),
-      { code: 'NETWORK_UNAVAILABLE', status: 0, message: 'Unable to connect to the AQUALITY server. Make sure your device and development computer are connected to the same network and the server is running.' },
+      { code: 'NETWORK_UNAVAILABLE', status: 0, message: 'Unable to connect to the AQUALITY server. Check your internet connection and try again.' },
     );
   } finally {
     global.fetch = originalFetch;
@@ -141,6 +161,9 @@ test('analysis uploads use FormData without overriding the multipart boundary he
     await api.analyzeWater({
       imageUri: 'file:///tmp/water-strip.jpg',
       userId: 'user-1',
+      sampleClass: 'AA',
+      sampleCode: 'AA-03',
+      sampleNumber: 3,
       capturedAt: '2026-08-04T00:00:00.000Z',
     });
 
@@ -150,6 +173,9 @@ test('analysis uploads use FormData without overriding the multipart boundary he
     assert.equal(requests[0].options.headers.Authorization, 'Bearer secure-token');
     assert.equal(requests[0].options.body instanceof FormData, true);
     assert.equal(requests[0].options.body.get('userId'), 'user-1');
+    assert.equal(requests[0].options.body.get('sampleClass'), 'AA');
+    assert.equal(requests[0].options.body.get('sampleCode'), 'AA-03');
+    assert.equal(requests[0].options.body.get('sampleNumber'), '3');
     assert.equal(requests[0].options.body.get('capturedAt'), '2026-08-04T00:00:00.000Z');
     assert.equal(requests[0].options.body.get('image') instanceof Blob, true);
   } finally {

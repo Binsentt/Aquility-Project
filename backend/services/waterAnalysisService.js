@@ -3,7 +3,7 @@ import { serializeWaterTest } from '../utils/waterTestSerializer.js';
 import { validateCapturedAt, validateCoordinates, validateGpsAccuracy, validateOptionalText, validateSampleCode, validateSampleNumber } from '../utils/validation.js';
 import { readFile, rename, unlink } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { matchSampleSite } from './sampleSites.js';
+import { matchSampleSite, sampleSiteForClass } from './sampleSites.js';
 
 function imageExtension(buffer) {
   if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return 'jpg';
@@ -54,19 +54,32 @@ export function createWaterAnalysisService({ colorAnalysisEngine, waterTestModel
         const municipality = validateOptionalText(metadata?.municipality, 'Municipality', 120);
         const sampleCode = validateSampleCode(metadata?.sampleCode);
         const sampleNumber = validateSampleNumber(metadata?.sampleNumber);
-        const sampleSite = sampleSiteMatcher(latitude, longitude) || {
+        const requestedSampleClass = validateOptionalText(metadata?.sampleClass, 'Sample class', 8)
+          || (sampleCode ? sampleCode.split('-')[0] : null);
+        if (sampleNumber != null && !sampleCode) {
+          throw new HttpError(400, 'INVALID_SAMPLE_CODE', 'A sample code is required when a sample number is provided.');
+        }
+        if (sampleCode && sampleNumber != null) {
+          const codeNumber = Number(sampleCode.split('-')[1]);
+          if (codeNumber !== sampleNumber) {
+            throw new HttpError(400, 'INVALID_SAMPLE_CODE', 'Sample number must match the selected sample code.');
+          }
+        }
+        if (requestedSampleClass && sampleCode && requestedSampleClass !== sampleCode.split('-')[0]) {
+          throw new HttpError(400, 'INVALID_SAMPLE_SITE', 'The sample class does not match the selected sample code.');
+        }
+        const selectedSampleSite = requestedSampleClass ? sampleSiteForClass(requestedSampleClass) : null;
+        if (requestedSampleClass && !selectedSampleSite) {
+          throw new HttpError(400, 'INVALID_SAMPLE_SITE', 'The sample class must be AA, A, or C.');
+        }
+        const sampleSite = selectedSampleSite || sampleSiteMatcher(latitude, longitude) || {
           classCode: null,
           siteName: 'Unknown sampling site',
           sourceType: null,
           latitude: null,
           longitude: null,
         };
-        const requestedSampleClass = validateOptionalText(metadata?.sampleClass, 'Sample class', 8)
-          || (sampleCode ? sampleCode.split('-')[0] : null);
-        if (requestedSampleClass && sampleSite.classCode && requestedSampleClass !== sampleSite.classCode) {
-          throw new HttpError(400, 'INVALID_SAMPLE_SITE', 'The sampling-site class does not match the captured GPS location.');
-        }
-        const resolvedSampleClass = sampleSite.classCode || (sampleCode ? requestedSampleClass : null);
+        const resolvedSampleClass = requestedSampleClass || sampleSite.classCode || null;
         storedFile = await validateStoredImage(file);
         const measurements = await colorAnalysisEngine.analyze({ imagePath: storedFile.path, debugLogger });
         debugLogger?.('analysis-complete', { status: measurements.overallStatus || null });
@@ -86,8 +99,8 @@ export function createWaterAnalysisService({ colorAnalysisEngine, waterTestModel
           capturedAt,
           gpsAccuracyMeters,
           gpsCapturedAt,
-          canonicalLatitude: Number.isFinite(Number(sampleSite.latitude)) ? Number(sampleSite.latitude) : null,
-          canonicalLongitude: Number.isFinite(Number(sampleSite.longitude)) ? Number(sampleSite.longitude) : null,
+          canonicalLatitude: sampleSite.latitude == null ? null : (Number.isFinite(Number(sampleSite.latitude)) ? Number(sampleSite.latitude) : null),
+          canonicalLongitude: sampleSite.longitude == null ? null : (Number.isFinite(Number(sampleSite.longitude)) ? Number(sampleSite.longitude) : null),
           estimatedPH: typeof measurements.pH.value === 'number' ? measurements.pH.value : null,
           phStatus: measurements.phStatus,
           estimatedNitrite: measurements.nitrite.value,

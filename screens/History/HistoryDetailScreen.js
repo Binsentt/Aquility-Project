@@ -7,6 +7,7 @@ import { COLORS, LAYOUT, RADII, SHADOWS, SIZES, SPACING } from '../../styles/the
 import { createPdfExport, createPngExport, shareExportFile } from '../../services/exportService';
 import { toSafeExportMessage } from '../../services/exportErrors';
 import { loadBackendWaterTest } from '../../services/waterTestRecordService';
+import { displayMeasuredParametersStatus, displayScientificValidationStatus } from '../../services/apiMappers';
 
 function safeImageDebugUrl(uri) {
   if (!uri || typeof uri !== 'string') return null;
@@ -79,14 +80,14 @@ export default function HistoryDetailScreen({ route, navigation }) {
 
   const summaryFields = useMemo(
     () => [
-      { label: 'Status', value: item.status || 'Not available' },
-      { label: 'Analysis status', value: item.analysisStatus || 'Not available' },
-      { label: 'Measured Parameters Status', value: item.measuredParametersStatus || 'Not classified' },
-      { label: 'Scientific Validation', value: item.scientificValidationStatus || 'Pending laboratory validation' },
+      { label: 'Scan Status', value: item.scanStatus || 'Completed' },
+      { label: 'Measured Parameters Status', value: item.measuredParametersDisplayStatus || displayMeasuredParametersStatus(item.measuredParametersStatus) },
+      { label: 'Laboratory Comparison', value: item.laboratoryComparisonStatus || 'Not entered yet' },
+      { label: 'Scientific Validation', value: item.scientificValidationDisplayStatus || displayScientificValidationStatus(item.scientificValidationStatus) },
       { label: 'Scan date', value: new Date(createdAt).toLocaleString() },
       { label: 'Result summary', value: item.summary || 'Not available' },
     ],
-    [createdAt, item.analysisStatus, item.measuredParametersStatus, item.scientificValidationStatus, item.status, item.summary]
+    [createdAt, item.laboratoryComparisonStatus, item.measuredParametersDisplayStatus, item.measuredParametersStatus, item.scanStatus, item.scientificValidationDisplayStatus, item.scientificValidationStatus, item.summary]
   );
 
   const handleExport = async (type) => {

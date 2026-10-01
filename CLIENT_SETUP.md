@@ -57,13 +57,18 @@ npm run web
 
 Open the local URL printed by Expo. Use the browser flow to register or log in, capture/import an image, inspect the result, open History and a history detail, and export the report.
 
-Terminal 2 instead, for physical-device testing, create the ignored root `.env` from `.env.example` and set `EXPO_PUBLIC_API_BASE_URL=http://<COMPUTER_LAN_IPV4>:4000/api`. Find the computer's Wi-Fi IPv4 address with `ipconfig`. Then run:
+Expo Go normally uses the deployed Railway API from `.env.example`, so no local
+backend is required for guest, registration, or login testing. For intentional
+local backend testing only, create the ignored root `.env` from `.env.example`,
+set `EXPO_PUBLIC_ALLOW_LOCAL_API=true`, and set
+`EXPO_PUBLIC_API_BASE_URL=http://<COMPUTER_LAN_IPV4>:4000/api`. Find the
+computer's Wi-Fi IPv4 address with `ipconfig`. Then run:
 
 ```powershell
 npx expo start --lan --clear
 ```
 
-Scan the displayed QR code with Expo Go. The phone and computer must be on the same Wi-Fi network. The Expo link must use a reachable LAN host and must not resolve to `127.0.0.1`; that address refers to the phone itself. The API URL in the root `.env` must also use the computer's reachable LAN address. Do not hardcode a developer or client IP in application source.
+Scan the displayed QR code with Expo Go. The phone and computer must be on the same Wi-Fi network. The Expo link must use a reachable LAN host and must not resolve to `127.0.0.1`; that address refers to the phone itself. The API URL in the root `.env` must also use the computer's reachable LAN address. Do not hardcode a developer or client IP in application source. If the allow flag is absent or false, private URLs are rejected and the Railway API remains selected.
 
 Web and Expo Go are separate testing modes; run one Expo command at a time. The backend remains running in Terminal 1. If a third terminal is preferred, use it for Expo and leave Terminal 2 available for logs or database inspection.
 

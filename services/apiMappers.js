@@ -8,6 +8,14 @@ export function resolveMediaUrl(path, apiBaseUrl) {
   return `${apiBaseOrigin(apiBaseUrl)}${path.startsWith('/') ? path : `/${path}`}`;
 }
 
+export function displayMeasuredParametersStatus(status) {
+  return status === 'Not classified' ? 'Awaiting approved limits' : (status || 'Awaiting approved limits');
+}
+
+export function displayScientificValidationStatus(status) {
+  return status === 'Pending laboratory validation' ? 'Pending laboratory comparison' : (status || 'Pending laboratory comparison');
+}
+
 export function toApiProfile(payload = {}) {
   const fullName = payload.fullName || [payload.firstName, payload.lastName].filter(Boolean).join(' ').trim();
   return {
@@ -40,6 +48,11 @@ export function toScanResult(waterTest = {}, apiBaseUrl) {
   const imageUri = resolveMediaUrl(waterTest.imageUri || waterTest.imagePath, apiBaseUrl);
   const measuredParametersStatus = waterTest.measuredParametersStatus || 'Not classified';
   const scientificValidationStatus = waterTest.scientificValidationStatus || waterTest.scientificStatus || 'Pending laboratory validation';
+  const labComparison = waterTest.labComparison || { pH: {}, Nitrite: {} };
+  const laboratoryComparisonStatus = [labComparison.pH?.labValue, labComparison.Nitrite?.labValue]
+    .some((value) => value != null)
+    ? 'Entered'
+    : 'Not entered yet';
   const overallStatus = waterTest.overallStatus && waterTest.overallStatus !== 'Unvalidated'
     ? waterTest.overallStatus
     : 'NOT CLASSIFIED';
@@ -55,7 +68,10 @@ export function toScanResult(waterTest = {}, apiBaseUrl) {
     analysisStatus: waterTest.analysisStatus || (persisted ? 'Completed' : 'Pending'),
     scientificStatus: scientificValidationStatus,
     measuredParametersStatus,
+    measuredParametersDisplayStatus: displayMeasuredParametersStatus(measuredParametersStatus),
     scientificValidationStatus,
+    scientificValidationDisplayStatus: displayScientificValidationStatus(scientificValidationStatus),
+    laboratoryComparisonStatus,
     roiLocalizationStatus: waterTest.roiLocalizationStatus || 'PAD LOCALIZATION REQUIRED',
     interpretation: 'pH uses client-provided Lab references and CIEDE2000. Nitrite uses provisional client-provided hue calibration. Neither result is a certified laboratory measurement.',
     warnings: [],
@@ -80,8 +96,8 @@ export function toScanResult(waterTest = {}, apiBaseUrl) {
     resultData: {
       pH: typeof pH === 'number' ? pH.toFixed(2) : pH || 'Unavailable',
       Nitrite: Number.isFinite(nitriteValue) ? `${nitriteValue.toFixed(2)} ${waterTest.nitrite?.unit || 'ppm'}` : 'Unavailable',
-      'Measured Parameters Status': measuredParametersStatus,
-      'Scientific Validation': scientificValidationStatus,
+      'Measured Parameters Status': displayMeasuredParametersStatus(measuredParametersStatus),
+      'Scientific Validation': displayScientificValidationStatus(scientificValidationStatus),
     },
     pH,
     pHResult: waterTest.pHResult || null,

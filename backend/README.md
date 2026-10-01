@@ -9,7 +9,7 @@
 5. Run `npm run db:seed` to validate the configured client calibration structure.
 6. Start the API with `npm start`, then verify `GET http://localhost:4000/api/health` returns `database: "connected"`.
 
-The Expo app reads `EXPO_PUBLIC_API_BASE_URL` from the root `.env` file. Use `http://localhost:4000/api` for web, `http://10.0.2.2:4000/api` for an Android emulator, or `http://<LAPTOP_LAN_IP>:4000/api` for a physical phone. Keep the phone and computer on the same private Wi-Fi and allow port 4000 through the Windows Firewall only on that private network if prompted. Verify reachability from the phone browser at `http://<LAPTOP_LAN_IP>:4000/api/health`.
+The Expo app defaults to `https://aquality-api-production.up.railway.app/api` for Expo Go, web, and EAS. Local testing is opt-in: set `EXPO_PUBLIC_ALLOW_LOCAL_API=true` together with `EXPO_PUBLIC_API_BASE_URL=http://localhost:4000/api`, `http://10.0.2.2:4000/api`, or `http://<LAPTOP_LAN_IP>:4000/api`. Without the allow flag, private URLs are ignored and Railway remains selected. For a physical phone using the local backend, keep the phone and computer on the same private Wi-Fi and allow port 4000 through Windows Firewall only on that private network if prompted.
 
 See [`../docs/DEPLOYMENT.md`](../docs/DEPLOYMENT.md) for environment, local PostgreSQL/VS Code connection values, migration, and release steps, and [`../docs/API.md`](../docs/API.md) for request/response contracts.
 

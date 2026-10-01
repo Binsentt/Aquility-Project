@@ -8,6 +8,8 @@ const resultSource = readFileSync(new URL('../screens/Result/ResultScreen.js', i
 test('Home treats persisted scan completion separately from scientific validation', () => {
   assert.match(homeSource, /title="Latest scan" value=\{latestScan \? latestScan\.scanStatus/);
   assert.match(homeSource, /title="Measured parameters"/);
-  assert.match(resultSource, /payload\.measuredParametersStatus \|\| 'Not classified'/);
-  assert.match(resultSource, /payload\.scientificValidationStatus \|\| 'Pending laboratory validation'/);
+  assert.match(resultSource, /Measured Parameters Status/);
+  assert.match(resultSource, /displayMeasuredParametersStatus/);
+  assert.match(resultSource, /displayScientificValidationStatus/);
+  assert.match(resultSource, /Laboratory Comparison/);
 });

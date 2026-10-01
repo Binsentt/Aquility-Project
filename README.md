@@ -65,16 +65,23 @@ npx expo start
 
 ### Physical-device development with Expo Go
 
-For laptop web development, the default API URL is `http://localhost:4000/api`.
-For a physical Android or iOS device, create the ignored root `.env` file and
-replace the placeholder with the laptop's Wi-Fi IPv4 address:
+Expo Go and EAS builds default to the deployed Railway API:
+`https://aquality-api-production.up.railway.app/api`. A local or LAN backend is
+opt-in only. To intentionally use one, create the ignored root `.env` file and
+set both the explicit allow flag and the laptop's Wi-Fi IPv4 address:
 
 ```powershell
 cd <project-folder>
 Copy-Item .env.example .env
 ipconfig
-# Edit .env and set EXPO_PUBLIC_API_BASE_URL to the computer's current LAN IPv4 address.
+# Edit .env:
+EXPO_PUBLIC_ALLOW_LOCAL_API=true
+EXPO_PUBLIC_API_BASE_URL=http://<COMPUTER_LAN_IPV4>:4000/api
 ```
+
+Without `EXPO_PUBLIC_ALLOW_LOCAL_API=true`, localhost and private LAN URLs are
+ignored and the client uses the Railway API. In development, the selected
+endpoint is printed once as `[AQUALITY API BASE] ...`.
 
 The `EXPO_PUBLIC_*` value is included in the client bundle, so it must contain
 only the non-secret API URL. Never put PostgreSQL or JWT credentials in the

@@ -7,6 +7,7 @@ import { COLORS, LAYOUT, RADII, SHADOWS, SIZES, SPACING } from '../../styles/the
 import { createPdfExport, createPngExport, shareExportFile } from '../../services/exportService';
 import { toSafeExportMessage } from '../../services/exportErrors';
 import { loadBackendWaterTest } from '../../services/waterTestRecordService';
+import { displayMeasuredParametersStatus, displayScientificValidationStatus } from '../../services/apiMappers';
 
 export default function ResultScreen() {
   const navigation = useNavigation();
@@ -128,16 +129,20 @@ export default function ResultScreen() {
               <Text style={styles.metaValue}>{Array.isArray(payload.images) ? payload.images.length : 1}</Text>
             </View>
             <View style={styles.metaRow}>
-              <Text style={styles.metaLabel}>Analysis status</Text>
-              <Text style={styles.metaValue}>{payload.analysisStatus || 'Completed'}</Text>
+              <Text style={styles.metaLabel}>Scan Status</Text>
+              <Text style={styles.metaValue}>{payload.scanStatus || 'Completed'}</Text>
             </View>
             <View style={styles.metaRow}>
               <Text style={styles.metaLabel}>Measured Parameters Status</Text>
-              <Text style={styles.metaValue}>{payload.measuredParametersStatus || 'Not classified'}</Text>
+              <Text style={styles.metaValue}>{payload.measuredParametersDisplayStatus || displayMeasuredParametersStatus(payload.measuredParametersStatus)}</Text>
+            </View>
+            <View style={styles.metaRow}>
+              <Text style={styles.metaLabel}>Laboratory Comparison</Text>
+              <Text style={styles.metaValue}>{payload.laboratoryComparisonStatus || 'Not entered yet'}</Text>
             </View>
             <View style={styles.metaRow}>
               <Text style={styles.metaLabel}>Scientific Validation</Text>
-              <Text style={styles.metaValue}>{payload.scientificValidationStatus || 'Pending laboratory validation'}</Text>
+              <Text style={styles.metaValue}>{payload.scientificValidationDisplayStatus || displayScientificValidationStatus(payload.scientificValidationStatus)}</Text>
             </View>
             {payload.location && Number.isFinite(Number(payload.location.latitude)) && Number.isFinite(Number(payload.location.longitude)) ? (
               <View style={styles.metaRow}>

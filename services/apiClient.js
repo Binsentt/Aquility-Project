@@ -1,7 +1,15 @@
 import { apiBaseOrigin, resolveMediaUrl } from './apiMappers.js';
 import { createMultipartFile, normalizeImageAsset } from './multipartUpload.js';
+import { resolveApiBaseUrl } from './apiEnvironment.js';
 
-const configuredBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:4000/api';
+const configuredBaseUrl = resolveApiBaseUrl({
+  configuredUrl: process.env.EXPO_PUBLIC_API_BASE_URL,
+  allowLocalApi: process.env.EXPO_PUBLIC_ALLOW_LOCAL_API,
+});
+if (process.env.NODE_ENV === 'development' && !globalThis.__AQUALITY_API_BASE_LOGGED__) {
+  console.info('[AQUALITY API BASE]', configuredBaseUrl);
+  globalThis.__AQUALITY_API_BASE_LOGGED__ = true;
+}
 const uploadDebugEnabled = process.env.NODE_ENV === 'development' || process.env.EXPO_PUBLIC_AQUALITY_DEBUG === 'true';
 let accessToken = null;
 let unauthorizedHandler = null;
