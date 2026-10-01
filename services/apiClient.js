@@ -2,7 +2,6 @@ import { apiBaseOrigin, resolveMediaUrl } from './apiMappers.js';
 import { createMultipartFile, normalizeImageAsset } from './multipartUpload.js';
 
 const configuredBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:4000/api';
-const networkUnavailableMessage = 'Unable to connect to the AQUALITY server. Make sure your device and development computer are connected to the same network and the server is running.';
 const uploadDebugEnabled = process.env.NODE_ENV === 'development' || process.env.EXPO_PUBLIC_AQUALITY_DEBUG === 'true';
 let accessToken = null;
 let unauthorizedHandler = null;
@@ -20,6 +19,13 @@ export class ApiError extends Error {
 
 export function getApiBaseUrl() {
   return configuredBaseUrl.replace(/\/$/, '');
+}
+
+export function getNetworkUnavailableMessage(baseUrl = configuredBaseUrl) {
+  const isProductionHttps = /^https:\/\//i.test(String(baseUrl || ''));
+  return isProductionHttps
+    ? 'Unable to connect to the AQUALITY server. Check your internet connection and try again.'
+    : 'Unable to connect to the AQUALITY server. Make sure your device and development computer are connected to the same network and the server is running.';
 }
 
 function uploadUriScheme(uri) {
@@ -81,7 +87,7 @@ export async function request(path, options = {}) {
         cause: cause?.cause?.message || null,
       });
     }
-    throw new ApiError(0, networkUnavailableMessage, 'NETWORK_UNAVAILABLE', { cause, requestUrl });
+    throw new ApiError(0, getNetworkUnavailableMessage(), 'NETWORK_UNAVAILABLE', { cause, requestUrl });
   }
   try {
     return await parseResponse(response);

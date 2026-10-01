@@ -3,7 +3,7 @@
 ## Local setup
 
 1. Ensure PostgreSQL is installed and running, then create the local database with `CREATE DATABASE aquality;` from `psql` or the VS Code PostgreSQL extension.
-2. Copy `.env.example` to `.env`. Keep it private and set `DATABASE_URL=postgresql://username:password@localhost:5432/aquality`, a unique `JWT_SECRET` of at least 32 characters, `DATABASE_SSL=false`, and `HOST=0.0.0.0` for a phone on the same private LAN.
+2. Copy `.env.example` to `.env`. Keep it private and set `DATABASE_URL=postgresql://username:password@localhost:5432/aquality`, a unique `JWT_SECRET` of at least 32 characters, `DATABASE_SSL=false`, `HOST=0.0.0.0`, and `TRUST_PROXY_HOPS=0` for local development. Railway's single reverse-proxy hop is configured with `TRUST_PROXY_HOPS=1`.
 3. Install dependencies with `npm install`.
 4. Run `npm run db:migrate` to create or advance the schema through migration 007. Applied files are recorded in `schema_migrations`.
 5. Run `npm run db:seed` to validate the configured client calibration structure.

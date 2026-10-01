@@ -12,12 +12,18 @@ function asPositiveInteger(value, fallback) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function asNonNegativeInteger(value, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
 const nodeEnv = process.env.NODE_ENV || 'development';
 
 export const env = {
   nodeEnv,
   port: Number(process.env.PORT || 4000),
   bindHost: process.env.HOST || (nodeEnv === 'production' ? '127.0.0.1' : '0.0.0.0'),
+  trustProxyHops: asNonNegativeInteger(process.env.TRUST_PROXY_HOPS, 0),
   databaseUrl: process.env.DATABASE_URL || '',
   databaseSsl: asBoolean(process.env.DATABASE_SSL),
   databaseSslRejectUnauthorized: asBoolean(process.env.DATABASE_SSL_REJECT_UNAUTHORIZED, true),

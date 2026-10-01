@@ -48,7 +48,7 @@ npm run db:migrate
 npm start
 ```
 
-Place the service behind HTTPS. Set health monitoring to `GET /api/health`. Restrict database network access to the API service, retain application logs according to the client policy, and configure a writable non-public upload volume.
+Place the service behind HTTPS. Set health monitoring to `GET /api/health`. For Railway's single reverse-proxy hop, set the non-secret `TRUST_PROXY_HOPS=1`; local development should use `TRUST_PROXY_HOPS=0`. Restrict database network access to the API service, retain application logs according to the client policy, and configure a writable non-public upload volume.
 
 On startup, the API checks database connectivity before it begins listening. It returns `{ "status": "ok", "database": "connected" }` from health checks when PostgreSQL is reachable and safely reports an unavailable database otherwise. SIGINT/SIGTERM stop the guest archive timer, close the HTTP server, and close the PostgreSQL pool.
 

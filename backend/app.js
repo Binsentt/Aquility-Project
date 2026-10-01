@@ -29,7 +29,7 @@ function corsOptions() {
   };
 }
 
-export function createApp({ authService, authTokenService, userService, waterAnalysisService, waterTestService, mapService, guestLifecycleService, accountService, healthCheck } = {}) {
+export function createApp({ authService, authTokenService, userService, waterAnalysisService, waterTestService, mapService, guestLifecycleService, accountService, healthCheck, trustProxyHops = env.trustProxyHops } = {}) {
   const app = express();
   const needsAuthentication = Boolean(authService || userService || waterAnalysisService || waterTestService || mapService);
   if (needsAuthentication && !authTokenService) {
@@ -39,6 +39,9 @@ export function createApp({ authService, authTokenService, userService, waterAna
   const analysisDebugLogger = createAnalysisDebugLogger(env.analysisDebug);
 
   app.disable('x-powered-by');
+  if (Number.isInteger(trustProxyHops) && trustProxyHops > 0) {
+    app.set('trust proxy', trustProxyHops);
+  }
   app.use(requestContext);
   app.use(helmet({ crossOriginResourcePolicy: false }));
   app.use(cors(corsOptions()));

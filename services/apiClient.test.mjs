@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { api, getApiBaseUrl, normalizeImageAsset, request, setUnauthorizedHandler } from './apiClient.js';
+import { api, getApiBaseUrl, getNetworkUnavailableMessage, normalizeImageAsset, request, setUnauthorizedHandler } from './apiClient.js';
 
 function jsonResponse(status, body) {
   return {
@@ -100,6 +100,12 @@ test('network failures become a friendly AQUALITY server connection error', asyn
   } finally {
     global.fetch = originalFetch;
   }
+});
+
+test('production HTTPS network failures do not mention the development computer or LAN', () => {
+  const message = getNetworkUnavailableMessage('https://aquality-api-production.up.railway.app/api');
+  assert.equal(message, 'Unable to connect to the AQUALITY server. Check your internet connection and try again.');
+  assert.doesNotMatch(message, /same network|development computer|localhost|192\.168\./i);
 });
 
 test('network failures retain the transport cause and request URL for diagnostics', async () => {
