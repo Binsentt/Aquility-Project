@@ -83,6 +83,10 @@ test('real Android strip photo registers despite softened fiducial contours', as
   assert.ok(result.square.center.x < result.nitrite.center.x);
   assert.ok(result.nitrite.center.x < result.pH.center.x);
   assert.ok(result.pH.center.x < result.triangle.center.x);
+  assert.ok(result.square.center.x > 350 && result.square.center.x < 470);
+  assert.ok(result.triangle.center.x > 550 && result.triangle.center.x < 680);
+  assert.ok(result.nitrite.center.x > 420 && result.nitrite.center.x < 500);
+  assert.ok(result.pH.center.x > 510 && result.pH.center.x < 580);
   assert.ok(result.candidates.square >= 1);
   assert.ok(result.candidates.triangle >= 1);
   assert.equal(result.geometry.referenceScale, 'square-to-triangle-pixel-distance');

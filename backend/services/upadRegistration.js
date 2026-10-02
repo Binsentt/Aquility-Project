@@ -558,11 +558,11 @@ function chooseRegistration(squareCandidates, triangleCandidates, circleCandidat
         body: candidateBody,
         geometry,
         confidence: clamp(
-          0.25 * anchorConfidence
-            + 0.2 * pairEvidence.score
+          0.3 * anchorConfidence
+            + 0.05 * pairEvidence.score
             + 0.2 * roiEvidence
-            + 0.15 * templateConfidence
-            + 0.2 * ((Number(!nitrite.derived) + Number(!ph.derived)) / 2),
+            + 0.2 * templateConfidence
+            + 0.25 * ((Number(!nitrite.derived) + Number(!ph.derived)) / 2),
           0,
           1,
         ),
@@ -780,7 +780,8 @@ export function detectUPadRegistration(pixels, imageWidth, imageHeight, options 
     .filter((shape) => shape.confidence >= 0.45);
   const circleCandidates = shapes
     .filter((shape) => shape.corners >= 6 && shape.aspectRatio <= 1.45 && shape.fillRatio >= 0.42)
-    .map((shape) => ({ ...shape, confidence: shapeConfidence(shape, 'circle') }));
+    .map((shape) => ({ ...shape, confidence: shapeConfidence(shape, 'circle') }))
+    .filter((shape) => shape.confidence >= 0.55);
   const selection = chooseRegistration(squareCandidates, triangleCandidates, circleCandidates, body, imageWidth, imageHeight, pixels, config);
   const selected = selection.selected;
   const minimumRegistrationConfidence = config.minimumRegistrationConfidence ?? 0.45;
