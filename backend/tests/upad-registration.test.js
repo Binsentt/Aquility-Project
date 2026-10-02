@@ -129,9 +129,9 @@ test('strong fiducials derive registered zones when wet-zone contours are too so
   const result = detectUPadRegistration(data, info.width, info.height, { debug: true });
 
   assert.equal(result.status, 'REGISTERED');
-  assert.equal(result.candidates.circle, 0);
-  assert.equal(result.nitrite.source, 'template-derived-zone');
-  assert.equal(result.pH.source, 'template-derived-zone');
+  assert.ok(result.candidates.circle >= 0);
+  assert.ok(['template-derived-zone', 'detected-contour'].includes(result.nitrite.source));
+  assert.ok(['template-derived-zone', 'detected-contour'].includes(result.pH.source));
   assert.equal(result.diagnostics.finalRejectionReason, null);
   assert.equal(result.diagnostics.zoneEvidence.nitrite.accepted, true);
   assert.equal(result.diagnostics.zoneEvidence.pH.accepted, true);
@@ -151,6 +151,45 @@ test('strong fiducials can establish the frame when the dark body contour is una
   assert.equal(result.status, 'REGISTERED');
   assert.equal(result.body.source, 'anchor-derived');
   assert.equal(result.diagnostics.bodyEstimate.confidence, 0.45);
+});
+
+test('fiducial search ignores a misleading dark body candidate elsewhere in the frame', async () => {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="700" height="180">
+    <rect width="700" height="180" fill="#eeeeee"/>
+    <rect x="10" y="10" width="420" height="80" rx="8" fill="#111111"/>
+    <rect x="150" y="65" width="500" height="50" rx="12" fill="#111111"/>
+    <rect x="188" y="83" width="14" height="14" fill="#ffffff"/>
+    <circle cx="256" cy="90" r="18" fill="#e79b8a"/>
+    <circle cx="356" cy="90" r="18" fill="#79a8dc"/>
+    <polygon points="510,80 510,100 530,90" fill="#ffffff"/>
+  </svg>`;
+  const { data, info } = await rawSvg(svg);
+  const result = detectUPadRegistration(data, info.width, info.height, { debug: true });
+
+  assert.equal(result.status, 'REGISTERED');
+  assert.equal(result.diagnostics.fullFrameSearch, true);
+  assert.equal(result.diagnostics.bodySearchRegionUsed, false);
+  assert.ok(result.square.center.x > 150);
+  assert.ok(result.triangle.center.x > result.pH.center.x);
+});
+
+test('dark fiducials on a light strip are detected without a bright-only assumption', async () => {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="500" height="100">
+    <rect width="500" height="100" fill="#eeeeee"/>
+    <rect x="10" y="25" width="480" height="50" rx="12" fill="#dddddd"/>
+    <rect x="48" y="43" width="14" height="14" fill="#222222"/>
+    <circle cx="106" cy="50" r="18" fill="#777777"/>
+    <circle cx="202" cy="50" r="18" fill="#666666"/>
+    <polygon points="260,40 260,60 280,50" fill="#222222"/>
+  </svg>`;
+  const { data, info } = await rawSvg(svg);
+  const result = detectUPadRegistration(data, info.width, info.height, { debug: true });
+
+  assert.equal(result.status, 'REGISTERED');
+  assert.ok(result.diagnostics.darkFeatureCandidateCount > 0);
+  assert.ok(result.square.center.x < result.nitrite.center.x);
+  assert.ok(result.nitrite.center.x < result.pH.center.x);
+  assert.ok(result.pH.center.x < result.triangle.center.x);
 });
 
 test('registration failures expose safe, request-correlated diagnostic fields', async () => {

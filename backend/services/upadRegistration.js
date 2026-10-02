@@ -332,7 +332,7 @@ function summarizeShape(shape, bodyHeightPixels = null) {
   };
 }
 
-function makeDiagnostics({ imageWidth, imageHeight, body = null, squareCandidates = [], triangleCandidates = [], circleCandidates = [], selected = null, finalRejectionReason = null, zoneEvidence: evidence = null }) {
+function makeDiagnostics({ imageWidth, imageHeight, body = null, squareCandidates = [], triangleCandidates = [], circleCandidates = [], selected = null, finalRejectionReason = null, zoneEvidence: evidence = null, brightFeatureCandidateCount = 0, darkFeatureCandidateCount = 0 }) {
   const bodyHeight = body ? Math.min(body.bounds.width, body.bounds.height) : null;
   const selectedSquare = selected?.square || null;
   const selectedTriangle = selected?.triangle || null;
@@ -343,6 +343,10 @@ function makeDiagnostics({ imageWidth, imageHeight, body = null, squareCandidate
     imageWidth,
     imageHeight,
     orientationNormalized: true,
+    fullFrameSearch: true,
+    bodySearchRegionUsed: false,
+    brightFeatureCandidateCount,
+    darkFeatureCandidateCount,
     squareCandidateCount: squareCandidates.length,
     triangleCandidateCount: triangleCandidates.length,
     circleCandidateCount: circleCandidates.length,
@@ -454,7 +458,7 @@ function chooseRegistration(squareCandidates, triangleCandidates, circleCandidat
       const circles = circleCandidates
         .map((circle) => ({ circle, projected: projection(circle.center, square.center, triangle.center) }))
         .filter(({ projected, circle }) => projected && projected.along > 0.04 && projected.along < 0.96
-          && Math.abs(projected.across) < 0.5 && circleWithinImage(circle, width, height))
+          && Math.abs(projected.across) < 0.2 && circleWithinImage(circle, width, height))
         .map(({ circle, projected }) => ({
           circle,
           projected,
@@ -536,12 +540,14 @@ function chooseRegistration(squareCandidates, triangleCandidates, circleCandidat
         pairConfidence: pairEvidence.score,
         roiConfidence: roiEvidence,
         templateConfidence,
+        detectedZoneCount: Number(!nitrite.derived) + Number(!ph.derived),
         componentScores: {
           square: square.confidence,
           triangle: triangle.confidence,
           pair: pairEvidence.score,
           roi: roiEvidence,
           template: templateConfidence,
+          detectedZones: (Number(!nitrite.derived) + Number(!ph.derived)) / 2,
         },
       };
       possible.push({
@@ -552,10 +558,11 @@ function chooseRegistration(squareCandidates, triangleCandidates, circleCandidat
         body: candidateBody,
         geometry,
         confidence: clamp(
-          0.3 * anchorConfidence
-            + 0.25 * pairEvidence.score
-            + 0.25 * roiEvidence
-            + 0.2 * templateConfidence,
+          0.25 * anchorConfidence
+            + 0.2 * pairEvidence.score
+            + 0.2 * roiEvidence
+            + 0.15 * templateConfidence
+            + 0.2 * ((Number(!nitrite.derived) + Number(!ph.derived)) / 2),
           0,
           1,
         ),
@@ -585,6 +592,61 @@ function makeMask(pixels, width, height, step, predicate) {
     }
   }
   return { mask, width: sampledWidth, height: sampledHeight };
+}
+
+function componentTouchesBoundary(component, width, height) {
+  return component.indices.some((index) => {
+    const point = imagePoint(index, width);
+    return point.x === 0 || point.y === 0 || point.x === width - 1 || point.y === height - 1;
+  });
+}
+
+function boundsOverlap(left, right) {
+  const overlapWidth = Math.max(0, Math.min(left.maxX, right.maxX) - Math.max(left.minX, right.minX) + 1);
+  const overlapHeight = Math.max(0, Math.min(left.maxY, right.maxY) - Math.max(left.minY, right.minY) + 1);
+  const overlap = overlapWidth * overlapHeight;
+  const leftArea = Math.max(1, left.width * left.height);
+  const rightArea = Math.max(1, right.width * right.height);
+  return overlap / Math.min(leftArea, rightArea);
+}
+
+function deduplicateFeatureShapes(shapes) {
+  const ordered = [...shapes].sort((left, right) => right.area - left.area);
+  const selected = [];
+  for (const shape of ordered) {
+    const duplicate = selected.some((existing) => {
+      const centerDistance = Math.hypot(existing.center.x - shape.center.x, existing.center.y - shape.center.y);
+      const size = Math.max(2, Math.max(existing.bounds.width, existing.bounds.height, shape.bounds.width, shape.bounds.height));
+      const areaRatio = Math.min(existing.area, shape.area) / Math.max(1, Math.max(existing.area, shape.area));
+      return areaRatio >= 0.2
+        && (centerDistance <= size * 0.3 || boundsOverlap(existing.bounds, shape.bounds) >= 0.65);
+    });
+    if (!duplicate) selected.push(shape);
+  }
+  return selected;
+}
+
+function featureShapesForPolarity(pixels, imageWidth, imageHeight, step, thresholds, polarity, minimumArea) {
+  const shapes = [];
+  for (const threshold of [...new Set(thresholds)].filter((value) => value > 0 && value < 255)) {
+    const mask = makeMask(pixels, imageWidth, imageHeight, step, (red, green, blue) => {
+      const value = luminance(red, green, blue);
+      return polarity === 'bright' ? value >= threshold : value <= threshold;
+    });
+    const components = connectedComponents(mask.mask, mask.width, mask.height, { minArea: minimumArea });
+    for (const component of components) {
+      if (componentTouchesBoundary(component, mask.width, mask.height)) continue;
+      if (component.area >= mask.width * mask.height * 0.6) continue;
+      const shape = mapComponentToOriginal(
+        shapeDescriptor(component, mask.width, mask.height),
+        step,
+        imageWidth,
+        imageHeight,
+      );
+      shapes.push({ ...shape, polarity, threshold });
+    }
+  }
+  return deduplicateFeatureShapes(shapes);
 }
 
 function mapBoundaryToImage(bounds, step, width, height) {
@@ -653,6 +715,10 @@ export function detectUPadRegistration(pixels, imageWidth, imageHeight, options 
   }
   const config = { ...DEFAULT_OPTIONS, ...options };
   const step = Math.max(1, Math.ceil(Math.max(imageWidth, imageHeight) / config.maxDetectionDimension));
+  const minimumCandidateArea = Math.max(
+    config.minimumFeatureArea,
+    Math.ceil(imageWidth * imageHeight * 0.0001),
+  );
   const darkMask = makeMask(pixels, imageWidth, imageHeight, step, (red, green, blue) => luminance(red, green, blue) <= config.darkThreshold);
   const bodyCandidates = connectedComponents(darkMask.mask, darkMask.width, darkMask.height, { minArea: config.minimumBodyArea });
   const body = bodyCandidates
@@ -664,27 +730,42 @@ export function detectUPadRegistration(pixels, imageWidth, imageHeight, options 
     .filter((component) => Math.max(component.bounds.width, component.bounds.height)
       >= Math.min(component.bounds.width, component.bounds.height) * 1.8)
     .sort((left, right) => right.area - left.area)[0];
-  const bodyGridBounds = body
-    ? componentBounds(bodyCandidates.find((candidate) => candidate.area === body.area)?.indices || [], darkMask.width)
-    : { minX: 0, minY: 0, maxX: darkMask.width - 1, maxY: darkMask.height - 1 };
-  const featureMask = makeMask(pixels, imageWidth, imageHeight, step, (red, green, blue) => luminance(red, green, blue) >= config.featureThreshold);
-  const featureComponents = connectedComponents(featureMask.mask, featureMask.width, featureMask.height, {
-    minArea: config.minimumFeatureArea,
-    region: {
-      minX: clamp(bodyGridBounds.minX, 0, featureMask.width - 1),
-      minY: clamp(bodyGridBounds.minY, 0, featureMask.height - 1),
-      maxX: clamp(bodyGridBounds.maxX, 0, featureMask.width - 1),
-      maxY: clamp(bodyGridBounds.maxY, 0, featureMask.height - 1),
-    },
-  });
-  const shapes = featureComponents
-    .filter((component) => !component.indices.some((index) => {
-      const point = imagePoint(index, featureMask.width);
-      return point.x === bodyGridBounds.minX || point.x === bodyGridBounds.maxX
-        || point.y === bodyGridBounds.minY || point.y === bodyGridBounds.maxY;
-    }))
-    .map((component) => shapeDescriptor(component, featureMask.width, featureMask.height))
-    .map((shape) => mapComponentToOriginal(shape, step, imageWidth, imageHeight));
+  // Fiducials are searched across the complete usable frame. The body contour
+  // remains diagnostic-only; shadows and background objects must not hide valid
+  // square, triangle, or sensing-zone candidates behind a body bounding box.
+  const brightThresholds = [
+    config.featureThreshold - 24,
+    config.featureThreshold,
+    config.featureThreshold + 24,
+    config.featureThreshold + 48,
+    config.featureThreshold + 72,
+  ].map((value) => clamp(value, 24, 240));
+  const darkThresholds = [
+    config.darkThreshold - 24,
+    config.darkThreshold,
+    config.darkThreshold + 24,
+    config.darkThreshold + 48,
+    config.darkThreshold + 72,
+  ].map((value) => clamp(value, 16, 232));
+  const brightShapes = featureShapesForPolarity(
+    pixels,
+    imageWidth,
+    imageHeight,
+    step,
+    brightThresholds,
+    'bright',
+    minimumCandidateArea,
+  );
+  const darkShapes = featureShapesForPolarity(
+    pixels,
+    imageWidth,
+    imageHeight,
+    step,
+    darkThresholds,
+    'dark',
+    minimumCandidateArea,
+  );
+  const shapes = deduplicateFeatureShapes([...brightShapes, ...darkShapes]);
 
   const squareCandidates = shapes
     .filter((shape) => shape.corners >= 3 && shape.corners <= 12 && shape.aspectRatio <= 1.65 && shape.fillRatio >= 0.42)
@@ -738,6 +819,8 @@ export function detectUPadRegistration(pixels, imageWidth, imageHeight, options 
         selected,
         finalRejectionReason: failureCode,
         zoneEvidence: selected?.zoneEvidence || null,
+        brightFeatureCandidateCount: brightShapes.length,
+        darkFeatureCandidateCount: darkShapes.length,
       }),
     };
   }
@@ -799,6 +882,8 @@ export function detectUPadRegistration(pixels, imageWidth, imageHeight, options 
     selected,
     finalRejectionReason: null,
     zoneEvidence: selected.zoneEvidence,
+    brightFeatureCandidateCount: brightShapes.length,
+    darkFeatureCandidateCount: darkShapes.length,
   });
   registration.overlay = createUPadDiagnosticOverlay(registration);
   if (config.debug) registration.candidateDetails = shapes.map(({ indices, hull, ...shape }) => shape);
