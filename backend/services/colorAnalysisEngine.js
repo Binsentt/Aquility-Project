@@ -56,8 +56,10 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
         debugLogger?.('upad-registration', {
           status: registration.status,
           reason: registration.reason || null,
+          failureCode: registration.failureCode || null,
           registrationConfidence: registration.registrationConfidence || null,
-          overlay: registration.status === 'REGISTERED'
+          diagnostics: registration.diagnostics || null,
+          overlay: registration.diagnostics
             ? { ...createUPadDiagnosticOverlay(registration), svg: buildUPadDiagnosticOverlaySvg(registration) }
             : null,
         });
@@ -69,7 +71,8 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
             roiDetected: { pH: false, nitrite: false },
             registrationStatus: 'STRIP_REGISTRATION_FAILED',
             detectedRegistrationStatus: registration.status,
-            reason: registration.reason || 'UPAD_NOT_DETECTED',
+            reason: registration.failureCode || registration.reason || 'UPAD_NOT_DETECTED',
+            diagnostics: registration.diagnostics || null,
           });
           throw new HttpError(
             422,
@@ -93,6 +96,10 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
           roiDetected: { pH: false, nitrite: false },
           registrationStatus: 'STRIP_REGISTRATION_FAILED',
           reason: !validRoi(phRoi) || !validRoi(nitriteRoi) || sameRoi ? 'DETECTION_ZONES_NOT_FOUND' : 'PHYSICAL_STRIP_GEOMETRY_REQUIRED',
+          imageWidth: info.width,
+          imageHeight: info.height,
+          nitriteRoiValid: validRoi(nitriteRoi),
+          phRoiValid: validRoi(phRoi),
         });
         throw new HttpError(
           422,

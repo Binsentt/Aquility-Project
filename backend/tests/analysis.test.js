@@ -118,6 +118,25 @@ test('analysis service preserves an explicitly selected sample code when canonic
   assert.equal(createdRecord.sourceType, 'Coastal / Pawikan');
 });
 
+test('analysis diagnostics carry a request-correlated analysis id without user data', async () => {
+  const events = [];
+  const service = createWaterAnalysisService({
+    colorAnalysisEngine: { async analyze({ debugLogger }) { debugLogger?.('upad-registration', { status: 'REGISTERED' }); return sampleMeasurements; } },
+    waterTestModel: { async create(record) { return { id: 'diagnostic-record', createdAt: '2026-08-04T00:00:00.000Z', ...record }; } },
+  });
+
+  await service.analyze({
+    file: { filename: 'strip.jpg' },
+    metadata: { capturedAt: '2026-08-04T00:00:00.000Z' },
+    authenticatedUserId: '8ed82724-1db6-452a-a872-f6e5c81d8b5a',
+    requestId: 'request-diagnostic-1',
+    requestDebugLogger: (stage, details) => events.push({ stage, details }),
+  });
+
+  assert.deepEqual(events[0], { stage: 'upad-registration', details: { analysisId: 'request-diagnostic-1', status: 'REGISTERED' } });
+  assert.equal(events.some(({ details }) => 'email' in details || 'token' in details), false);
+});
+
 test('analysis service maps selected sample metadata to its study site independently of GPS', async () => {
   let createdRecord;
   const service = createWaterAnalysisService({

@@ -30,7 +30,7 @@ async function removeUpload(file) {
 
 export function createWaterAnalysisService({ colorAnalysisEngine, waterTestModel, userModel, authTokenService = null, debugLogger = null, sampleSiteMatcher = matchSampleSite }) {
   return {
-    async analyze({ file, metadata, authenticatedUserId }) {
+    async analyze({ file, metadata, authenticatedUserId, requestDebugLogger = null, requestId = null }) {
       if (!file?.filename) {
         throw new HttpError(400, 'IMAGE_REQUIRED', 'A captured water-test image is required.');
       }
@@ -81,9 +81,11 @@ export function createWaterAnalysisService({ colorAnalysisEngine, waterTestModel
         };
         const resolvedSampleClass = requestedSampleClass || sampleSite.classCode || null;
         storedFile = await validateStoredImage(file);
-        const measurements = await colorAnalysisEngine.analyze({ imagePath: storedFile.path, debugLogger });
-        debugLogger?.('analysis-complete', { status: measurements.overallStatus || null });
-        debugLogger?.('db-save-start', { userPresent: true });
+        const analysisLogger = requestDebugLogger || debugLogger;
+        const log = (stage, details = {}) => analysisLogger?.(stage, { analysisId: requestId || null, ...details });
+        const measurements = await colorAnalysisEngine.analyze({ imagePath: storedFile.path, debugLogger: log });
+        log('analysis-complete', { status: measurements.overallStatus || null });
+        log('db-save-start', { userPresent: true });
         const created = await waterTestModel.create({
           userId: authenticatedUserId,
           imagePath: `/uploads/${storedFile.filename}`,
@@ -113,7 +115,7 @@ export function createWaterAnalysisService({ colorAnalysisEngine, waterTestModel
           overallStatus: measurements.overallStatus,
           remarks: measurements.remarks,
         });
-        debugLogger?.('db-save-complete', { recordCreated: true });
+        log('db-save-complete', { recordCreated: true });
 
         return serializeWaterTest(created, authTokenService);
       } catch (error) {

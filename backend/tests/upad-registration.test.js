@@ -84,6 +84,50 @@ test('registration preserves zone assignment through rotation and scale changes'
   }
 });
 
+test('strong fiducials derive registered zones when wet-zone contours are too soft', async () => {
+  const svg = templateSvg({ extra: '<circle cx="106" cy="50" r="18" fill="#777777"/><circle cx="202" cy="50" r="18" fill="#777777"/>' });
+  const { data, info } = await rawSvg(svg);
+  const result = detectUPadRegistration(data, info.width, info.height, { debug: true });
+
+  assert.equal(result.status, 'REGISTERED');
+  assert.equal(result.candidates.circle, 0);
+  assert.equal(result.nitrite.source, 'template-derived-zone');
+  assert.equal(result.pH.source, 'template-derived-zone');
+  assert.equal(result.diagnostics.finalRejectionReason, null);
+  assert.equal(result.diagnostics.zoneEvidence.nitrite.accepted, true);
+  assert.equal(result.diagnostics.zoneEvidence.pH.accepted, true);
+});
+
+test('strong fiducials can establish the frame when the dark body contour is unavailable', async () => {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="500" height="100">
+    <rect width="500" height="100" fill="#777777"/>
+    <rect x="48" y="43" width="14" height="14" fill="#ffffff"/>
+    <circle cx="106" cy="50" r="18" fill="#aaaaaa"/>
+    <circle cx="202" cy="50" r="18" fill="#aaaaaa"/>
+    <polygon points="260,40 260,60 280,50" fill="#ffffff"/>
+  </svg>`;
+  const { data, info } = await rawSvg(svg);
+  const result = detectUPadRegistration(data, info.width, info.height, { debug: true });
+
+  assert.equal(result.status, 'REGISTERED');
+  assert.equal(result.body.source, 'anchor-derived');
+  assert.equal(result.diagnostics.bodyEstimate.confidence, 0.45);
+});
+
+test('registration failures expose safe, request-correlated diagnostic fields', async () => {
+  const { data, info } = await rawSvg('<svg xmlns="http://www.w3.org/2000/svg" width="500" height="100"><rect width="500" height="100" fill="#eeeeee"/></svg>');
+  const result = detectUPadRegistration(data, info.width, info.height, { debug: true });
+
+  assert.notEqual(result.status, 'REGISTERED');
+  assert.equal(result.diagnostics.imageWidth, 500);
+  assert.equal(result.diagnostics.imageHeight, 100);
+  assert.equal(result.diagnostics.orientationNormalized, true);
+  assert.equal(result.diagnostics.finalRejectionReason, 'BODY_GEOMETRY_INVALID');
+  assert.equal(result.diagnostics.selectedSquare, null);
+  assert.equal(result.diagnostics.selectedTriangle, null);
+  assert.match(buildUPadDiagnosticOverlaySvg(result), /rejection: BODY_GEOMETRY_INVALID/);
+});
+
 test('random objects and incomplete reference pairs are rejected before analysis', async () => {
   const fixtures = [
     '<rect width="500" height="100" fill="#dddddd"/>',

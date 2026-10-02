@@ -255,6 +255,133 @@ function templateCoordinate(projectionResult) {
   };
 }
 
+function templatePoint(normalizedX, square, triangle) {
+  const axis = projection(triangle, square, triangle);
+  if (!axis) return null;
+  const templateSpan = UPAD_TEMPLATE.normalized.triangle.x - UPAD_TEMPLATE.normalized.square.x;
+  const along = (normalizedX - UPAD_TEMPLATE.normalized.square.x) / templateSpan;
+  return {
+    x: square.x + (axis.ux * axis.distance * along),
+    y: square.y + (axis.uy * axis.distance * along),
+  };
+}
+
+function zoneEvidence(pixels, width, height, center, diameter, threshold) {
+  const half = Math.max(2, diameter * 0.28);
+  const minX = clamp(Math.floor(center.x - half), 0, width - 1);
+  const maxX = clamp(Math.ceil(center.x + half), minX, width - 1);
+  const minY = clamp(Math.floor(center.y - half), 0, height - 1);
+  const maxY = clamp(Math.ceil(center.y + half), minY, height - 1);
+  let count = 0;
+  let sum = 0;
+  let sumSquared = 0;
+  for (let y = minY; y <= maxY; y += 1) {
+    for (let x = minX; x <= maxX; x += 1) {
+      const offset = (y * width + x) * 3;
+      const value = luminance(pixels[offset], pixels[offset + 1], pixels[offset + 2]);
+      count += 1;
+      sum += value;
+      sumSquared += value ** 2;
+    }
+  }
+  const meanLuminance = count ? sum / count : 0;
+  const variance = count ? Math.max(0, (sumSquared / count) - (meanLuminance ** 2)) : 0;
+  return {
+    accepted: count > 0 && (meanLuminance >= threshold || Math.sqrt(variance) >= 12),
+    center,
+    diameter,
+    meanLuminance,
+    standardDeviation: Math.sqrt(variance),
+    sampleCount: count,
+  };
+}
+
+function derivedZoneShape(center, diameter, evidence) {
+  const radius = diameter / 2;
+  return {
+    source: 'template-derived-zone',
+    bounds: {
+      minX: center.x - radius,
+      minY: center.y - radius,
+      maxX: center.x + radius,
+      maxY: center.y + radius,
+      width: diameter,
+      height: diameter,
+    },
+    center,
+    confidence: clamp(0.55 + Math.min(0.2, Math.max(0, evidence.meanLuminance - 100) / 500), 0, 0.75),
+    circularity: null,
+    corners: null,
+    fillRatio: null,
+    area: null,
+    evidence,
+  };
+}
+
+function summarizeShape(shape, bodyHeightPixels = null) {
+  if (!shape) return null;
+  const width = Number(shape.bounds?.width) || 0;
+  const height = Number(shape.bounds?.height) || 0;
+  return {
+    center: shape.center || null,
+    bbox: shape.bounds || null,
+    area: Number.isFinite(shape.area) ? shape.area : null,
+    relativeSize: bodyHeightPixels ? ((width + height) / 2) / bodyHeightPixels : null,
+    vertexCount: Number.isFinite(shape.corners) ? shape.corners : null,
+    confidence: Number.isFinite(shape.confidence) ? shape.confidence : null,
+    source: shape.source || 'detected-contour',
+  };
+}
+
+function makeDiagnostics({ imageWidth, imageHeight, body = null, squareCandidates = [], triangleCandidates = [], circleCandidates = [], selected = null, finalRejectionReason = null, zoneEvidence: evidence = null }) {
+  const bodyHeight = body ? Math.min(body.bounds.width, body.bounds.height) : null;
+  const selectedSquare = selected?.square || null;
+  const selectedTriangle = selected?.triangle || null;
+  const axis = selectedSquare && selectedTriangle
+    ? projection(selectedTriangle.center, selectedSquare.center, selectedTriangle.center)
+    : null;
+  return {
+    imageWidth,
+    imageHeight,
+    orientationNormalized: true,
+    squareCandidateCount: squareCandidates.length,
+    triangleCandidateCount: triangleCandidates.length,
+    circleCandidateCount: circleCandidates.length,
+    selectedSquare: summarizeShape(selectedSquare, bodyHeight),
+    selectedTriangle: summarizeShape(selectedTriangle, bodyHeight),
+    referencePair: selectedSquare && selectedTriangle ? {
+      valid: Boolean(axis && axis.distance > 0),
+      axisAngle: axis ? Math.atan2(axis.uy, axis.ux) * 180 / Math.PI : null,
+      distance: axis?.distance || null,
+      geometryScore: selected?.geometry?.score ?? null,
+    } : { valid: false, axisAngle: null, distance: null, geometryScore: null },
+    bodyEstimate: body ? {
+      width: body.bounds.width,
+      height: body.bounds.height,
+      aspectRatio: Math.max(body.bounds.width, body.bounds.height) / Math.max(1, Math.min(body.bounds.width, body.bounds.height)),
+      confidence: body.confidence ?? null,
+    } : null,
+    nitriteROI: selected?.nitrite ? {
+      localized: true,
+      center: selected.nitrite.circle.center,
+      diameter: selected.nitrite.circle.bounds.width,
+      relativeDiameter: bodyHeight ? selected.nitrite.circle.bounds.width / bodyHeight : null,
+      source: selected.nitrite.circle.source || 'detected-contour',
+    } : { localized: false, center: null, diameter: null, relativeDiameter: null, source: null },
+    phROI: selected?.ph ? {
+      localized: true,
+      center: selected.ph.circle.center,
+      diameter: selected.ph.circle.bounds.width,
+      relativeDiameter: bodyHeight ? selected.ph.circle.bounds.width / bodyHeight : null,
+      source: selected.ph.circle.source || 'detected-contour',
+    } : { localized: false, center: null, diameter: null, relativeDiameter: null, source: null },
+    zoneEvidence: evidence,
+    registrationConfidence: selected?.confidence ?? null,
+    physicalPriorScore: selected?.geometry?.score ?? null,
+    finalRejectionReason,
+  };
+}
+
 function softGeometryScore(actual, expected, tolerance) {
   return clamp(1 - Math.abs(actual - expected) / tolerance, 0, 1);
 }
@@ -322,14 +449,48 @@ function scoreRegistrationGeometry(square, triangle, nitrite, ph, body) {
   };
 }
 
-function chooseRegistration(squareCandidates, triangleCandidates, circleCandidates, body, width, height) {
-  const bodyDiagonal = Math.hypot(body.bounds.width, body.bounds.height);
+function estimateBodyFromAnchors(square, triangle) {
+  const axis = projection(triangle.center, square.center, triangle.center);
+  if (!axis) return null;
+  const templateSpan = UPAD_TEMPLATE.normalized.triangle.x - UPAD_TEMPLATE.normalized.square.x;
+  const markerHeight = Math.max(1, (Math.min(square.bounds.width, square.bounds.height)
+    + Math.min(triangle.bounds.width, triangle.bounds.height)) / 2);
+  const height = markerHeight / UPAD_TEMPLATE.physicalProportions.squareSideToBodyHeight;
+  const length = axis.distance / templateSpan;
+  return {
+    bounds: {
+      left: square.center.x,
+      top: square.center.y - (height / 2),
+      width: length,
+      height,
+    },
+    confidence: 0.45,
+    source: 'anchor-derived',
+  };
+}
+
+function chooseRegistration(squareCandidates, triangleCandidates, circleCandidates, body, width, height, pixels, options = {}) {
+  const zoneEvidenceThreshold = options.zoneEvidenceThreshold ?? Math.max(options.darkThreshold ?? 90, 100);
   const possible = [];
+  let failureCode = 'REFERENCE_PAIR_INVALID';
   for (const square of squareCandidates) {
     for (const triangle of triangleCandidates) {
       const axis = projection(triangle.center, square.center, triangle.center);
-      if (!axis || axis.distance < bodyDiagonal * 0.3 || axis.distance > bodyDiagonal * 0.75) continue;
-      if (Math.abs(triangle.center.y - square.center.y) > body.bounds.height * 0.85) continue;
+      const candidateBody = body || estimateBodyFromAnchors(square, triangle);
+      if (!candidateBody) {
+        failureCode = 'BODY_GEOMETRY_INVALID';
+        continue;
+      }
+      const bodyDiagonal = Math.hypot(candidateBody.bounds.width, candidateBody.bounds.height);
+      const bodyHeight = Math.min(candidateBody.bounds.width, candidateBody.bounds.height);
+      if (!axis || axis.distance < bodyDiagonal * 0.3 || axis.distance > bodyDiagonal * 0.75) {
+        failureCode = 'REFERENCE_PAIR_INVALID';
+        continue;
+      }
+      if (Math.abs(triangle.center.y - square.center.y) > candidateBody.bounds.height * 0.85) {
+        failureCode = 'REFERENCE_PAIR_INVALID';
+        continue;
+      }
       const circles = circleCandidates
         .map((circle) => ({ circle, projected: projection(circle.center, square.center, triangle.center) }))
         .filter(({ projected }) => projected && projected.along > 0.08 && projected.along < 0.95
@@ -341,22 +502,54 @@ function chooseRegistration(squareCandidates, triangleCandidates, circleCandidat
           xDistance: Math.abs(templateCoordinate(projected).x - circle.expectedX),
         }))
         .sort((left, right) => left.xDistance - right.xDistance);
-      const nitrite = circles.find(({ normalized }) => Math.abs(normalized.x - UPAD_TEMPLATE.normalized.nitrite.x) < 0.14);
-      const ph = circles.find(({ normalized }) => Math.abs(normalized.x - UPAD_TEMPLATE.normalized.pH.x) < 0.14
+      let nitrite = circles.find(({ normalized }) => Math.abs(normalized.x - UPAD_TEMPLATE.normalized.nitrite.x) < 0.14);
+      let ph = circles.find(({ normalized }) => Math.abs(normalized.x - UPAD_TEMPLATE.normalized.pH.x) < 0.14
         && (!nitrite || Math.abs(normalized.x - nitrite.normalized.x) > 0.08));
-      if (!nitrite || !ph || ph.normalized.x <= nitrite.normalized.x) continue;
+      const expectedDiameter = bodyHeight * UPAD_TEMPLATE.physicalProportions.circleDiameterToBodyHeight;
+      const expectedNitriteCenter = templatePoint(UPAD_TEMPLATE.normalized.nitrite.x, square.center, triangle.center);
+      const expectedPhCenter = templatePoint(UPAD_TEMPLATE.normalized.pH.x, square.center, triangle.center);
+      const nitriteEvidence = expectedNitriteCenter
+        ? zoneEvidence(pixels, width, height, expectedNitriteCenter, expectedDiameter, zoneEvidenceThreshold)
+        : null;
+      const phEvidence = expectedPhCenter
+        ? zoneEvidence(pixels, width, height, expectedPhCenter, expectedDiameter, zoneEvidenceThreshold)
+        : null;
+      if (!nitrite && nitriteEvidence?.accepted) {
+        const circle = derivedZoneShape(expectedNitriteCenter, expectedDiameter, nitriteEvidence);
+        nitrite = { circle, projected: projection(circle.center, square.center, triangle.center), normalized: templateCoordinate(projection(circle.center, square.center, triangle.center)), derived: true };
+      }
+      if (!ph && phEvidence?.accepted) {
+        const circle = derivedZoneShape(expectedPhCenter, expectedDiameter, phEvidence);
+        ph = { circle, projected: projection(circle.center, square.center, triangle.center), normalized: templateCoordinate(projection(circle.center, square.center, triangle.center)), derived: true };
+      }
+      if (!nitrite) {
+        failureCode = 'NITRITE_ROI_INVALID';
+        continue;
+      }
+      if (!ph) {
+        failureCode = 'PH_ROI_INVALID';
+        continue;
+      }
+      if (ph.normalized.x <= nitrite.normalized.x) {
+        failureCode = 'REFERENCE_PAIR_INVALID';
+        continue;
+      }
       const spacing = Math.abs(ph.normalized.x - nitrite.normalized.x);
-      if (spacing < 0.08) continue;
+      if (spacing < 0.08) {
+        failureCode = 'REFERENCE_PAIR_INVALID';
+        continue;
+      }
       const anchorConfidence = (square.confidence + triangle.confidence) / 2;
       const circleConfidence = (nitrite.circle.confidence + ph.circle.confidence) / 2;
       const geometryConfidence = clamp(1 - (Math.abs(nitrite.normalized.x - UPAD_TEMPLATE.normalized.nitrite.x)
         + Math.abs(ph.normalized.x - UPAD_TEMPLATE.normalized.pH.x)) / 0.25, 0, 1);
-      const physicalGeometry = scoreRegistrationGeometry(square, triangle, nitrite.circle, ph.circle, body);
+      const physicalGeometry = scoreRegistrationGeometry(square, triangle, nitrite.circle, ph.circle, candidateBody);
       possible.push({
         square,
         triangle,
         nitrite,
         ph,
+        body: candidateBody,
         geometry: physicalGeometry,
         confidence: clamp(
           0.3 * anchorConfidence
@@ -366,10 +559,17 @@ function chooseRegistration(squareCandidates, triangleCandidates, circleCandidat
           0,
           1,
         ),
+        zoneEvidence: {
+          nitrite: nitriteEvidence || { accepted: !nitrite.derived, source: nitrite.circle.source || 'detected-contour' },
+          pH: phEvidence || { accepted: !ph.derived, source: ph.circle.source || 'detected-contour' },
+        },
       });
     }
   }
-  return possible.sort((left, right) => right.confidence - left.confidence)[0] || null;
+  return {
+    selected: possible.sort((left, right) => right.confidence - left.confidence)[0] || null,
+    failureCode,
+  };
 }
 
 function makeMask(pixels, width, height, step, predicate) {
@@ -397,18 +597,23 @@ function mapBoundaryToImage(bounds, step, width, height) {
 }
 
 export function createUPadDiagnosticOverlay(registration) {
-  if (!registration || registration.status !== 'REGISTERED') return null;
-  return {
-    source: 'detected-geometry',
-    image: { width: registration.imageWidth, height: registration.imageHeight },
-    registrationConfidence: registration.registrationConfidence,
-    boundary: registration.body?.bounds || null,
-    labels: [
+  if (!registration?.imageWidth || !registration?.imageHeight) return null;
+  const labels = registration.status === 'REGISTERED'
+    ? [
       { label: 'REFERENCE POINT 1 — SQUARE', center: registration.square.center, bounds: registration.square.bounds },
       { label: 'REFERENCE POINT 2 — TRIANGLE', center: registration.triangle.center, bounds: registration.triangle.bounds },
       { label: 'NITRITE ZONE', center: registration.nitrite.center, bounds: registration.nitrite.bounds },
       { label: 'pH ZONE', center: registration.pH.center, bounds: registration.pH.bounds },
-    ],
+    ]
+    : [];
+  return {
+    source: registration.status === 'REGISTERED' ? 'detected-geometry' : 'registration-diagnostics',
+    image: { width: registration.imageWidth, height: registration.imageHeight },
+    registrationConfidence: registration.registrationConfidence ?? null,
+    boundary: registration.body?.bounds || null,
+    labels,
+    candidates: registration.candidateGroups || null,
+    finalRejectionReason: registration.diagnostics?.finalRejectionReason || registration.failureCode || null,
   };
 }
 
@@ -417,15 +622,28 @@ export function buildUPadDiagnosticOverlaySvg(registration) {
   if (!overlay?.image?.width || !overlay?.image?.height) return null;
   const escapeXml = (value) => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
   const colors = ['#ffd166', '#ef476f', '#06d6a0', '#118ab2'];
+  const boundary = overlay.boundary || { left: 0, top: 0, width: overlay.image.width, height: overlay.image.height };
   const labels = overlay.labels.map((item, index) => `<g data-label="${escapeXml(item.label)}" stroke="${colors[index]}" fill="none">
     <rect x="${item.bounds.minX}" y="${item.bounds.minY}" width="${item.bounds.width}" height="${item.bounds.height}" stroke-width="2"/>
     <circle cx="${item.center.x}" cy="${item.center.y}" r="3" fill="${colors[index]}"/>
     <text x="${item.center.x + 5}" y="${item.center.y - 5}" fill="${colors[index]}" stroke="none" font-size="12">${escapeXml(item.label)}</text>
   </g>`).join('');
+  const candidateMarkup = overlay.candidates
+    ? Object.entries(overlay.candidates).flatMap(([type, candidates]) => (candidates || []).map((candidate) => {
+      if (!candidate?.bbox || !candidate?.center) return '';
+      const color = type === 'square' ? '#ffd166' : type === 'triangle' ? '#ef476f' : '#8ecae6';
+      return `<rect data-candidate="${escapeXml(type)}" x="${candidate.bbox.minX}" y="${candidate.bbox.minY}" width="${candidate.bbox.width}" height="${candidate.bbox.height}" fill="none" stroke="${color}" stroke-dasharray="4 2" stroke-width="1"/>`;
+    })).join('')
+    : '';
+  const rejection = overlay.finalRejectionReason
+    ? `<text x="8" y="40" fill="#ff595e" font-size="14">rejection: ${escapeXml(overlay.finalRejectionReason)}</text>`
+    : '';
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${overlay.image.width}" height="${overlay.image.height}" viewBox="0 0 ${overlay.image.width} ${overlay.image.height}">
-    <rect x="${overlay.boundary.left}" y="${overlay.boundary.top}" width="${overlay.boundary.width}" height="${overlay.boundary.height}" fill="none" stroke="#ffffff" stroke-width="2"/>
+    <rect x="${boundary.left}" y="${boundary.top}" width="${boundary.width}" height="${boundary.height}" fill="none" stroke="#ffffff" stroke-width="2"/>
+    ${candidateMarkup}
     ${labels}
-    <text x="8" y="20" fill="#ffffff" font-size="14">registration confidence: ${Number(overlay.registrationConfidence).toFixed(3)}</text>
+    <text x="8" y="20" fill="#ffffff" font-size="14">registration confidence: ${overlay.registrationConfidence == null ? 'n/a' : Number(overlay.registrationConfidence).toFixed(3)}</text>
+    ${rejection}
   </svg>`;
 }
 
@@ -438,13 +656,17 @@ export function detectUPadRegistration(pixels, imageWidth, imageHeight, options 
   const darkMask = makeMask(pixels, imageWidth, imageHeight, step, (red, green, blue) => luminance(red, green, blue) <= config.darkThreshold);
   const bodyCandidates = connectedComponents(darkMask.mask, darkMask.width, darkMask.height, { minArea: config.minimumBodyArea });
   const body = bodyCandidates
-    .map((component) => ({ ...component, bounds: mapBoundaryToImage(component.bounds, step, imageWidth, imageHeight) }))
+    .map((component) => ({
+      ...component,
+      bounds: mapBoundaryToImage(component.bounds, step, imageWidth, imageHeight),
+      confidence: component.area / Math.max(1, component.bounds.width * component.bounds.height),
+    }))
     .filter((component) => Math.max(component.bounds.width, component.bounds.height)
       >= Math.min(component.bounds.width, component.bounds.height) * 1.8)
     .sort((left, right) => right.area - left.area)[0];
-  if (!body) return { status: 'UPAD_NOT_DETECTED', reason: 'STRIP_BODY_NOT_FOUND', template: UPAD_TEMPLATE };
-
-  const bodyGridBounds = componentBounds(bodyCandidates.find((candidate) => candidate.area === body.area)?.indices || [], darkMask.width);
+  const bodyGridBounds = body
+    ? componentBounds(bodyCandidates.find((candidate) => candidate.area === body.area)?.indices || [], darkMask.width)
+    : { minX: 0, minY: 0, maxX: darkMask.width - 1, maxY: darkMask.height - 1 };
   const featureMask = makeMask(pixels, imageWidth, imageHeight, step, (red, green, blue) => luminance(red, green, blue) >= config.featureThreshold);
   const featureComponents = connectedComponents(featureMask.mask, featureMask.width, featureMask.height, {
     minArea: config.minimumFeatureArea,
@@ -478,15 +700,47 @@ export function detectUPadRegistration(pixels, imageWidth, imageHeight, options 
   const circleCandidates = shapes
     .filter((shape) => shape.corners >= 6 && shape.aspectRatio <= 1.45 && shape.fillRatio >= 0.42)
     .map((shape) => ({ ...shape, confidence: shapeConfidence(shape, 'circle'), expectedX: UPAD_TEMPLATE.normalized.nitrite.x }));
-  const selected = chooseRegistration(squareCandidates, triangleCandidates, circleCandidates, body, imageWidth, imageHeight);
-  if (!selected) {
+  const selection = chooseRegistration(squareCandidates, triangleCandidates, circleCandidates, body, imageWidth, imageHeight, pixels, config);
+  const selected = selection.selected;
+  const minimumRegistrationConfidence = config.minimumRegistrationConfidence ?? 0.45;
+  if (!selected || selected.confidence < minimumRegistrationConfidence) {
+    const failureCode = selected && selected.confidence < minimumRegistrationConfidence
+      ? 'REGISTRATION_CONFIDENCE_TOO_LOW'
+      : !body && squareCandidates.length === 0 && triangleCandidates.length === 0
+        ? 'BODY_GEOMETRY_INVALID'
+      : squareCandidates.length === 0
+      ? 'SQUARE_NOT_FOUND'
+      : triangleCandidates.length === 0
+        ? 'TRIANGLE_NOT_FOUND'
+      : circleCandidates.length === 0
+          ? 'NITRITE_ROI_INVALID'
+          : selection.failureCode;
     return {
       status: 'REFERENCE_MARKS_NOT_FOUND',
       reason: 'EXPECTED_SQUARE_TRIANGLE_CIRCLE_RELATIONSHIP_NOT_FOUND',
+      failureCode,
+      imageWidth,
+      imageHeight,
       template: UPAD_TEMPLATE,
-      body: { bounds: body.bounds },
+      body: body ? { bounds: body.bounds, source: body.source || 'detected-body' } : null,
       candidates: { square: squareCandidates.length, triangle: triangleCandidates.length, circle: circleCandidates.length },
       candidateDetails: config.debug ? shapes.map(({ indices, hull, ...shape }) => shape) : undefined,
+      candidateGroups: config.debug ? {
+        square: squareCandidates.map((shape) => summarizeShape(shape, body ? Math.min(body.bounds.width, body.bounds.height) : null)),
+        triangle: triangleCandidates.map((shape) => summarizeShape(shape, body ? Math.min(body.bounds.width, body.bounds.height) : null)),
+        circle: circleCandidates.map((shape) => summarizeShape(shape, body ? Math.min(body.bounds.width, body.bounds.height) : null)),
+      } : undefined,
+      diagnostics: makeDiagnostics({
+        imageWidth,
+        imageHeight,
+        body: body || selected?.body || null,
+        squareCandidates,
+        triangleCandidates,
+        circleCandidates,
+        selected,
+        finalRejectionReason: failureCode,
+        zoneEvidence: selected?.zoneEvidence || null,
+      }),
     };
   }
 
@@ -496,6 +750,7 @@ export function detectUPadRegistration(pixels, imageWidth, imageHeight, options 
       center: item.center,
       bounds: item.bounds,
       confidence: item.confidence,
+      source: item.source || 'detected-contour',
       normalized: projectionResult ? templateCoordinate(projectionResult) : null,
     };
   };
@@ -504,7 +759,7 @@ export function detectUPadRegistration(pixels, imageWidth, imageHeight, options 
     imageWidth,
     imageHeight,
     template: UPAD_TEMPLATE,
-    body: { bounds: body.bounds },
+    body: { bounds: selected.body.bounds, source: selected.body.source || 'detected-body' },
     candidates: { square: squareCandidates.length, triangle: triangleCandidates.length, circle: circleCandidates.length },
     geometry: selected.geometry,
     square: toRegistration(selected.square),
@@ -531,6 +786,22 @@ export function detectUPadRegistration(pixels, imageWidth, imageHeight, options 
     },
     registrationConfidence: selected.confidence,
   };
+  registration.candidateGroups = config.debug ? {
+    square: squareCandidates.map((shape) => summarizeShape(shape, Math.min(selected.body.bounds.width, selected.body.bounds.height))),
+    triangle: triangleCandidates.map((shape) => summarizeShape(shape, Math.min(selected.body.bounds.width, selected.body.bounds.height))),
+    circle: circleCandidates.map((shape) => summarizeShape(shape, Math.min(selected.body.bounds.width, selected.body.bounds.height))),
+  } : undefined;
+  registration.diagnostics = makeDiagnostics({
+    imageWidth,
+    imageHeight,
+    body: selected.body,
+    squareCandidates,
+    triangleCandidates,
+    circleCandidates,
+    selected,
+    finalRejectionReason: null,
+    zoneEvidence: selected.zoneEvidence,
+  });
   registration.overlay = createUPadDiagnosticOverlay(registration);
   if (config.debug) registration.candidateDetails = shapes.map(({ indices, hull, ...shape }) => shape);
   return registration;
