@@ -22,6 +22,16 @@ export const UPAD_TEMPLATE = Object.freeze({
     spacingInterpretation: 'ambiguous-edge-versus-center',
     provenance: 'CLIENT_PHYSICAL_MEASUREMENT',
   }),
+  physicalProportions: Object.freeze({
+    overallAspectRatio: 5,
+    squareSideToBodyHeight: 0.25,
+    triangleSideToBodyHeight: 0.25,
+    circleDiameterToBodyHeight: 0.5,
+    squareToCircleSpacingToBodyHeight: 0.2625,
+    circleToCircleSpacingToBodyHeight: 0.5,
+    triangleToCircleSpacingToBodyHeight: 0.2625,
+    spacingInterpretation: 'SPACING_REFERENCE_INTERPRETATION_UNCONFIRMED',
+  }),
   schematicCoordinateProvenance: 'CLIENT_SCHEMATIC_DERIVED',
   normalized: Object.freeze({
     square: Object.freeze({ x: 0.079, y: 0.5, width: 0.04, height: 0.2 }),
@@ -245,6 +255,73 @@ function templateCoordinate(projectionResult) {
   };
 }
 
+function softGeometryScore(actual, expected, tolerance) {
+  return clamp(1 - Math.abs(actual - expected) / tolerance, 0, 1);
+}
+
+function shapeSizeToBodyHeight(shape, bodyHeightPixels) {
+  return ((shape.bounds.width + shape.bounds.height) / 2) / Math.max(1, bodyHeightPixels);
+}
+
+function distanceToBodyHeight(first, second, bodyHeightPixels) {
+  return Math.hypot(second.x - first.x, second.y - first.y) / Math.max(1, bodyHeightPixels);
+}
+
+function scoreRegistrationGeometry(square, triangle, nitrite, ph, body) {
+  const bodyLengthPixels = Math.max(body.bounds.width, body.bounds.height);
+  const bodyHeightPixels = Math.min(body.bounds.width, body.bounds.height);
+  const proportions = UPAD_TEMPLATE.physicalProportions;
+  const squareSize = shapeSizeToBodyHeight(square, bodyHeightPixels);
+  const triangleSize = shapeSizeToBodyHeight(triangle, bodyHeightPixels);
+  const nitriteSize = shapeSizeToBodyHeight(nitrite, bodyHeightPixels);
+  const phSize = shapeSizeToBodyHeight(ph, bodyHeightPixels);
+  const squareToNitrite = distanceToBodyHeight(square.center, nitrite.center, bodyHeightPixels);
+  const nitriteToPh = distanceToBodyHeight(nitrite.center, ph.center, bodyHeightPixels);
+  const phToTriangle = distanceToBodyHeight(ph.center, triangle.center, bodyHeightPixels);
+  const scores = {
+    overallAspect: softGeometryScore(bodyLengthPixels / Math.max(1, bodyHeightPixels), proportions.overallAspectRatio, 2),
+    squareSize: softGeometryScore(squareSize, proportions.squareSideToBodyHeight, 0.2),
+    triangleSize: softGeometryScore(triangleSize, proportions.triangleSideToBodyHeight, 0.2),
+    nitriteSize: softGeometryScore(nitriteSize, proportions.circleDiameterToBodyHeight, 0.3),
+    pHSize: softGeometryScore(phSize, proportions.circleDiameterToBodyHeight, 0.3),
+    squareToNitriteSpacing: softGeometryScore(squareToNitrite, proportions.squareToCircleSpacingToBodyHeight, 0.55),
+    nitriteToPhSpacing: softGeometryScore(nitriteToPh, proportions.circleToCircleSpacingToBodyHeight, 0.8),
+    pHToTriangleSpacing: softGeometryScore(phToTriangle, proportions.triangleToCircleSpacingToBodyHeight, 0.55),
+    ordering: square.center.x < nitrite.center.x && nitrite.center.x < ph.center.x && ph.center.x < triangle.center.x ? 1 : 0,
+  };
+  const score = clamp(
+    0.15 * scores.overallAspect
+      + 0.12 * scores.squareSize
+      + 0.12 * scores.triangleSize
+      + 0.12 * ((scores.nitriteSize + scores.pHSize) / 2)
+      + 0.24 * ((scores.squareToNitriteSpacing + scores.nitriteToPhSpacing + scores.pHToTriangleSpacing) / 3)
+      + 0.25 * scores.ordering,
+    0,
+    1,
+  );
+  return {
+    score,
+    referenceScale: 'detected-body-height',
+    body: {
+      lengthPixels: bodyLengthPixels,
+      heightPixels: bodyHeightPixels,
+      aspectRatio: bodyLengthPixels / Math.max(1, bodyHeightPixels),
+    },
+    measured: {
+      squareSideToBodyHeight: squareSize,
+      triangleSideToBodyHeight: triangleSize,
+      nitriteDiameterToBodyHeight: nitriteSize,
+      pHDiameterToBodyHeight: phSize,
+      squareToNitriteSpacingToBodyHeight: squareToNitrite,
+      nitriteToPhSpacingToBodyHeight: nitriteToPh,
+      pHToTriangleSpacingToBodyHeight: phToTriangle,
+    },
+    componentScores: scores,
+    proportions,
+    spacingInterpretation: proportions.spacingInterpretation,
+  };
+}
+
 function chooseRegistration(squareCandidates, triangleCandidates, circleCandidates, body, width, height) {
   const bodyDiagonal = Math.hypot(body.bounds.width, body.bounds.height);
   const possible = [];
@@ -274,7 +351,22 @@ function chooseRegistration(squareCandidates, triangleCandidates, circleCandidat
       const circleConfidence = (nitrite.circle.confidence + ph.circle.confidence) / 2;
       const geometryConfidence = clamp(1 - (Math.abs(nitrite.normalized.x - UPAD_TEMPLATE.normalized.nitrite.x)
         + Math.abs(ph.normalized.x - UPAD_TEMPLATE.normalized.pH.x)) / 0.25, 0, 1);
-      possible.push({ square, triangle, nitrite, ph, confidence: clamp(0.4 * anchorConfidence + 0.35 * circleConfidence + 0.25 * geometryConfidence, 0, 1) });
+      const physicalGeometry = scoreRegistrationGeometry(square, triangle, nitrite.circle, ph.circle, body);
+      possible.push({
+        square,
+        triangle,
+        nitrite,
+        ph,
+        geometry: physicalGeometry,
+        confidence: clamp(
+          0.3 * anchorConfidence
+            + 0.25 * circleConfidence
+            + 0.2 * geometryConfidence
+            + 0.25 * physicalGeometry.score,
+          0,
+          1,
+        ),
+      });
     }
   }
   return possible.sort((left, right) => right.confidence - left.confidence)[0] || null;
@@ -373,7 +465,7 @@ export function detectUPadRegistration(pixels, imageWidth, imageHeight, options 
     .map((shape) => mapComponentToOriginal(shape, step, imageWidth, imageHeight));
 
   const squareCandidates = shapes
-    .filter((shape) => shape.corners >= 3 && shape.corners <= 5 && shape.aspectRatio <= 1.55 && shape.fillRatio >= 0.48)
+    .filter((shape) => shape.corners >= 3 && shape.corners <= 12 && shape.aspectRatio <= 1.65 && shape.fillRatio >= 0.42)
     .map((shape) => ({ ...shape, confidence: shapeConfidence(shape, 'square') }))
     .filter((shape) => shape.confidence >= 0.45);
   const triangleCandidates = shapes
@@ -413,6 +505,8 @@ export function detectUPadRegistration(pixels, imageWidth, imageHeight, options 
     imageHeight,
     template: UPAD_TEMPLATE,
     body: { bounds: body.bounds },
+    candidates: { square: squareCandidates.length, triangle: triangleCandidates.length, circle: circleCandidates.length },
+    geometry: selected.geometry,
     square: toRegistration(selected.square),
     triangle: toRegistration(selected.triangle),
     nitrite: {

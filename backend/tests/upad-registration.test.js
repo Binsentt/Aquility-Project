@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import sharp from 'sharp';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildUPadDiagnosticOverlaySvg, detectUPadRegistration, UPAD_TEMPLATE } from '../services/upadRegistration.js';
@@ -52,6 +52,24 @@ test('client schematic registration detects square, triangle, and separate order
   assert.match(overlaySvg, /REFERENCE POINT 1/);
   assert.match(overlaySvg, /NITRITE ZONE/);
   assert.match(overlaySvg, /pH ZONE/);
+});
+
+test('real Android strip photo registers despite softened fiducial contours', async () => {
+  const image = await readFile(new URL('./fixtures/real-android-upad.jpg', import.meta.url));
+  const { data, info } = await sharp(image).rotate().removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  const result = detectUPadRegistration(data, info.width, info.height, { debug: true });
+
+  assert.equal(result.status, 'REGISTERED');
+  assert.ok(result.square.center.x < result.nitrite.center.x);
+  assert.ok(result.nitrite.center.x < result.pH.center.x);
+  assert.ok(result.pH.center.x < result.triangle.center.x);
+  assert.ok(result.candidates.square >= 1);
+  assert.ok(result.candidates.triangle >= 1);
+  assert.equal(result.geometry.referenceScale, 'detected-body-height');
+  assert.equal(result.geometry.spacingInterpretation, 'SPACING_REFERENCE_INTERPRETATION_UNCONFIRMED');
+  assert.ok(result.geometry.score > 0);
+  assert.equal(result.geometry.proportions.squareSideToBodyHeight, 0.25);
+  assert.equal(result.geometry.proportions.circleDiameterToBodyHeight, 0.5);
 });
 
 test('registration preserves zone assignment through rotation and scale changes', async () => {
