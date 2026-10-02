@@ -285,7 +285,7 @@ test('analysis refuses numeric output when physical strip ROIs are not configure
       {
         code: 'STRIP_REGISTRATION_FAILED',
         status: 422,
-        message: 'The test strip could not be registered. Please capture a clear top-view image with the reference point and both detection zones visible.',
+        message: 'The square and triangle reference points could not be detected clearly. Please keep the entire test strip visible and capture a clear top-view image.',
       },
     );
     const registrationFailure = diagnostics.find(({ stage }) => stage === 'strip-registration-failed');

@@ -50,6 +50,18 @@ test('toScanResult maps API chemistry and GPS to the existing result screen cont
   assert.equal(scan.imageUri, 'http://localhost:4000/api/water-tests/3ec25331-d511-491f-a1b6-11670bc4a2d6/image?token=short-lived-token');
 });
 
+test('Result screen contract displays backend-returned pH and Nitrite values', () => {
+  const scan = toScanResult({
+    analysisId: 'backend-measured-values',
+    pH: 7.25,
+    nitrite: { value: 0.5, unit: 'ppm', status: 'Estimated' },
+  }, 'https://aquality-api-production.up.railway.app/api');
+
+  assert.equal(scan.resultData.pH, '7.25');
+  assert.equal(scan.resultData.Nitrite, '0.50 ppm');
+  assert.doesNotMatch(JSON.stringify(scan.resultData), /undefined|NaN|null ppm/);
+});
+
 test('markerColorFor maps every backend safety class to a distinct map color', () => {
   assert.equal(markerColorFor('Safe'), '#22A06B');
   assert.equal(markerColorFor('Moderate'), '#D48A00');

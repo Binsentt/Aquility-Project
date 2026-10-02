@@ -2,10 +2,9 @@
  * Image-only registration for the client supplied µPAD template.
  *
  * The client schematic is the source for the normalized template values below.
- * Only the overall length, body height, and 5 mm sensing-circle diameter are
- * physical dimensions supplied by the client. Feature coordinates are
- * template-relative measurements and must not be interpreted as independent
- * millimetre measurements.
+ * The physical measurements below are documentation metadata only. Feature
+ * coordinates are template-relative measurements and must not be interpreted
+ * as independent millimetre measurements or used as registration gates.
  */
 
 export const UPAD_TEMPLATE = Object.freeze({
@@ -353,7 +352,7 @@ function makeDiagnostics({ imageWidth, imageHeight, body = null, squareCandidate
       valid: Boolean(axis && axis.distance > 0),
       axisAngle: axis ? Math.atan2(axis.uy, axis.ux) * 180 / Math.PI : null,
       distance: axis?.distance || null,
-      geometryScore: selected?.geometry?.score ?? null,
+      geometryScore: selected?.geometry?.pairConfidence ?? null,
     } : { valid: false, axisAngle: null, distance: null, geometryScore: null },
     bodyEstimate: body ? {
       width: body.bounds.width,
@@ -377,79 +376,14 @@ function makeDiagnostics({ imageWidth, imageHeight, body = null, squareCandidate
     } : { localized: false, center: null, diameter: null, relativeDiameter: null, source: null },
     zoneEvidence: evidence,
     registrationConfidence: selected?.confidence ?? null,
-    physicalPriorScore: selected?.geometry?.score ?? null,
+    physicalPriorScore: null,
     finalRejectionReason,
   };
 }
 
-function softGeometryScore(actual, expected, tolerance) {
-  return clamp(1 - Math.abs(actual - expected) / tolerance, 0, 1);
-}
-
-function shapeSizeToBodyHeight(shape, bodyHeightPixels) {
-  return ((shape.bounds.width + shape.bounds.height) / 2) / Math.max(1, bodyHeightPixels);
-}
-
-function distanceToBodyHeight(first, second, bodyHeightPixels) {
-  return Math.hypot(second.x - first.x, second.y - first.y) / Math.max(1, bodyHeightPixels);
-}
-
-function scoreRegistrationGeometry(square, triangle, nitrite, ph, body) {
-  const bodyLengthPixels = Math.max(body.bounds.width, body.bounds.height);
-  const bodyHeightPixels = Math.min(body.bounds.width, body.bounds.height);
-  const proportions = UPAD_TEMPLATE.physicalProportions;
-  const squareSize = shapeSizeToBodyHeight(square, bodyHeightPixels);
-  const triangleSize = shapeSizeToBodyHeight(triangle, bodyHeightPixels);
-  const nitriteSize = shapeSizeToBodyHeight(nitrite, bodyHeightPixels);
-  const phSize = shapeSizeToBodyHeight(ph, bodyHeightPixels);
-  const squareToNitrite = distanceToBodyHeight(square.center, nitrite.center, bodyHeightPixels);
-  const nitriteToPh = distanceToBodyHeight(nitrite.center, ph.center, bodyHeightPixels);
-  const phToTriangle = distanceToBodyHeight(ph.center, triangle.center, bodyHeightPixels);
-  const scores = {
-    overallAspect: softGeometryScore(bodyLengthPixels / Math.max(1, bodyHeightPixels), proportions.overallAspectRatio, 2),
-    squareSize: softGeometryScore(squareSize, proportions.squareSideToBodyHeight, 0.2),
-    triangleSize: softGeometryScore(triangleSize, proportions.triangleSideToBodyHeight, 0.2),
-    nitriteSize: softGeometryScore(nitriteSize, proportions.circleDiameterToBodyHeight, 0.3),
-    pHSize: softGeometryScore(phSize, proportions.circleDiameterToBodyHeight, 0.3),
-    squareToNitriteSpacing: softGeometryScore(squareToNitrite, proportions.squareToCircleSpacingToBodyHeight, 0.55),
-    nitriteToPhSpacing: softGeometryScore(nitriteToPh, proportions.circleToCircleSpacingToBodyHeight, 0.8),
-    pHToTriangleSpacing: softGeometryScore(phToTriangle, proportions.triangleToCircleSpacingToBodyHeight, 0.55),
-    ordering: square.center.x < nitrite.center.x && nitrite.center.x < ph.center.x && ph.center.x < triangle.center.x ? 1 : 0,
-  };
-  const score = clamp(
-    0.15 * scores.overallAspect
-      + 0.12 * scores.squareSize
-      + 0.12 * scores.triangleSize
-      + 0.12 * ((scores.nitriteSize + scores.pHSize) / 2)
-      + 0.24 * ((scores.squareToNitriteSpacing + scores.nitriteToPhSpacing + scores.pHToTriangleSpacing) / 3)
-      + 0.25 * scores.ordering,
-    0,
-    1,
-  );
-  return {
-    score,
-    referenceScale: 'detected-body-height',
-    body: {
-      lengthPixels: bodyLengthPixels,
-      heightPixels: bodyHeightPixels,
-      aspectRatio: bodyLengthPixels / Math.max(1, bodyHeightPixels),
-    },
-    measured: {
-      squareSideToBodyHeight: squareSize,
-      triangleSideToBodyHeight: triangleSize,
-      nitriteDiameterToBodyHeight: nitriteSize,
-      pHDiameterToBodyHeight: phSize,
-      squareToNitriteSpacingToBodyHeight: squareToNitrite,
-      nitriteToPhSpacingToBodyHeight: nitriteToPh,
-      pHToTriangleSpacingToBodyHeight: phToTriangle,
-    },
-    componentScores: scores,
-    proportions,
-    spacingInterpretation: proportions.spacingInterpretation,
-  };
-}
-
 function estimateBodyFromAnchors(square, triangle) {
+  // Diagnostic boundary only. Registration acceptance uses the fiducial axis
+  // and template-relative ROIs, never this inferred body geometry.
   const axis = projection(triangle.center, square.center, triangle.center);
   if (!axis) return null;
   const templateSpan = UPAD_TEMPLATE.normalized.triangle.x - UPAD_TEMPLATE.normalized.square.x;
@@ -469,57 +403,102 @@ function estimateBodyFromAnchors(square, triangle) {
   };
 }
 
+function templateZoneDiameter(square, triangle, zone) {
+  const axis = projection(triangle.center, square.center, triangle.center);
+  const span = UPAD_TEMPLATE.normalized.triangle.x - UPAD_TEMPLATE.normalized.square.x;
+  const radius = UPAD_TEMPLATE.normalized[zone]?.radius;
+  return axis && span > 0 && Number.isFinite(radius)
+    ? Math.max(4, axis.distance * ((radius * 2) / span))
+    : null;
+}
+
+function circleWithinImage(circle, width, height) {
+  if (!circle?.bounds) return false;
+  return circle.bounds.minX >= 0 && circle.bounds.minY >= 0
+    && circle.bounds.maxX < width && circle.bounds.maxY < height
+    && circle.bounds.width > 1 && circle.bounds.height > 1;
+}
+
+function roiWithinImage(roi) {
+  return roi && roi.x >= 0 && roi.y >= 0 && roi.width > 0 && roi.height > 0
+    && roi.x + roi.width <= 1 && roi.y + roi.height <= 1;
+}
+
+function fiducialPairEvidence(square, triangle, width, height) {
+  const axis = projection(triangle.center, square.center, triangle.center);
+  const diagonal = Math.hypot(width, height);
+  const minimumSeparation = Math.max(12, Math.min(width, height) * 0.12);
+  const separationRatio = axis && diagonal ? axis.distance / diagonal : 0;
+  const valid = Boolean(axis && axis.distance >= minimumSeparation && separationRatio <= 0.95);
+  return {
+    valid,
+    separationRatio,
+    score: valid ? clamp((separationRatio - 0.08) / 0.32, 0, 1) : 0,
+    axisDistance: axis?.distance || null,
+    axisAngle: axis ? Math.atan2(axis.uy, axis.ux) * 180 / Math.PI : null,
+  };
+}
+
 function chooseRegistration(squareCandidates, triangleCandidates, circleCandidates, body, width, height, pixels, options = {}) {
   const zoneEvidenceThreshold = options.zoneEvidenceThreshold ?? Math.max(options.darkThreshold ?? 90, 100);
   const possible = [];
   let failureCode = 'REFERENCE_PAIR_INVALID';
   for (const square of squareCandidates) {
     for (const triangle of triangleCandidates) {
-      const axis = projection(triangle.center, square.center, triangle.center);
+      const pairEvidence = fiducialPairEvidence(square, triangle, width, height);
       const candidateBody = body || estimateBodyFromAnchors(square, triangle);
-      if (!candidateBody) {
-        failureCode = 'BODY_GEOMETRY_INVALID';
-        continue;
-      }
-      const bodyDiagonal = Math.hypot(candidateBody.bounds.width, candidateBody.bounds.height);
-      const bodyHeight = Math.min(candidateBody.bounds.width, candidateBody.bounds.height);
-      if (!axis || axis.distance < bodyDiagonal * 0.3 || axis.distance > bodyDiagonal * 0.75) {
-        failureCode = 'REFERENCE_PAIR_INVALID';
-        continue;
-      }
-      if (Math.abs(triangle.center.y - square.center.y) > candidateBody.bounds.height * 0.85) {
+      if (!pairEvidence.valid) {
         failureCode = 'REFERENCE_PAIR_INVALID';
         continue;
       }
       const circles = circleCandidates
         .map((circle) => ({ circle, projected: projection(circle.center, square.center, triangle.center) }))
-        .filter(({ projected }) => projected && projected.along > 0.08 && projected.along < 0.95
-          && Math.abs(projected.across) < 0.4)
+        .filter(({ projected, circle }) => projected && projected.along > 0.04 && projected.along < 0.96
+          && Math.abs(projected.across) < 0.5 && circleWithinImage(circle, width, height))
         .map(({ circle, projected }) => ({
           circle,
           projected,
           normalized: templateCoordinate(projected),
-          xDistance: Math.abs(templateCoordinate(projected).x - circle.expectedX),
         }))
-        .sort((left, right) => left.xDistance - right.xDistance);
-      let nitrite = circles.find(({ normalized }) => Math.abs(normalized.x - UPAD_TEMPLATE.normalized.nitrite.x) < 0.14);
-      let ph = circles.find(({ normalized }) => Math.abs(normalized.x - UPAD_TEMPLATE.normalized.pH.x) < 0.14
-        && (!nitrite || Math.abs(normalized.x - nitrite.normalized.x) > 0.08));
-      const expectedDiameter = bodyHeight * UPAD_TEMPLATE.physicalProportions.circleDiameterToBodyHeight;
+        .sort((left, right) => left.normalized.x - right.normalized.x);
+      const nearestCircle = (zone, excluded) => circles
+        .filter((candidate) => candidate !== excluded)
+        .sort((left, right) => Math.abs(left.normalized.x - UPAD_TEMPLATE.normalized[zone].x)
+          - Math.abs(right.normalized.x - UPAD_TEMPLATE.normalized[zone].x))[0];
+      let nitrite = nearestCircle('nitrite', null);
+      if (!nitrite || Math.abs(nitrite.normalized.x - UPAD_TEMPLATE.normalized.nitrite.x) >= 0.2) nitrite = null;
+      let ph = nearestCircle('pH', nitrite);
+      if (!ph || Math.abs(ph.normalized.x - UPAD_TEMPLATE.normalized.pH.x) >= 0.2) ph = null;
+      if (ph && nitrite && ph.normalized.x <= nitrite.normalized.x) {
+        [nitrite, ph] = [ph, nitrite];
+      }
       const expectedNitriteCenter = templatePoint(UPAD_TEMPLATE.normalized.nitrite.x, square.center, triangle.center);
       const expectedPhCenter = templatePoint(UPAD_TEMPLATE.normalized.pH.x, square.center, triangle.center);
-      const nitriteEvidence = expectedNitriteCenter
-        ? zoneEvidence(pixels, width, height, expectedNitriteCenter, expectedDiameter, zoneEvidenceThreshold)
+      const templateDiameter = templateZoneDiameter(square, triangle, 'nitrite');
+      const nitriteDiameter = nitrite?.circle?.bounds?.width || templateDiameter;
+      const phDiameter = ph?.circle?.bounds?.width || templateDiameter;
+      const nitriteCenter = nitrite?.circle?.center || expectedNitriteCenter;
+      const phCenter = ph?.circle?.center || expectedPhCenter;
+      const nitriteEvidence = nitriteCenter && nitriteDiameter
+        ? zoneEvidence(pixels, width, height, nitriteCenter, nitriteDiameter, zoneEvidenceThreshold)
         : null;
-      const phEvidence = expectedPhCenter
-        ? zoneEvidence(pixels, width, height, expectedPhCenter, expectedDiameter, zoneEvidenceThreshold)
+      const phEvidence = phCenter && phDiameter
+        ? zoneEvidence(pixels, width, height, phCenter, phDiameter, zoneEvidenceThreshold)
         : null;
-      if (!nitrite && nitriteEvidence?.accepted) {
-        const circle = derivedZoneShape(expectedNitriteCenter, expectedDiameter, nitriteEvidence);
+      if (!nitrite && nitriteEvidence?.accepted && circleWithinImage({
+        bounds: { minX: expectedNitriteCenter.x - templateDiameter / 2, minY: expectedNitriteCenter.y - templateDiameter / 2,
+          maxX: expectedNitriteCenter.x + templateDiameter / 2, maxY: expectedNitriteCenter.y + templateDiameter / 2,
+          width: templateDiameter, height: templateDiameter },
+      }, width, height)) {
+        const circle = derivedZoneShape(expectedNitriteCenter, templateDiameter, nitriteEvidence);
         nitrite = { circle, projected: projection(circle.center, square.center, triangle.center), normalized: templateCoordinate(projection(circle.center, square.center, triangle.center)), derived: true };
       }
-      if (!ph && phEvidence?.accepted) {
-        const circle = derivedZoneShape(expectedPhCenter, expectedDiameter, phEvidence);
+      if (!ph && phEvidence?.accepted && circleWithinImage({
+        bounds: { minX: expectedPhCenter.x - templateDiameter / 2, minY: expectedPhCenter.y - templateDiameter / 2,
+          maxX: expectedPhCenter.x + templateDiameter / 2, maxY: expectedPhCenter.y + templateDiameter / 2,
+          width: templateDiameter, height: templateDiameter },
+      }, width, height)) {
+        const circle = derivedZoneShape(expectedPhCenter, templateDiameter, phEvidence);
         ph = { circle, projected: projection(circle.center, square.center, triangle.center), normalized: templateCoordinate(projection(circle.center, square.center, triangle.center)), derived: true };
       }
       if (!nitrite) {
@@ -530,38 +509,59 @@ function chooseRegistration(squareCandidates, triangleCandidates, circleCandidat
         failureCode = 'PH_ROI_INVALID';
         continue;
       }
+      const nitriteRoi = normalizedCircleRoi(nitrite.circle, width, height);
+      const phRoi = normalizedCircleRoi(ph.circle, width, height);
+      const sameRoi = ['x', 'y', 'width', 'height'].every((key) => nitriteRoi[key] === phRoi[key]);
+      if (!circleWithinImage(nitrite.circle, width, height) || !circleWithinImage(ph.circle, width, height)
+        || !roiWithinImage(nitriteRoi) || !roiWithinImage(phRoi) || sameRoi) {
+        failureCode = 'REFERENCE_PAIR_INVALID';
+        continue;
+      }
       if (ph.normalized.x <= nitrite.normalized.x) {
         failureCode = 'REFERENCE_PAIR_INVALID';
         continue;
       }
       const spacing = Math.abs(ph.normalized.x - nitrite.normalized.x);
-      if (spacing < 0.08) {
+      if (spacing < 0.04 || !nitriteEvidence?.accepted || !phEvidence?.accepted) {
         failureCode = 'REFERENCE_PAIR_INVALID';
         continue;
       }
       const anchorConfidence = (square.confidence + triangle.confidence) / 2;
-      const circleConfidence = (nitrite.circle.confidence + ph.circle.confidence) / 2;
-      const geometryConfidence = clamp(1 - (Math.abs(nitrite.normalized.x - UPAD_TEMPLATE.normalized.nitrite.x)
-        + Math.abs(ph.normalized.x - UPAD_TEMPLATE.normalized.pH.x)) / 0.25, 0, 1);
-      const physicalGeometry = scoreRegistrationGeometry(square, triangle, nitrite.circle, ph.circle, candidateBody);
+      const roiEvidence = (Number(nitriteEvidence.accepted) + Number(phEvidence.accepted)) / 2;
+      const templateConfidence = clamp(1 - (Math.abs(nitrite.normalized.x - UPAD_TEMPLATE.normalized.nitrite.x)
+        + Math.abs(ph.normalized.x - UPAD_TEMPLATE.normalized.pH.x)) / 0.5, 0, 1);
+      const geometry = {
+        referenceScale: 'square-to-triangle-pixel-distance',
+        physicalPriorScore: null,
+        pairConfidence: pairEvidence.score,
+        roiConfidence: roiEvidence,
+        templateConfidence,
+        componentScores: {
+          square: square.confidence,
+          triangle: triangle.confidence,
+          pair: pairEvidence.score,
+          roi: roiEvidence,
+          template: templateConfidence,
+        },
+      };
       possible.push({
         square,
         triangle,
         nitrite,
         ph,
         body: candidateBody,
-        geometry: physicalGeometry,
+        geometry,
         confidence: clamp(
           0.3 * anchorConfidence
-            + 0.25 * circleConfidence
-            + 0.2 * geometryConfidence
-            + 0.25 * physicalGeometry.score,
+            + 0.25 * pairEvidence.score
+            + 0.25 * roiEvidence
+            + 0.2 * templateConfidence,
           0,
           1,
         ),
         zoneEvidence: {
-          nitrite: nitriteEvidence || { accepted: !nitrite.derived, source: nitrite.circle.source || 'detected-contour' },
-          pH: phEvidence || { accepted: !ph.derived, source: ph.circle.source || 'detected-contour' },
+          nitrite: nitriteEvidence,
+          pH: phEvidence,
         },
       });
     }
@@ -699,15 +699,13 @@ export function detectUPadRegistration(pixels, imageWidth, imageHeight, options 
     .filter((shape) => shape.confidence >= 0.45);
   const circleCandidates = shapes
     .filter((shape) => shape.corners >= 6 && shape.aspectRatio <= 1.45 && shape.fillRatio >= 0.42)
-    .map((shape) => ({ ...shape, confidence: shapeConfidence(shape, 'circle'), expectedX: UPAD_TEMPLATE.normalized.nitrite.x }));
+    .map((shape) => ({ ...shape, confidence: shapeConfidence(shape, 'circle') }));
   const selection = chooseRegistration(squareCandidates, triangleCandidates, circleCandidates, body, imageWidth, imageHeight, pixels, config);
   const selected = selection.selected;
   const minimumRegistrationConfidence = config.minimumRegistrationConfidence ?? 0.45;
   if (!selected || selected.confidence < minimumRegistrationConfidence) {
     const failureCode = selected && selected.confidence < minimumRegistrationConfidence
       ? 'REGISTRATION_CONFIDENCE_TOO_LOW'
-      : !body && squareCandidates.length === 0 && triangleCandidates.length === 0
-        ? 'BODY_GEOMETRY_INVALID'
       : squareCandidates.length === 0
       ? 'SQUARE_NOT_FOUND'
       : triangleCandidates.length === 0

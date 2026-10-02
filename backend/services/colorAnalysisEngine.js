@@ -77,7 +77,7 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
           const registrationError = new HttpError(
             422,
             'STRIP_REGISTRATION_FAILED',
-            'The test strip could not be registered. Please capture a clear top-view image with the reference point and both detection zones visible.',
+            'The square and triangle reference points could not be detected clearly. Please keep the entire test strip visible and capture a clear top-view image.',
           );
           registrationError.registrationFailureCode = registration.failureCode || 'REFERENCE_PAIR_INVALID';
           throw registrationError;
@@ -97,7 +97,7 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
             ? 'NITRITE_ROI_INVALID'
             : sameRoi
               ? 'REFERENCE_PAIR_INVALID'
-              : 'BODY_GEOMETRY_INVALID';
+              : 'REFERENCE_PAIR_INVALID';
         debugLogger?.('strip-registration-failed', {
           width: info.width,
           height: info.height,
@@ -113,7 +113,7 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
         const registrationError = new HttpError(
           422,
           'STRIP_REGISTRATION_FAILED',
-          'The test strip could not be registered. Please capture a clear top-view image with the reference point and both detection zones visible.',
+          'The square and triangle reference points could not be detected clearly. Please keep the entire test strip visible and capture a clear top-view image.',
         );
         registrationError.registrationFailureCode = registrationFailureCode;
         throw registrationError;

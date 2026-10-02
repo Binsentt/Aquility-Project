@@ -39,7 +39,7 @@ test('database constraint and timeout errors return safe consistent responses', 
 
 test('registration failures expose only a safe failure code and request id', () => {
   const response = createResponse();
-  const error = new HttpError(422, 'STRIP_REGISTRATION_FAILED', 'The test strip could not be registered. Please capture a clear top-view image with the reference point and both detection zones visible.');
+  const error = new HttpError(422, 'STRIP_REGISTRATION_FAILED', 'The square and triangle reference points could not be detected clearly. Please keep the entire test strip visible and capture a clear top-view image.');
   error.registrationFailureCode = 'SQUARE_NOT_FOUND';
 
   errorHandler(error, { requestId: 'request-registration-1' }, response, () => {});
@@ -47,7 +47,7 @@ test('registration failures expose only a safe failure code and request id', () 
   assert.equal(response.statusCode, 422);
   assert.deepEqual(response.body.error, {
     code: 'STRIP_REGISTRATION_FAILED',
-    message: 'The test strip could not be registered. Please capture a clear top-view image with the reference point and both detection zones visible.',
+    message: 'The square and triangle reference points could not be detected clearly. Please keep the entire test strip visible and capture a clear top-view image.',
     requestId: 'request-registration-1',
     registrationFailureCode: 'SQUARE_NOT_FOUND',
   });

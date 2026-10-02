@@ -17,12 +17,32 @@ const templateSvg = ({ background = '#eeeeee', extra = '' } = {}) => `<svg xmlns
   ${extra}
 </svg>`;
 
+const nonProportionalTemplateSvg = () => `<svg xmlns="http://www.w3.org/2000/svg" width="500" height="200">
+  <rect width="500" height="200" fill="#eeeeee"/>
+  <rect x="10" y="25" width="480" height="150" rx="12" fill="#111111"/>
+  <rect x="48" y="93" width="14" height="14" fill="#ffffff"/>
+  <circle cx="106" cy="100" r="18" fill="#e79b8a"/>
+  <circle cx="202" cy="100" r="18" fill="#79a8dc"/>
+  <polygon points="260,90 260,110 280,100" fill="#ffffff"/>
+</svg>`;
+
+const relaxedSpacingTemplateSvg = () => `<svg xmlns="http://www.w3.org/2000/svg" width="500" height="140">
+  <rect width="500" height="140" fill="#eeeeee"/>
+  <rect x="10" y="45" width="480" height="50" rx="12" fill="#111111"/>
+  <rect x="42" y="63" width="14" height="14" fill="#ffffff"/>
+  <circle cx="150" cy="70" r="18" fill="#e79b8a"/>
+  <circle cx="290" cy="70" r="18" fill="#79a8dc"/>
+  <polygon points="430,60 430,80 450,70" fill="#ffffff"/>
+</svg>`;
+
 async function rawSvg(svg, transform = null) {
   let image = sharp(Buffer.from(svg));
   if (transform === 'rotate180') image = image.rotate(180);
   if (transform === 'rotate90') image = image.rotate(90);
   if (transform === 'rotate270') image = image.rotate(270);
-  if (transform === 'resize') image = image.resize(900, 180);
+  if (transform === 'resize50') image = image.resize(250, 50);
+  if (transform === 'resize75') image = image.resize(375, 75);
+  if (transform === 'resize150') image = image.resize(750, 150);
   return image.removeAlpha().raw().toBuffer({ resolveWithObject: true });
 }
 
@@ -65,15 +85,14 @@ test('real Android strip photo registers despite softened fiducial contours', as
   assert.ok(result.pH.center.x < result.triangle.center.x);
   assert.ok(result.candidates.square >= 1);
   assert.ok(result.candidates.triangle >= 1);
-  assert.equal(result.geometry.referenceScale, 'detected-body-height');
-  assert.equal(result.geometry.spacingInterpretation, 'SPACING_REFERENCE_INTERPRETATION_UNCONFIRMED');
-  assert.ok(result.geometry.score > 0);
-  assert.equal(result.geometry.proportions.squareSideToBodyHeight, 0.25);
-  assert.equal(result.geometry.proportions.circleDiameterToBodyHeight, 0.5);
+  assert.equal(result.geometry.referenceScale, 'square-to-triangle-pixel-distance');
+  assert.ok(result.geometry.pairConfidence > 0);
+  assert.equal(result.geometry.physicalPriorScore, null);
+  assert.equal(result.diagnostics.physicalPriorScore, null);
 });
 
 test('registration preserves zone assignment through rotation and scale changes', async () => {
-  for (const transform of ['rotate180', 'rotate90', 'rotate270', 'resize']) {
+  for (const transform of ['rotate180', 'rotate90', 'rotate270', 'resize50', 'resize75', 'resize150']) {
     const { data, info } = await rawSvg(templateSvg(), transform);
     const result = detectUPadRegistration(data, info.width, info.height);
 
@@ -82,6 +101,26 @@ test('registration preserves zone assignment through rotation and scale changes'
     assert.ok(Math.abs(result.nitrite.normalized.x - UPAD_TEMPLATE.normalized.nitrite.x) < 0.12, transform);
     assert.ok(Math.abs(result.pH.normalized.x - UPAD_TEMPLATE.normalized.pH.x) < 0.12, transform);
   }
+});
+
+test('registration does not require the documented body proportions', async () => {
+  const { data, info } = await rawSvg(nonProportionalTemplateSvg());
+  const result = detectUPadRegistration(data, info.width, info.height);
+
+  assert.equal(result.status, 'REGISTERED');
+  assert.equal(result.nitrite.zone, 'nitrite');
+  assert.equal(result.pH.zone, 'pH');
+  assert.notDeepEqual(result.nitrite.roi, result.pH.roi);
+});
+
+test('registration accepts fiducials whose spacing differs from the physical schematic', async () => {
+  const { data, info } = await rawSvg(relaxedSpacingTemplateSvg());
+  const result = detectUPadRegistration(data, info.width, info.height);
+
+  assert.equal(result.status, 'REGISTERED');
+  assert.ok(result.square.center.x < result.nitrite.center.x);
+  assert.ok(result.nitrite.center.x < result.pH.center.x);
+  assert.ok(result.pH.center.x < result.triangle.center.x);
 });
 
 test('strong fiducials derive registered zones when wet-zone contours are too soft', async () => {
@@ -122,10 +161,10 @@ test('registration failures expose safe, request-correlated diagnostic fields', 
   assert.equal(result.diagnostics.imageWidth, 500);
   assert.equal(result.diagnostics.imageHeight, 100);
   assert.equal(result.diagnostics.orientationNormalized, true);
-  assert.equal(result.diagnostics.finalRejectionReason, 'BODY_GEOMETRY_INVALID');
+  assert.equal(result.diagnostics.finalRejectionReason, 'SQUARE_NOT_FOUND');
   assert.equal(result.diagnostics.selectedSquare, null);
   assert.equal(result.diagnostics.selectedTriangle, null);
-  assert.match(buildUPadDiagnosticOverlaySvg(result), /rejection: BODY_GEOMETRY_INVALID/);
+  assert.match(buildUPadDiagnosticOverlaySvg(result), /rejection: SQUARE_NOT_FOUND/);
 });
 
 test('random objects and incomplete reference pairs are rejected before analysis', async () => {
