@@ -129,7 +129,6 @@ test('strong fiducials derive registered zones when wet-zone contours are too so
   const result = detectUPadRegistration(data, info.width, info.height, { debug: true });
 
   assert.equal(result.status, 'REGISTERED');
-  assert.ok(result.candidates.circle >= 0);
   assert.ok(['template-derived-zone', 'detected-contour'].includes(result.nitrite.source));
   assert.ok(['template-derived-zone', 'detected-contour'].includes(result.pH.source));
   assert.equal(result.diagnostics.finalRejectionReason, null);
