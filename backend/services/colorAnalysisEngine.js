@@ -74,11 +74,13 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
             reason: registration.failureCode || registration.reason || 'UPAD_NOT_DETECTED',
             diagnostics: registration.diagnostics || null,
           });
-          throw new HttpError(
+          const registrationError = new HttpError(
             422,
             'STRIP_REGISTRATION_FAILED',
             'The test strip could not be registered. Please capture a clear top-view image with the reference point and both detection zones visible.',
           );
+          registrationError.registrationFailureCode = registration.failureCode || 'REFERENCE_PAIR_INVALID';
+          throw registrationError;
         }
         phRoi = registration.pH.roi;
         nitriteRoi = registration.nitrite.roi;
@@ -89,23 +91,32 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
         && roi.x + roi.width <= 1 && roi.y + roi.height <= 1;
       const sameRoi = phRoi && nitriteRoi && ['x', 'y', 'width', 'height'].every((key) => phRoi[key] === nitriteRoi[key]);
       if (!validRoi(phRoi) || !validRoi(nitriteRoi) || sameRoi || (!registrationEnabled && !developerFixtureAllowed)) {
+        const registrationFailureCode = !validRoi(phRoi)
+          ? 'PH_ROI_INVALID'
+          : !validRoi(nitriteRoi)
+            ? 'NITRITE_ROI_INVALID'
+            : sameRoi
+              ? 'REFERENCE_PAIR_INVALID'
+              : 'BODY_GEOMETRY_INVALID';
         debugLogger?.('strip-registration-failed', {
           width: info.width,
           height: info.height,
           referenceDetected: false,
           roiDetected: { pH: false, nitrite: false },
           registrationStatus: 'STRIP_REGISTRATION_FAILED',
-          reason: !validRoi(phRoi) || !validRoi(nitriteRoi) || sameRoi ? 'DETECTION_ZONES_NOT_FOUND' : 'PHYSICAL_STRIP_GEOMETRY_REQUIRED',
+          reason: registrationFailureCode,
           imageWidth: info.width,
           imageHeight: info.height,
           nitriteRoiValid: validRoi(nitriteRoi),
           phRoiValid: validRoi(phRoi),
         });
-        throw new HttpError(
+        const registrationError = new HttpError(
           422,
           'STRIP_REGISTRATION_FAILED',
           'The test strip could not be registered. Please capture a clear top-view image with the reference point and both detection zones visible.',
         );
+        registrationError.registrationFailureCode = registrationFailureCode;
+        throw registrationError;
       }
       const phStats = extractRoiStatistics(data, info.width, info.height, phRoi);
       const nitriteStats = extractRoiStatistics(data, info.width, info.height, nitriteRoi);

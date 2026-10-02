@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { errorHandler } from '../middleware/errorHandler.js';
+import { errorHandler, HttpError } from '../middleware/errorHandler.js';
 
 function createResponse() {
   return {
@@ -35,4 +35,21 @@ test('database constraint and timeout errors return safe consistent responses', 
   } finally {
     console.error = originalError;
   }
+});
+
+test('registration failures expose only a safe failure code and request id', () => {
+  const response = createResponse();
+  const error = new HttpError(422, 'STRIP_REGISTRATION_FAILED', 'The test strip could not be registered. Please capture a clear top-view image with the reference point and both detection zones visible.');
+  error.registrationFailureCode = 'SQUARE_NOT_FOUND';
+
+  errorHandler(error, { requestId: 'request-registration-1' }, response, () => {});
+
+  assert.equal(response.statusCode, 422);
+  assert.deepEqual(response.body.error, {
+    code: 'STRIP_REGISTRATION_FAILED',
+    message: 'The test strip could not be registered. Please capture a clear top-view image with the reference point and both detection zones visible.',
+    requestId: 'request-registration-1',
+    registrationFailureCode: 'SQUARE_NOT_FOUND',
+  });
+  assert.equal('stack' in response.body.error, false);
 });

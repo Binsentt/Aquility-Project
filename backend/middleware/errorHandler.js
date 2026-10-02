@@ -6,6 +6,22 @@ export class HttpError extends Error {
   }
 }
 
+const REGISTRATION_FAILURE_CODES = new Set([
+  'SQUARE_NOT_FOUND',
+  'TRIANGLE_NOT_FOUND',
+  'REFERENCE_PAIR_INVALID',
+  'BODY_GEOMETRY_INVALID',
+  'ASPECT_RATIO_OUT_OF_TOLERANCE',
+  'SQUARE_SCALE_OUT_OF_TOLERANCE',
+  'TRIANGLE_SCALE_OUT_OF_TOLERANCE',
+  'CIRCLE_SCALE_OUT_OF_TOLERANCE',
+  'NITRITE_ROI_INVALID',
+  'PH_ROI_INVALID',
+  'REGISTRATION_CONFIDENCE_TOO_LOW',
+  'PERSPECTIVE_TOO_HIGH',
+  'IMAGE_QUALITY_INSUFFICIENT',
+]);
+
 export function notFoundHandler(req, res) {
   res.status(404).json({
     error: {
@@ -67,5 +83,9 @@ export function errorHandler(error, req, res, next) {
     console.error(JSON.stringify({ event: 'request-failed', requestId: req.requestId || null, status, code, errorName: error?.name || 'Error' }));
   }
 
-  res.status(status).json({ error: { code, message, requestId: req.requestId || undefined } });
+  const responseError = { code, message, requestId: req.requestId || undefined };
+  if (code === 'STRIP_REGISTRATION_FAILED' && REGISTRATION_FAILURE_CODES.has(error?.registrationFailureCode)) {
+    responseError.registrationFailureCode = error.registrationFailureCode;
+  }
+  res.status(status).json({ error: responseError });
 }
