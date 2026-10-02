@@ -16,12 +16,14 @@ let unauthorizedHandler = null;
 let unauthorizedNotification = null;
 const sessionFailureCodes = new Set(['AUTH_REQUIRED', 'TOKEN_EXPIRED', 'TOKEN_INVALID', 'ACCOUNT_INACTIVE']);
 export class ApiError extends Error {
-  constructor(status, message, code = 'API_ERROR', { cause, requestUrl } = {}) {
+  constructor(status, message, code = 'API_ERROR', { cause, requestUrl, requestId, registrationFailureCode } = {}) {
     super(message);
     this.status = status;
     this.code = code;
     if (cause) this.cause = cause;
     if (requestUrl) this.requestUrl = requestUrl;
+    if (requestId) this.requestId = requestId;
+    if (registrationFailureCode) this.registrationFailureCode = registrationFailureCode;
   }
 }
 
@@ -66,7 +68,15 @@ async function parseResponse(response) {
   if (response.status === 204) return null;
   const body = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new ApiError(response.status, body?.error?.message || 'The AQUALITY server could not complete this request.', body?.error?.code);
+    throw new ApiError(
+      response.status,
+      body?.error?.message || 'The AQUALITY server could not complete this request.',
+      body?.error?.code,
+      {
+        requestId: body?.error?.requestId,
+        registrationFailureCode: body?.error?.registrationFailureCode,
+      },
+    );
   }
   return body;
 }
@@ -105,6 +115,8 @@ export async function request(path, options = {}) {
         requestUrl,
         responseStatus: error?.status || 0,
         apiErrorCode: error?.code || null,
+        requestId: error?.requestId || null,
+        registrationFailureCode: error?.registrationFailureCode || null,
         message: error?.message || 'Unknown upload error',
       });
     }
@@ -169,10 +181,14 @@ export const api = {
       console.info('[AQUALITY UPLOAD DEBUG]', {
         source: imageAsset?.source || 'unknown',
         requestUrl: `${getApiBaseUrl()}/analyze-water`,
+        captureUri: imageUri,
         imageUriScheme: uploadUriScheme(imageUri),
         fileName: upload.fileName || upload.descriptor.name,
         fileType: upload.fileType || upload.descriptor.type,
         fileSize: upload.fileSize ?? null,
+        pixelWidth: imageAsset?.width ?? null,
+        pixelHeight: imageAsset?.height ?? null,
+        sha256: upload.sha256 || null,
         fileExists: upload.fileExists ?? null,
         userIdPresent: Boolean(userId),
         formDataCreated: true,

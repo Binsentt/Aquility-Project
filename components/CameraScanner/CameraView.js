@@ -14,6 +14,7 @@ import { CameraView as ExpoCameraView, useCameraPermissions } from 'expo-camera'
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import * as Linking from 'expo-linking';
 import { PinchGestureHandler, State } from 'react-native-gesture-handler';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -26,6 +27,7 @@ import { useAuth } from '../../context/AuthContext';
 import { analyzeDocument } from '../../services/waterAnalysisService';
 import { getApiBaseUrl } from '../../services/apiClient';
 import { nativeMultipartFetch, prepareNativeMultipartFile } from '../../services/nativeMultipartUpload';
+import { createUploadDiagnostics } from '../../services/uploadDiagnostics';
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const scannerDebugEnabled = process.env.NODE_ENV === 'development' || process.env.EXPO_PUBLIC_AQUALITY_DEBUG === 'true';
@@ -40,13 +42,23 @@ function uriScheme(uri) {
   return typeof uri === 'string' && uri.includes(':') ? uri.split(':', 1)[0].toLowerCase() : 'unknown';
 }
 
-function logScannerUpload({ uri, asset, userId, imageUriExists = null }) {
+function logScannerUpload({ uri, asset, userId, imageUriExists = null, uploadDiagnostics = null }) {
   if (!scannerDebugEnabled) return;
   console.info('[AQUALITY SCANNER DEBUG]', {
     source: asset?.source || 'unknown',
     imageUriScheme: uriScheme(uri),
     imageUriPresent: Boolean(uri),
     imageUriExists,
+    ...createUploadDiagnostics({
+      captureUri: uri,
+      filename: uploadDiagnostics?.fileName || asset?.name || asset?.fileName,
+      fileSize: uploadDiagnostics?.fileSize ?? asset?.fileSize,
+      mimeType: uploadDiagnostics?.fileType || asset?.type || asset?.mimeType,
+      pixelWidth: asset?.width,
+      pixelHeight: asset?.height,
+      source: asset?.source,
+      sha256: uploadDiagnostics?.sha256,
+    }),
     filename: asset?.name || asset?.fileName || null,
     mimeType: asset?.type || asset?.mimeType || null,
     userIdPresent: Boolean(userId),
@@ -118,6 +130,7 @@ const CameraView = React.memo(function CameraView({
   const [submitCommitted, setSubmitCommitted] = useState(false);
   const detectorRef = useRef(createDocumentDetector());
   const imageAssetsRef = useRef(new Map());
+  const preparedUploadsRef = useRef(new Map());
   const { addScanResult, currentUser } = useAuth();
   const insets = useSafeAreaInsets();
   const submitLockRef = useRef(false);
@@ -144,6 +157,7 @@ const CameraView = React.memo(function CameraView({
     return () => {
       isMountedRef.current = false;
       imageAssetsRef.current.clear();
+      preparedUploadsRef.current.clear();
       if (focusTimerRef.current) clearTimeout(focusTimerRef.current);
     };
   }, []);
@@ -338,17 +352,20 @@ const CameraView = React.memo(function CameraView({
       if (imageInfo.known && !imageInfo.exists) {
         throw Object.assign(new Error('The captured image is no longer available.'), { code: 'IMAGE_UNREADABLE' });
       }
-      logScannerUpload({ uri: imageUri, asset: imageAsset, userId: currentUser.id, imageUriExists: imageInfo.exists });
-      let preparedUpload;
-      try {
-        preparedUpload = await prepareNativeMultipartFile(imageUri, imageAsset);
-      } catch (error) {
-        if (error?.code) throw error;
-        throw Object.assign(new Error('Unable to prepare the captured image for upload.'), {
-          code: 'UPLOAD_PREPARATION_FAILED',
-          cause: error,
-        });
+      let preparedUpload = preparedUploadsRef.current.get(imageUri);
+      if (!preparedUpload) {
+        try {
+          preparedUpload = await prepareNativeMultipartFile(imageUri, imageAsset);
+          preparedUploadsRef.current.set(imageUri, preparedUpload);
+        } catch (error) {
+          if (error?.code) throw error;
+          throw Object.assign(new Error('Unable to prepare the captured image for upload.'), {
+            code: 'UPLOAD_PREPARATION_FAILED',
+            cause: error,
+          });
+        }
       }
+      logScannerUpload({ uri: imageUri, asset: imageAsset, userId: currentUser.id, imageUriExists: imageInfo.exists, uploadDiagnostics: preparedUpload });
       const result = await analyzeDocument({
         images: capturedImages,
         imageUri,
@@ -392,6 +409,30 @@ const CameraView = React.memo(function CameraView({
       }
     }
   }, [addScanResult, capturedImages, currentUser, navigation, processing, selectedSampleClass, selectedSampleCode, selectedSampleNumber, submitCommitted]);
+
+  const handleShareExactUpload = useCallback(async () => {
+    if (!scannerDebugEnabled || !capturedImages.length) return;
+    try {
+      const imageUri = capturedImages[0];
+      const imageAsset = imageAssetsRef.current.get(imageUri) || { source: 'unknown', uri: imageUri };
+      let preparedUpload = preparedUploadsRef.current.get(imageUri);
+      if (!preparedUpload) {
+        preparedUpload = await prepareNativeMultipartFile(imageUri, imageAsset);
+        preparedUploadsRef.current.set(imageUri, preparedUpload);
+      }
+      if (!(await Sharing.isAvailableAsync())) {
+        throw new Error('Sharing is not available on this device.');
+      }
+      await Sharing.shareAsync(preparedUpload.file.uri, {
+        mimeType: preparedUpload.fileType,
+        dialogTitle: 'Share exact AQUALITY upload image',
+      });
+    } catch (error) {
+      if (isMountedRef.current) {
+        Alert.alert('Share unavailable', error?.message || 'The exact upload image could not be shared.');
+      }
+    }
+  }, [capturedImages]);
 
   const recentImages = useMemo(() => capturedImages.slice(0, 6), [capturedImages]);
 
@@ -596,6 +637,11 @@ const CameraView = React.memo(function CameraView({
           <TouchableOpacity style={styles.reviewAddButton} onPress={() => handleImportFromGallery()}>
             <Text style={styles.reviewAddButtonText}>Add more photos</Text>
           </TouchableOpacity>
+          {scannerDebugEnabled ? (
+            <TouchableOpacity style={styles.reviewDebugButton} onPress={handleShareExactUpload}>
+              <Text style={styles.reviewDebugButtonText}>Share exact upload image</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       ) : null}
 
@@ -844,6 +890,17 @@ const styles = StyleSheet.create({
   },
   reviewAddButtonText: {
     color: '#fff',
+    fontWeight: '800',
+  },
+  reviewDebugButton: {
+    marginTop: 8,
+    alignItems: 'center',
+    paddingVertical: 8,
+    backgroundColor: 'rgba(111, 231, 255, 0.2)',
+    borderRadius: 10,
+  },
+  reviewDebugButtonText: {
+    color: '#6FE7FF',
     fontWeight: '800',
   },
   nextButton: {

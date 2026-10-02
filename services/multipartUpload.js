@@ -1,4 +1,7 @@
+import { sha256File } from './sha256.js';
+
 const supportedUploadTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const uploadDebugEnabled = process.env.NODE_ENV === 'development' || process.env.EXPO_PUBLIC_AQUALITY_DEBUG === 'true';
 
 function extensionFor(value = '') {
   const extension = String(value).split(/[?#]/, 1)[0].split('.').pop()?.toLowerCase();
@@ -55,6 +58,7 @@ export async function createMultipartFile(imageUri, imageAsset = {}) {
     fileType: descriptor.type,
     fileSize: file.size,
     fileExists: null,
+    sha256: uploadDebugEnabled ? await sha256File(file) : null,
   };
   debugUpload(diagnostics);
   return { file, descriptor, ...diagnostics };

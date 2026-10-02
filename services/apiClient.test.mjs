@@ -207,3 +207,28 @@ test('analysis upload does not relabel an unsupported gallery format as JPEG', (
   assert.equal(asset.name, 'strip-01.heic');
   assert.equal(asset.type, 'image/heic');
 });
+
+test('multipart API errors expose request and registration diagnostics', async () => {
+  const originalFetch = global.fetch;
+  global.fetch = async () => jsonResponse(422, {
+    error: {
+      code: 'STRIP_REGISTRATION_FAILED',
+      message: 'The test strip could not be registered.',
+      requestId: 'request-123',
+      registrationFailureCode: 'SQUARE_NOT_FOUND',
+    },
+  });
+
+  try {
+    await assert.rejects(
+      () => request('/analyze-water', { method: 'POST', body: new FormData() }),
+      (error) => {
+        assert.equal(error.requestId, 'request-123');
+        assert.equal(error.registrationFailureCode, 'SQUARE_NOT_FOUND');
+        return true;
+      },
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
+});

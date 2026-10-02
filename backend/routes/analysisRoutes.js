@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { createWaterAnalysisController } from '../controllers/waterAnalysisController.js';
 import { uploadWaterImage } from '../middleware/uploadMiddleware.js';
+import { sha256File } from '../utils/uploadDiagnostics.js';
 
 export default function createAnalysisRoutes({ waterAnalysisService, debugLogger = null }) {
   const router = Router();
@@ -19,13 +20,17 @@ export default function createAnalysisRoutes({ waterAnalysisService, debugLogger
     next();
   };
   const traceFile = (req, res, next) => {
-    debugLogger?.('multer-file-received', {
-      requestId: req.requestId || null,
-      fileReceived: Boolean(req.file),
-      mimeType: req.file?.mimetype || null,
-      size: Number.isFinite(req.file?.size) ? req.file.size : null,
-    });
-    next();
+    if (!debugLogger) return next();
+    sha256File(req.file?.path).then((sha256) => {
+      debugLogger('multer-file-received', {
+        requestId: req.requestId || null,
+        fileReceived: Boolean(req.file),
+        mimeType: req.file?.mimetype || null,
+        size: Number.isFinite(req.file?.size) ? req.file.size : null,
+        sha256,
+      });
+      next();
+    }).catch(() => next());
   };
   router.post('/', traceRoute, traceMulter, uploadWaterImage, traceFile, controller.analyze);
   return router;

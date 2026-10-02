@@ -3,8 +3,10 @@ import * as LegacyFileSystem from 'expo-file-system/legacy';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { fetch as expoFetch } from 'expo/fetch';
 import { normalizeImageAsset, supportedUploadTypes } from './multipartUpload.js';
+import { sha256File } from './sha256.js';
 
 const convertibleUploadTypes = new Set(['image/heic', 'image/heif']);
+const uploadDebugEnabled = process.env.NODE_ENV === 'development' || process.env.EXPO_PUBLIC_AQUALITY_DEBUG === 'true';
 
 function cacheFileUri(cacheDirectory, filename) {
   const base = String(cacheDirectory || '').replace(/\/$/, '');
@@ -66,6 +68,7 @@ export async function prepareNativeMultipartFile(imageUri, imageAsset = {}) {
     fileType,
     fileSize: file.size,
     fileExists: file.exists,
+    sha256: uploadDebugEnabled ? await sha256File(file) : null,
   };
 }
 
