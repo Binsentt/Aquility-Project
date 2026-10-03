@@ -242,6 +242,33 @@ test('ROI extracts median RGB across a crop and rejects a luminance outlier', ()
   assert.deepEqual(statistics.roiPixels, { left: 1, top: 1, width: 2, height: 2 });
 });
 
+test('registered circular ROI sampling excludes corners outside the sensing area', () => {
+  const pixels = Buffer.alloc(9 * 9 * 3);
+  for (let y = 0; y < 9; y += 1) {
+    for (let x = 0; x < 9; x += 1) {
+      const dx = x + 0.5 - 4.5;
+      const dy = y + 0.5 - 4.5;
+      const isInnerSensingArea = dx ** 2 + dy ** 2 <= 2.4 ** 2;
+      pixels.set(isInnerSensingArea ? [30, 40, 50] : [200, 20, 20], (y * 9 + x) * 3);
+    }
+  }
+
+  const statistics = extractRoiStatistics(pixels, 9, 9, {
+    x: 2 / 9,
+    y: 2 / 9,
+    width: 5 / 9,
+    height: 5 / 9,
+    shape: 'ellipse',
+    center: { x: 0.5, y: 0.5 },
+    radiusX: 2.5 / 9,
+    radiusY: 2.5 / 9,
+  });
+
+  assert.deepEqual(statistics.measuredRGB, [30, 40, 50]);
+  assert.ok(statistics.sampleCount < 25);
+  assert.equal(statistics.statistic, 'per-channel-median-with-luminance-outlier-filter-and-ellipse-mask');
+});
+
 test('RGB to HSV extracts pink hue for the Griess nitrite response', () => {
   assert.ok(Math.abs(rgbToHsv([255, 64, 64]).hue - 0) < 0.001);
   assert.ok(Math.abs(rgbToHsv([255, 127.5, 63.75]).hue - 20) < 0.001);
@@ -394,7 +421,7 @@ test('analysis refuses numeric output when physical strip ROIs are not configure
       {
         code: 'STRIP_REGISTRATION_FAILED',
         status: 422,
-        message: 'The square and triangle reference points could not be detected clearly. Please keep the entire test strip visible and capture a clear top-view image.',
+        message: 'The square and triangle references and both circular sensing areas could not be detected clearly. Please keep the full µPAD visible and capture a sharp top-view image.',
       },
     );
     const registrationFailure = diagnostics.find(({ stage }) => stage === 'strip-registration-failed');
@@ -541,7 +568,7 @@ test('valid ROIs complete the scan with unavailable pH when no confidence thresh
   }
 });
 
-test('pH range references remain labels instead of invented exact values', async () => {
+test('grouped pH 0-4 reference never becomes a user-facing measured result', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'aquility-range-analysis-'));
   const imagePath = join(directory, 'strong-acid.png');
   const pixels = Buffer.alloc(20 * 20 * 3);
@@ -556,6 +583,7 @@ test('pH range references remain labels instead of invented exact values', async
   calibration.pH.references = [
     { label: '0-4', value: '0-4', exactValue: null, lab: rgbToLab([230, 180, 50]) },
   ];
+  calibration.pH.clientRgbRanges = [];
 
   try {
     const result = await createColorAnalysisEngine({
@@ -563,8 +591,10 @@ test('pH range references remain labels instead of invented exact values', async
       allowDeveloperRoiFixture: true,
     }).analyze({ imagePath });
 
-    assert.equal(result.pH.value, '0-4');
+    assert.equal(result.pH.value, null);
     assert.equal(result.pH.exactValue, null);
+    assert.equal(result.pH.matchedReference, null);
+    assert.notEqual(result.pH.value, '0-4');
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

@@ -46,6 +46,25 @@ async function rawSvg(svg, transform = null) {
   return image.removeAlpha().raw().toBuffer({ resolveWithObject: true });
 }
 
+function assertDetectedInnerSensingGeometry(result, width, height) {
+  assert.equal(result.status, 'REGISTERED');
+  const squareToTriangle = (point) => Math.hypot(point.x - result.triangle.center.x, point.y - result.triangle.center.y);
+  for (const zone of [result.nitrite, result.pH]) {
+    assert.equal(zone.source, 'detected-contour');
+    assert.equal(zone.roi.shape, 'ellipse');
+    assert.equal(zone.roi.sampleRadiusFraction, 0.68);
+    assert.ok(zone.roi.radiusX * width < zone.bounds.width / 2);
+    assert.ok(zone.roi.radiusY * height < zone.bounds.height / 2);
+    assert.equal(zone.roi.center.x, zone.center.x / width);
+    assert.equal(zone.roi.center.y, zone.center.y / height);
+  }
+  assert.ok(Math.hypot(result.nitrite.center.x - result.square.center.x, result.nitrite.center.y - result.square.center.y)
+    < squareToTriangle(result.nitrite.center), 'Nitrite circle is closer to the square fiducial');
+  assert.ok(squareToTriangle(result.pH.center)
+    < Math.hypot(result.pH.center.x - result.square.center.x, result.pH.center.y - result.square.center.y),
+  'pH circle is closer to the triangle fiducial');
+}
+
 test('client schematic registration detects square, triangle, and separate ordered zones', async () => {
   const { data, info } = await rawSvg(templateSvg());
   const result = detectUPadRegistration(data, info.width, info.height);
@@ -72,6 +91,47 @@ test('client schematic registration detects square, triangle, and separate order
   assert.match(overlaySvg, /REFERENCE POINT 1/);
   assert.match(overlaySvg, /NITRITE ZONE/);
   assert.match(overlaySvg, /pH ZONE/);
+  assert.match(overlaySvg, /data-sample="NITRITE"/);
+  assert.match(overlaySvg, /data-sample="pH"/);
+  for (const zone of [result.nitrite, result.pH]) {
+    assert.equal(zone.roi.shape, 'ellipse');
+    assert.equal(zone.roi.center.x, zone.center.x / info.width);
+    assert.equal(zone.roi.center.y, zone.center.y / info.height);
+    assert.ok(zone.roi.radiusX * info.width < zone.bounds.width / 2);
+    assert.ok(zone.roi.radiusY * info.height < zone.bounds.height / 2);
+  }
+  assertDetectedInnerSensingGeometry(result, info.width, info.height);
+  assert.ok(Math.hypot(result.nitrite.center.x - result.square.center.x, result.nitrite.center.y - result.square.center.y)
+    < Math.hypot(result.nitrite.center.x - result.triangle.center.x, result.nitrite.center.y - result.triangle.center.y));
+  assert.ok(Math.hypot(result.pH.center.x - result.triangle.center.x, result.pH.center.y - result.triangle.center.y)
+    < Math.hypot(result.pH.center.x - result.square.center.x, result.pH.center.y - result.square.center.y));
+});
+
+test('fiducials on a plain background do not register nonexistent sensing circles', async () => {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="500" height="100">
+    <rect width="500" height="100" fill="#aaaaaa"/>
+    <rect x="48" y="43" width="14" height="14" fill="#ffffff"/>
+    <polygon points="260,40 260,60 280,50" fill="#ffffff"/>
+  </svg>`;
+  const { data, info } = await rawSvg(svg);
+  const result = detectUPadRegistration(data, info.width, info.height, { debug: true });
+
+  assert.notEqual(result.status, 'REGISTERED');
+  assert.equal(result.failureCode, 'NITRITE_ROI_INVALID');
+  assert.equal(result.diagnostics.nitriteROI.localized, false);
+  assert.equal(result.diagnostics.phROI.localized, false);
+
+  const directory = await mkdtemp(join(tmpdir(), 'aquility-no-zones-'));
+  const imagePath = join(directory, 'fiducials-only.png');
+  await sharp(Buffer.from(svg)).png().toFile(imagePath);
+  try {
+    await assert.rejects(
+      createColorAnalysisEngine().analyze({ imagePath }),
+      (error) => error.status === 422 && error.code === 'STRIP_REGISTRATION_FAILED',
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test('real Android strip photo registers despite softened fiducial contours', async () => {
@@ -80,6 +140,7 @@ test('real Android strip photo registers despite softened fiducial contours', as
   const result = detectUPadRegistration(data, info.width, info.height, { debug: true });
 
   assert.equal(result.status, 'REGISTERED');
+  assertDetectedInnerSensingGeometry(result, info.width, info.height);
   assert.ok(result.square.center.x < result.nitrite.center.x);
   assert.ok(result.nitrite.center.x < result.pH.center.x);
   assert.ok(result.pH.center.x < result.triangle.center.x);
@@ -103,6 +164,7 @@ test('high-resolution client µPAD photo registers at its original phone resolut
   assert.equal(info.width, 3048);
   assert.equal(info.height, 4064);
   assert.equal(result.status, 'REGISTERED');
+  assertDetectedInnerSensingGeometry(result, info.width, info.height);
   assert.ok(result.candidates.square >= 1);
   assert.ok(result.candidates.triangle >= 1);
   assert.ok(result.nitrite.roi);
@@ -119,6 +181,7 @@ test('portrait client µPAD assigns sensing circles from the true square-to-tria
     const result = detectUPadRegistration(data, info.width, info.height, { debug: true });
 
     assert.equal(result.status, 'REGISTERED', `rotation ${rotation}`);
+    assertDetectedInnerSensingGeometry(result, info.width, info.height);
     if (rotation === 0) {
       assert.ok(result.square.center.y > result.triangle.center.y, 'square is the lower physical fiducial');
       assert.ok(result.nitrite.center.y > result.pH.center.y, 'Nitrite is nearer the square and pH is nearer the triangle');
@@ -139,6 +202,7 @@ test('landscape client µPAD with reacted color zones registers without perfect 
   assert.equal(info.width, 4064);
   assert.equal(info.height, 3048);
   assert.equal(result.status, 'REGISTERED');
+  assertDetectedInnerSensingGeometry(result, info.width, info.height);
   assert.ok(result.square.center.x < result.nitrite.center.x);
   assert.ok(result.nitrite.center.x < result.pH.center.x);
   assert.ok(result.pH.center.x < result.triangle.center.x);
@@ -177,17 +241,38 @@ test('registration accepts fiducials whose spacing differs from the physical sch
   assert.ok(result.pH.center.x < result.triangle.center.x);
 });
 
-test('strong fiducials derive registered zones when wet-zone contours are too soft', async () => {
+test('soft sensing pads are still required to have detected circle contours', async () => {
   const svg = templateSvg({ extra: '<circle cx="106" cy="50" r="18" fill="#777777"/><circle cx="202" cy="50" r="18" fill="#777777"/>' });
   const { data, info } = await rawSvg(svg);
   const result = detectUPadRegistration(data, info.width, info.height, { debug: true });
 
   assert.equal(result.status, 'REGISTERED');
-  assert.ok(['template-derived-zone', 'detected-contour'].includes(result.nitrite.source));
-  assert.ok(['template-derived-zone', 'detected-contour'].includes(result.pH.source));
+  assert.equal(result.nitrite.source, 'detected-contour');
+  assert.equal(result.pH.source, 'detected-contour');
   assert.equal(result.diagnostics.finalRejectionReason, null);
   assert.equal(result.diagnostics.zoneEvidence.nitrite.accepted, true);
   assert.equal(result.diagnostics.zoneEvidence.pH.accepted, true);
+});
+
+test('production engine reads separate colors from the two detected sensing circles', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'aquility-separated-roi-colors-'));
+  const imagePath = join(directory, 'distinct-pad-colors.png');
+  await sharp(Buffer.from(templateSvg())).png().toFile(imagePath);
+
+  try {
+    const result = await createColorAnalysisEngine().analyze({ imagePath });
+
+    assert.equal(result.scanStatus, 'Completed');
+    assert.equal(result.registration.status, 'REGISTERED');
+    assert.ok(result.nitrite.measuredRGB[0] > result.pH.measuredRGB[0]);
+    assert.ok(result.nitrite.measuredRGB[2] < result.pH.measuredRGB[2]);
+    assert.equal(result.nitrite.roi.normalized.shape, 'ellipse');
+    assert.equal(result.pH.roi.normalized.shape, 'ellipse');
+    assert.equal(result.nitrite.roi.samplingMask, 'ellipse');
+    assert.equal(result.pH.roi.samplingMask, 'ellipse');
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test('strong fiducials can establish the frame when the dark body contour is unavailable', async () => {

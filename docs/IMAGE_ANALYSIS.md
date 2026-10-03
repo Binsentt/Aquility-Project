@@ -2,7 +2,7 @@
 
 ## Processing Flow
 
-The backend decodes the uploaded image with Sharp, applies its orientation metadata, converts pixels to sRGB, registers the client µPAD template from its square and triangle reference marks, and samples two distinct circular ROIs. For each ROI it filters luminance outliers using the median absolute deviation and calculates per-channel median RGB. The source image is retained unchanged for display and reporting.
+The backend decodes the uploaded image with Sharp, applies its orientation metadata, converts pixels to sRGB, registers the client µPAD from its square and triangle reference marks, and requires two actual detected sensing circles. The circle nearest the square is Nitrite; the other circle nearest the triangle is pH. Each zone is sampled only inside a center ellipse covering 68% of its detected pad radius; the ellipse mask excludes corner, rim, and surrounding background pixels. For each ROI the engine filters luminance outliers using the median absolute deviation and calculates per-channel median RGB. The source image is retained unchanged for display and reporting.
 
 **pH:** image -> registered right-hand pH circle -> robust median RGB -> sRGB / D65 XYZ / CIE Lab -> CIEDE2000 distance -> closest supplied Lab reference only when an explicitly configured provisional ΔE00 threshold accepts the match -> matched pH label or `PH_MEASUREMENT_UNRELIABLE`.
 
@@ -10,15 +10,15 @@ The supplied pH references are:
 
 | Reference label | L* | a* | b* | Output |
 | --- | ---: | ---: | ---: | --- |
-| 0-4 | 50.9 | 66.5 | 54.0 | Grouped range `0-4` |
+| 0-4 | 50.9 | 66.5 | 54.0 | Metadata only; never a measured output |
 | 5 | 65.4 | 36.1 | 68.7 | 5 |
 | 6 | 86.5 | -12.3 | 80.4 | 6 |
 | 7 | 58.3 | -50.0 | 37.6 | 7 |
 | 8 | 49.7 | -23.8 | -13.4 | 8 |
 | 9 | 36.6 | 21.7 | -57.6 | 9 |
-| 10-14 | 33.4 | 51.3 | -44.4 | Grouped range `10-14` |
+| 10-14 | 33.4 | 51.3 | -44.4 | Metadata only; never a measured output |
 
-The client has supplied provisional RGB intervals for pH 1–4. A registered pH ROI is summarized by a robust median, then matched against those intervals (inclusive range match, or a near-range match within the configured per-channel tolerance). Ambiguous or unrelated colors return `PH_MEASUREMENT_UNRELIABLE`; pH 0 remains unsupported because no individual pH 0 RGB reference was supplied. A matched pH 1–4 interval is still provisional and must also pass the configured CIEDE2000 threshold. Grouped `0-4` and `10-14` Lab references remain range outputs when no individual RGB interval is selected.
+The client has supplied provisional RGB intervals for individual pH levels 1–4. A registered inner pH ROI is summarized by a robust median, then matched against those intervals (inclusive range match, or a near-range match within the configured per-channel tolerance). Ambiguous or unrelated colors return `PH_MEASUREMENT_UNRELIABLE`; pH 0 remains unsupported because no individual pH 0 RGB reference was supplied. A matched pH 1–4 interval is provisional. Grouped `0-4` and `10-14` Lab references are retained in configuration only and excluded from production matching; an unsupported color is unavailable, never displayed as a grouped measured range. Legacy stored grouped pH records are also serialized as unavailable.
 
 | pH | R | G | B | Provenance |
 | --- | --- | --- | --- | --- |

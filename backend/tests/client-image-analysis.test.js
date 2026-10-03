@@ -71,10 +71,12 @@ test('real client image completes authenticated upload, analysis, persistence, a
     assert.notDeepEqual(persisted.analysisData.pH.roi.normalized, persisted.analysisData.nitrite.roi.normalized);
     assert.equal(response.body.pHResult.measuredRGB.length, 3);
     assert.equal(response.body.nitrite.measuredRGB.length, 3);
-    assert.deepEqual(response.body.pHResult.measuredRGB, [141, 151, 115]);
-    assert.deepEqual(response.body.nitrite.measuredRGB, [161, 154, 144]);
-    assert.match(response.body.remarks, /RGB 141, 151, 115/);
-    assert.match(response.body.remarks, /RGB 161, 154, 144/);
+    // These are fixture measurements from the registered inner ellipse, not
+    // calibration references; the previous rectangle included pad-edge pixels.
+    assert.deepEqual(response.body.pHResult.measuredRGB, [141, 152, 115]);
+    assert.deepEqual(response.body.nitrite.measuredRGB, [162, 154, 145]);
+    assert.match(response.body.remarks, /RGB 141, 152, 115/);
+    assert.match(response.body.remarks, /RGB 162, 154, 145/);
     assert.doesNotMatch(response.body.remarks, /laboratory|scientific validation|certified/i);
   }
 });
@@ -122,7 +124,8 @@ test('real portrait client color is not falsely assigned to pH after fiducial ro
     assert.equal(response.body.resultData.pH, 'No reference match');
     assert.equal(response.body.nitrite.value, null);
     assert.equal(response.body.resultData.Nitrite, 'No reference match');
-    assert.equal(response.body.pHResult.measuredRGB.join(','), '134,146,122');
+    // Inner-ellipse fixture RGB is a geometry regression assertion only.
+    assert.equal(response.body.pHResult.measuredRGB.join(','), '135,148,123');
     assert.equal(persisted.estimatedPH, null);
     assert.deepEqual(persisted.analysisData.pH.measuredRGB, response.body.pHResult.measuredRGB);
     assert.deepEqual(persisted.analysisData.pH.roi.normalized, response.body.pHResult.roi.normalized);

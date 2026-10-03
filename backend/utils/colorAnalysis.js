@@ -18,6 +18,14 @@ export function extractRoiStatistics(pixels, imageWidth, imageHeight, roi) {
   if (roi.x < 0 || roi.y < 0 || roi.width <= 0 || roi.height <= 0 || roi.x + roi.width > 1 || roi.y + roi.height > 1) {
     throw new RangeError('ROI must fit within normalized image bounds.');
   }
+  const ellipseMask = roi.shape === 'ellipse';
+  if (ellipseMask && (!Number.isFinite(roi.center?.x) || !Number.isFinite(roi.center?.y)
+    || !Number.isFinite(roi.radiusX) || !Number.isFinite(roi.radiusY)
+    || roi.radiusX <= 0 || roi.radiusY <= 0
+    || roi.center.x - roi.radiusX < 0 || roi.center.y - roi.radiusY < 0
+    || roi.center.x + roi.radiusX > 1 || roi.center.y + roi.radiusY > 1)) {
+    throw new RangeError('Ellipse ROI must contain valid normalized center and radius values within the image.');
+  }
 
   const left = Math.min(imageWidth - 1, Math.floor(roi.x * imageWidth));
   const top = Math.min(imageHeight - 1, Math.floor(roi.y * imageHeight));
@@ -30,6 +38,11 @@ export function extractRoiStatistics(pixels, imageWidth, imageHeight, roi) {
 
   for (let y = top; y < bottom; y += 1) {
     for (let x = left; x < right; x += 1) {
+      if (ellipseMask) {
+        const dx = (x + 0.5 - roi.center.x * imageWidth) / (roi.radiusX * imageWidth);
+        const dy = (y + 0.5 - roi.center.y * imageHeight) / (roi.radiusY * imageHeight);
+        if ((dx ** 2) + (dy ** 2) > 1) continue;
+      }
       const offset = (y * imageWidth + x) * 3;
       const channels = [pixels[offset], pixels[offset + 1], pixels[offset + 2]];
       red.push(channels[0]);
@@ -38,6 +51,8 @@ export function extractRoiStatistics(pixels, imageWidth, imageHeight, roi) {
       luminance.push(0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2]);
     }
   }
+
+  if (red.length === 0) throw new RangeError('ROI sampling shape contains no image pixels.');
 
   const medianLuminance = median(luminance);
   const mad = median(luminance.map((value) => Math.abs(value - medianLuminance)));
@@ -55,8 +70,10 @@ export function extractRoiStatistics(pixels, imageWidth, imageHeight, roi) {
       median(retained.map((index) => blue[index])),
     ],
     sampleCount: retained.length,
-    roiPixels: { left, top, width: right - left, height: bottom - top },
-    statistic: 'per-channel-median-with-luminance-outlier-filter',
+    roiPixels: ellipseMask
+      ? { left, top, width: right - left, height: bottom - top, sampleShape: 'ellipse', candidatePixelCount: red.length }
+      : { left, top, width: right - left, height: bottom - top },
+    statistic: `per-channel-median-with-luminance-outlier-filter${ellipseMask ? '-and-ellipse-mask' : ''}`,
   };
 }
 

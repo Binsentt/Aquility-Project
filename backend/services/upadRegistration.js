@@ -212,17 +212,27 @@ function mapComponentToOriginal(shape, step, width, height) {
 }
 
 function normalizedCircleRoi(circle, width, height) {
-  const insetX = circle.bounds.width * 0.16;
-  const insetY = circle.bounds.height * 0.16;
-  const left = clamp(circle.bounds.minX + insetX, 0, width - 1);
-  const top = clamp(circle.bounds.minY + insetY, 0, height - 1);
-  const right = clamp(circle.bounds.maxX - insetX + 1, left + 1, width);
-  const bottom = clamp(circle.bounds.maxY - insetY + 1, top + 1, height);
+  // Sample only the central 68% of each detected pad radius, excluding its
+  // outer rim and adjacent strip/background pixels.
+  const sampleRadiusFraction = 0.68;
+  const radiusX = Math.max(1, (circle.bounds.width / 2) * sampleRadiusFraction);
+  const radiusY = Math.max(1, (circle.bounds.height / 2) * sampleRadiusFraction);
+  const centerX = clamp(circle.center.x, 0, width - 1);
+  const centerY = clamp(circle.center.y, 0, height - 1);
+  const left = clamp(centerX - radiusX, 0, width - 1);
+  const top = clamp(centerY - radiusY, 0, height - 1);
+  const right = clamp(centerX + radiusX, left + 1, width);
+  const bottom = clamp(centerY + radiusY, top + 1, height);
   return {
     x: left / width,
     y: top / height,
     width: (right - left) / width,
     height: (bottom - top) / height,
+    shape: 'ellipse',
+    center: { x: centerX / width, y: centerY / height },
+    radiusX: radiusX / width,
+    radiusY: radiusY / height,
+    sampleRadiusFraction,
   };
 }
 
@@ -257,17 +267,6 @@ function templateCoordinate(projectionResult) {
   };
 }
 
-function templatePoint(normalizedX, square, triangle) {
-  const axis = projection(triangle, square, triangle);
-  if (!axis) return null;
-  const templateSpan = UPAD_TEMPLATE.normalized.triangle.x - UPAD_TEMPLATE.normalized.square.x;
-  const along = (normalizedX - UPAD_TEMPLATE.normalized.square.x) / templateSpan;
-  return {
-    x: square.x + (axis.ux * axis.distance * along),
-    y: square.y + (axis.uy * axis.distance * along),
-  };
-}
-
 function zoneEvidence(pixels, width, height, center, diameter, threshold) {
   const half = Math.max(2, diameter * 0.28);
   const minX = clamp(Math.floor(center.x - half), 0, width - 1);
@@ -295,28 +294,6 @@ function zoneEvidence(pixels, width, height, center, diameter, threshold) {
     meanLuminance,
     standardDeviation: Math.sqrt(variance),
     sampleCount: count,
-  };
-}
-
-function derivedZoneShape(center, diameter, evidence) {
-  const radius = diameter / 2;
-  return {
-    source: 'template-derived-zone',
-    bounds: {
-      minX: center.x - radius,
-      minY: center.y - radius,
-      maxX: center.x + radius,
-      maxY: center.y + radius,
-      width: diameter,
-      height: diameter,
-    },
-    center,
-    confidence: clamp(0.55 + Math.min(0.2, Math.max(0, evidence.meanLuminance - 100) / 500), 0, 0.75),
-    circularity: null,
-    corners: null,
-    fillRatio: null,
-    area: null,
-    evidence,
   };
 }
 
@@ -410,15 +387,6 @@ function estimateBodyFromAnchors(square, triangle) {
   };
 }
 
-function templateZoneDiameter(square, triangle, zone) {
-  const axis = projection(triangle.center, square.center, triangle.center);
-  const span = UPAD_TEMPLATE.normalized.triangle.x - UPAD_TEMPLATE.normalized.square.x;
-  const radius = UPAD_TEMPLATE.normalized[zone]?.radius;
-  return axis && span > 0 && Number.isFinite(radius)
-    ? Math.max(4, axis.distance * ((radius * 2) / span))
-    : null;
-}
-
 function circleWithinImage(circle, width, height) {
   if (!circle?.bounds) return false;
   return circle.bounds.minX >= 0 && circle.bounds.minY >= 0
@@ -468,46 +436,15 @@ function chooseRegistration(squareCandidates, triangleCandidates, circleCandidat
           normalized: templateCoordinate(projected),
         }))
         .sort((left, right) => left.normalized.x - right.normalized.x);
-      const nearestCircle = (zone, excluded) => circles
+      const nearestCircle = (anchor, excluded) => circles
         .filter((candidate) => candidate !== excluded)
-        .sort((left, right) => Math.abs(left.normalized.x - UPAD_TEMPLATE.normalized[zone].x)
-          - Math.abs(right.normalized.x - UPAD_TEMPLATE.normalized[zone].x))[0];
-      let nitrite = nearestCircle('nitrite', null);
-      if (!nitrite || Math.abs(nitrite.normalized.x - UPAD_TEMPLATE.normalized.nitrite.x) >= 0.2) nitrite = null;
-      let ph = nearestCircle('pH', nitrite);
-      if (!ph || Math.abs(ph.normalized.x - UPAD_TEMPLATE.normalized.pH.x) >= 0.2) ph = null;
-      if (ph && nitrite && ph.normalized.x <= nitrite.normalized.x) {
-        [nitrite, ph] = [ph, nitrite];
-      }
-      const expectedNitriteCenter = templatePoint(UPAD_TEMPLATE.normalized.nitrite.x, square.center, triangle.center);
-      const expectedPhCenter = templatePoint(UPAD_TEMPLATE.normalized.pH.x, square.center, triangle.center);
-      const templateDiameter = templateZoneDiameter(square, triangle, 'nitrite');
-      const nitriteDiameter = nitrite?.circle?.bounds?.width || templateDiameter;
-      const phDiameter = ph?.circle?.bounds?.width || templateDiameter;
-      const nitriteCenter = nitrite?.circle?.center || expectedNitriteCenter;
-      const phCenter = ph?.circle?.center || expectedPhCenter;
-      const nitriteEvidence = nitriteCenter && nitriteDiameter
-        ? zoneEvidence(pixels, width, height, nitriteCenter, nitriteDiameter, zoneEvidenceThreshold)
-        : null;
-      const phEvidence = phCenter && phDiameter
-        ? zoneEvidence(pixels, width, height, phCenter, phDiameter, zoneEvidenceThreshold)
-        : null;
-      if (!nitrite && nitriteEvidence?.accepted && circleWithinImage({
-        bounds: { minX: expectedNitriteCenter.x - templateDiameter / 2, minY: expectedNitriteCenter.y - templateDiameter / 2,
-          maxX: expectedNitriteCenter.x + templateDiameter / 2, maxY: expectedNitriteCenter.y + templateDiameter / 2,
-          width: templateDiameter, height: templateDiameter },
-      }, width, height)) {
-        const circle = derivedZoneShape(expectedNitriteCenter, templateDiameter, nitriteEvidence);
-        nitrite = { circle, projected: projection(circle.center, square.center, triangle.center), normalized: templateCoordinate(projection(circle.center, square.center, triangle.center)), derived: true };
-      }
-      if (!ph && phEvidence?.accepted && circleWithinImage({
-        bounds: { minX: expectedPhCenter.x - templateDiameter / 2, minY: expectedPhCenter.y - templateDiameter / 2,
-          maxX: expectedPhCenter.x + templateDiameter / 2, maxY: expectedPhCenter.y + templateDiameter / 2,
-          width: templateDiameter, height: templateDiameter },
-      }, width, height)) {
-        const circle = derivedZoneShape(expectedPhCenter, templateDiameter, phEvidence);
-        ph = { circle, projected: projection(circle.center, square.center, triangle.center), normalized: templateCoordinate(projection(circle.center, square.center, triangle.center)), derived: true };
-      }
+        .sort((left, right) => Math.hypot(left.circle.center.x - anchor.x, left.circle.center.y - anchor.y)
+          - Math.hypot(right.circle.center.x - anchor.x, right.circle.center.y - anchor.y))[0];
+      // The nearest actual sensing circle to the square is Nitrite; the
+      // distinct circle nearest the triangle is pH. Template coordinates are
+      // not allowed to synthesize a missing detection zone.
+      const nitrite = nearestCircle(square.center, null);
+      const ph = nearestCircle(triangle.center, nitrite);
       if (!nitrite) {
         failureCode = 'NITRITE_ROI_INVALID';
         continue;
@@ -516,6 +453,8 @@ function chooseRegistration(squareCandidates, triangleCandidates, circleCandidat
         failureCode = 'PH_ROI_INVALID';
         continue;
       }
+      const nitriteEvidence = zoneEvidence(pixels, width, height, nitrite.circle.center, nitrite.circle.bounds.width, zoneEvidenceThreshold);
+      const phEvidence = zoneEvidence(pixels, width, height, ph.circle.center, ph.circle.bounds.width, zoneEvidenceThreshold);
       const nitriteRoi = normalizedCircleRoi(nitrite.circle, width, height);
       const phRoi = normalizedCircleRoi(ph.circle, width, height);
       const sameRoi = ['x', 'y', 'width', 'height'].every((key) => nitriteRoi[key] === phRoi[key]);
@@ -529,7 +468,7 @@ function chooseRegistration(squareCandidates, triangleCandidates, circleCandidat
         continue;
       }
       const spacing = Math.abs(ph.normalized.x - nitrite.normalized.x);
-      if (spacing < 0.04 || !nitriteEvidence?.accepted || !phEvidence?.accepted) {
+      if (spacing < 0.04 || !nitriteEvidence.accepted || !phEvidence.accepted) {
         failureCode = 'REFERENCE_PAIR_INVALID';
         continue;
       }
@@ -543,14 +482,14 @@ function chooseRegistration(squareCandidates, triangleCandidates, circleCandidat
         pairConfidence: pairEvidence.score,
         roiConfidence: roiEvidence,
         templateConfidence,
-        detectedZoneCount: Number(!nitrite.derived) + Number(!ph.derived),
+        detectedZoneCount: 2,
         componentScores: {
           square: square.confidence,
           triangle: triangle.confidence,
           pair: pairEvidence.score,
           roi: roiEvidence,
           template: templateConfidence,
-          detectedZones: (Number(!nitrite.derived) + Number(!ph.derived)) / 2,
+          detectedZones: 1,
         },
       };
       possible.push({
@@ -565,7 +504,7 @@ function chooseRegistration(squareCandidates, triangleCandidates, circleCandidat
             + 0.05 * pairEvidence.score
             + 0.2 * roiEvidence
             + 0.2 * templateConfidence
-            + 0.25 * ((Number(!nitrite.derived) + Number(!ph.derived)) / 2),
+            + 0.25,
           0,
           1,
         ),
@@ -667,8 +606,8 @@ export function createUPadDiagnosticOverlay(registration) {
     ? [
       { label: 'REFERENCE POINT 1 — SQUARE', center: registration.square.center, bounds: registration.square.bounds },
       { label: 'REFERENCE POINT 2 — TRIANGLE', center: registration.triangle.center, bounds: registration.triangle.bounds },
-      { label: 'NITRITE ZONE', center: registration.nitrite.center, bounds: registration.nitrite.bounds },
-      { label: 'pH ZONE', center: registration.pH.center, bounds: registration.pH.bounds },
+      { label: 'NITRITE ZONE', center: registration.nitrite.center, bounds: registration.nitrite.bounds, sampleRoi: registration.nitrite.roi },
+      { label: 'pH ZONE', center: registration.pH.center, bounds: registration.pH.bounds, sampleRoi: registration.pH.roi },
     ]
     : [];
   return {
@@ -688,11 +627,27 @@ export function buildUPadDiagnosticOverlaySvg(registration) {
   const escapeXml = (value) => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
   const colors = ['#ffd166', '#ef476f', '#06d6a0', '#118ab2'];
   const boundary = overlay.boundary || { left: 0, top: 0, width: overlay.image.width, height: overlay.image.height };
-  const labels = overlay.labels.map((item, index) => `<g data-label="${escapeXml(item.label)}" stroke="${colors[index]}" fill="none">
+  const labels = overlay.labels.map((item, index) => {
+    const displayLabel = item.label === 'REFERENCE POINT 1 — SQUARE'
+      ? 'SQUARE FIDUCIAL'
+      : item.label === 'REFERENCE POINT 2 — TRIANGLE'
+        ? 'TRIANGLE FIDUCIAL'
+        : item.label;
+    const sampleCenterX = item.sampleRoi?.center?.x * overlay.image.width;
+    const sampleCenterY = item.sampleRoi?.center?.y * overlay.image.height;
+    const sampleRadiusY = item.sampleRoi?.radiusY * overlay.image.height;
+    const textY = item.label === 'NITRITE ZONE'
+      ? sampleCenterY - sampleRadiusY - 8
+      : item.label === 'pH ZONE'
+        ? sampleCenterY + sampleRadiusY + 18
+        : item.bounds.minY - 8;
+    return `<g data-label="${escapeXml(item.label)}" stroke="${colors[index]}" fill="none">
     <rect x="${item.bounds.minX}" y="${item.bounds.minY}" width="${item.bounds.width}" height="${item.bounds.height}" stroke-width="2"/>
+    ${item.sampleRoi?.shape === 'ellipse' ? `<ellipse data-sample="${escapeXml(item.label.startsWith('NITRITE') ? 'NITRITE' : 'pH')}" cx="${sampleCenterX}" cy="${sampleCenterY}" rx="${item.sampleRoi.radiusX * overlay.image.width}" ry="${sampleRadiusY}" stroke-width="3"/>` : ''}
     <circle cx="${item.center.x}" cy="${item.center.y}" r="3" fill="${colors[index]}"/>
-    <text x="${item.center.x + 5}" y="${item.center.y - 5}" fill="${colors[index]}" stroke="none" font-size="12">${escapeXml(item.label)}</text>
-  </g>`).join('');
+    <text x="${item.center.x}" y="${textY}" text-anchor="middle" fill="${colors[index]}" stroke="none" font-size="12">${escapeXml(displayLabel)}</text>
+  </g>`;
+  }).join('');
   const candidateMarkup = overlay.candidates
     ? Object.entries(overlay.candidates).flatMap(([type, candidates]) => (candidates || []).map((candidate) => {
       if (!candidate?.bbox || !candidate?.center) return '';

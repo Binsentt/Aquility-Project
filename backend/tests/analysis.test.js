@@ -215,6 +215,32 @@ test('water-test serialization retains pH color metadata and direct Nitrite RGB 
   assert.equal(result.resultData['Scientific Validation'], undefined);
 });
 
+test('historical grouped pH range is not exposed as a measured result by the API', () => {
+  const result = serializeWaterTest({
+    id: 'legacy-grouped-ph',
+    estimatedPH: null,
+    phStatus: 'EstimatedRange',
+    analysisData: {
+      pH: {
+        value: '0-4',
+        exactValue: null,
+        status: 'EstimatedRange',
+        matchedReference: { label: '0-4', value: '0-4' },
+        measuredRGB: [170, 130, 120],
+      },
+      nitrite: { value: null, measuredRGB: [180, 180, 180] },
+    },
+  });
+
+  assert.equal(result.pH, null);
+  assert.equal(result.pHResult.value, null);
+  assert.equal(result.pHResult.exactValue, null);
+  assert.equal(result.pHResult.status, 'PH_MEASUREMENT_UNRELIABLE');
+  assert.equal(result.pHResult.matchedReference, null);
+  assert.equal(result.phStatus, 'PH_MEASUREMENT_UNRELIABLE');
+  assert.doesNotMatch(JSON.stringify({ pH: result.pH, pHResult: result.pHResult, resultData: result.resultData }), /0-4/);
+});
+
 test('historical C sample records serialize as canonical SB identity without database mutation', () => {
   const result = serializeWaterTest({
     id: 'historical-fish-farm',

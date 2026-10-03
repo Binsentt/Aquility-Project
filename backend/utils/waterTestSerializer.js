@@ -35,8 +35,23 @@ export function serializeWaterTest(record, authTokenService = null) {
   const location = record.latitude == null || record.longitude == null
     ? null
     : { latitude: Number(record.latitude), longitude: Number(record.longitude) };
-  const pHResult = record.analysisData?.pH || null;
-  const pH = pHResult?.value ?? (record.estimatedPH == null ? null : Number(record.estimatedPH));
+  const storedPHResult = record.analysisData?.pH || null;
+  const groupedPHRange = typeof storedPHResult?.value === 'string'
+    && /^\s*\d+(?:\.\d+)?\s*[-–]\s*\d+(?:\.\d+)?\s*$/.test(storedPHResult.value);
+  const pHResult = groupedPHRange
+    ? {
+      ...storedPHResult,
+      value: null,
+      exactValue: null,
+      displayValue: null,
+      status: 'PH_MEASUREMENT_UNRELIABLE',
+      reliabilityStatus: 'GROUPED_RANGE_NOT_A_MEASURED_VALUE',
+      matchedReference: null,
+    }
+    : storedPHResult;
+  const pH = groupedPHRange
+    ? null
+    : pHResult?.value ?? (record.estimatedPH == null ? null : Number(record.estimatedPH));
   const nitrite = record.analysisData?.nitrite
     ? { ...record.analysisData.nitrite, status: record.nitriteStatus }
     : formatMeasurement(record.estimatedNitrite, 'ppm', record.nitriteStatus);
@@ -63,7 +78,7 @@ export function serializeWaterTest(record, authTokenService = null) {
     imageUri,
     pH,
     pHResult,
-    phStatus: record.phStatus,
+    phStatus: groupedPHRange ? 'PH_MEASUREMENT_UNRELIABLE' : record.phStatus,
     nitrite,
     overallStatus,
     status: overallStatus,

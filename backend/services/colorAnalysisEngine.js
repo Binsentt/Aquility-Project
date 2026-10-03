@@ -83,7 +83,7 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
           const registrationError = new HttpError(
             422,
             'STRIP_REGISTRATION_FAILED',
-            'The square and triangle reference points could not be detected clearly. Please keep the entire test strip visible and capture a clear top-view image.',
+            'The square and triangle references and both circular sensing areas could not be detected clearly. Please keep the full µPAD visible and capture a sharp top-view image.',
           );
           registrationError.registrationFailureCode = registration.failureCode || 'REFERENCE_PAIR_INVALID';
           throw registrationError;
@@ -119,7 +119,7 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
         const registrationError = new HttpError(
           422,
           'STRIP_REGISTRATION_FAILED',
-          'The square and triangle reference points could not be detected clearly. Please keep the entire test strip visible and capture a clear top-view image.',
+          'The square and triangle references and both circular sensing areas could not be detected clearly. Please keep the full µPAD visible and capture a sharp top-view image.',
         );
         registrationError.registrationFailureCode = registrationFailureCode;
         throw registrationError;
@@ -135,7 +135,13 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
       const measuredLab = rgbToLab(phStats.measuredRGB);
       const maxDeltaE00 = calibration.pH?.maxDeltaE00;
       const phThresholdConfigured = Number.isFinite(maxDeltaE00) && maxDeltaE00 >= 0;
-      const legacyLabMatch = matchPHReference(measuredLab, calibration.pH.references, { maxDeltaE00 });
+      // A grouped 0-4/10-14 Lab reference is descriptive metadata, not an
+      // individual measured pH level. Exact pH 1-4 outputs come only from the
+      // separately supplied client RGB ranges; Lab matching accepts numeric
+      // exact references only.
+      const exactPHReferences = (Array.isArray(calibration.pH?.references) ? calibration.pH.references : [])
+        .filter((reference) => Number.isFinite(reference?.exactValue));
+      const legacyLabMatch = matchPHReference(measuredLab, exactPHReferences, { maxDeltaE00 });
       const clientRgbMatch = matchPHClientRgbRange(
         phStats.measuredRGB,
         calibration.pH?.clientRgbRanges,
@@ -223,6 +229,8 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
         statistic: stats.statistic,
         sampleCount: stats.sampleCount,
         strategy: registration ? 'registered-circle-roi' : 'configured-normalized-roi',
+        samplingMask: region.shape || 'rectangle',
+        sampleRadiusFraction: region.sampleRadiusFraction ?? null,
         zone,
         detectionConfidence: registration?.[zone]?.confidence ?? null,
         registeredGeometry: registration ? {
@@ -231,8 +239,6 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
           source: registration.template.source,
         } : null,
       });
-
-      if (!phMatch) throw new Error('No pH color references are configured.');
 
       const classification = classifyMeasurements({
         pH: phReliable ? phMatch.reference.exactValue : null,
@@ -282,7 +288,7 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
             provisional: phMatch.rgbMatch.provisional,
             referenceRGBRange: phMatch.rgbMatch.reference.rgbRange,
           } : null,
-          labConsistency: phMatch.labConsistency || null,
+          labConsistency: phMatch?.labConsistency || null,
           roi: roiMetadata(phRoi, phStats, 'pH'),
         },
         nitrite: {
