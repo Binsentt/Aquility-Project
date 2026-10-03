@@ -17,7 +17,7 @@ Required production values:
 
 The Expo root `.env` contains only the non-secret `EXPO_PUBLIC_API_BASE_URL` and optional `EXPO_PUBLIC_ALLOW_LOCAL_API` flag. The default and EAS value is `https://aquality-api-production.up.railway.app/api`; private localhost/LAN URLs are ignored unless the allow flag is explicitly `true`. No database or JWT credential belongs in the mobile app.
 
-For standalone Android map builds, provide `GOOGLE_MAPS_ANDROID_API_KEY` through the EAS build environment. `app.config.js` passes it to Expo's Android Google Maps configuration only when present; never commit the key or put it in the mobile `.env`. The key must have Maps SDK for Android enabled and be restricted to the AQUALITY Android package and release signing certificate. If the build variable is absent, this project does not insert a placeholder key.
+Native maps use MapLibre React Native with the OpenFreeMap Liberty style (`https://tiles.openfreemap.org/styles/liberty`). The `@maplibre/maplibre-react-native` Expo config plugin is enabled in `app.json`; a native rebuild is required after installing/configuring the module. No map-provider API key or keyed account is required. OpenFreeMap tiles are network-served and the map screen displays a retryable unavailable state if the style cannot load. Keep the map attribution control visible. OpenFreeMap is a public service with availability provided as-is; it is not an SLA-backed production tile service.
 
 ## Database migration
 

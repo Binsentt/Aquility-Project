@@ -47,7 +47,7 @@ Water-test responses retain `id`, `imageUri`, `imagePath`, `pH`, `pHResult`, `ni
 
 `GET /map-markers` requires a bearer token and returns an anonymous community marker list:
 
-The native screens validate marker IDs, finite latitude/longitude ranges, and dates before passing data to `react-native-maps`. Invalid markers, denied location permission, unavailable GPS, malformed dates, and failed map-feed requests resolve to a recoverable empty/cached state; they are never passed directly to a native `Marker`.
+The native Map and Full Map screens load the authenticated map feed first and use validated session-cached history only when the request fails. Marker IDs and finite latitude/longitude ranges are validated before display; invalid records are filtered, and personal user fields are never rendered. A denied location permission, unavailable GPS, malformed dates, or failed map-feed request leaves the screen usable. At the MapLibre boundary only, internal `{ latitude, longitude }` coordinates are converted to `[longitude, latitude]`.
 
 ```json
 {

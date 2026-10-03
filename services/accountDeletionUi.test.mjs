@@ -53,11 +53,11 @@ test('camera capture has a lock so rapid taps cannot create duplicate captures',
 
 test('native map and application permission effects ignore late async results after unmount', () => {
   assert.match(mapScreen, /let isMounted = true/);
-  assert.match(mapScreen, /if \(isMounted\) setMapFeed/);
+  assert.match(mapScreen, /if \(!isMounted\) return/);
   assert.match(fullMapScreen, /let isMounted = true/);
-  assert.match(fullMapScreen, /if \(isMounted\) setMapFeed/);
-  assert.match(mapScreen, /provider=\{Platform\.OS === 'android' \? PROVIDER_GOOGLE : undefined\}/);
-  assert.match(fullMapScreen, /provider=\{Platform\.OS === 'android' \? PROVIDER_GOOGLE : undefined\}/);
+  assert.match(fullMapScreen, /if \(!isMounted\) return/);
+  assert.match(mapScreen, /MapLibreWaterMap/);
+  assert.match(fullMapScreen, /MapLibreWaterMap/);
   assert.match(applicationSettings, /let isMounted = true/);
   assert.match(applicationSettings, /if \(isMounted\) \{\s*setCameraStatus[\s\S]*setPhotoStatus/);
 });
