@@ -3,7 +3,7 @@ import { serializeWaterTest } from '../utils/waterTestSerializer.js';
 import { validateCapturedAt, validateCoordinates, validateGpsAccuracy, validateOptionalText, validateSampleCode, validateSampleNumber } from '../utils/validation.js';
 import { readFile, rename, unlink } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { matchSampleSite, sampleSiteForClass } from './sampleSites.js';
+import { canonicalizeSampleClass, matchSampleSite, sampleSiteForClass } from './sampleSites.js';
 
 function imageExtension(buffer) {
   if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return 'jpg';
@@ -54,8 +54,14 @@ export function createWaterAnalysisService({ colorAnalysisEngine, waterTestModel
         const municipality = validateOptionalText(metadata?.municipality, 'Municipality', 120);
         const sampleCode = validateSampleCode(metadata?.sampleCode);
         const sampleNumber = validateSampleNumber(metadata?.sampleNumber);
-        const requestedSampleClass = validateOptionalText(metadata?.sampleClass, 'Sample class', 8)
+        const requestedSampleClassInput = validateOptionalText(metadata?.sampleClass, 'Sample class', 8)
           || (sampleCode ? sampleCode.split('-')[0] : null);
+        const requestedSampleClass = requestedSampleClassInput
+          ? canonicalizeSampleClass(requestedSampleClassInput)
+          : null;
+        if (requestedSampleClassInput && !requestedSampleClass) {
+          throw new HttpError(400, 'INVALID_SAMPLE_SITE', 'The sample class must be SA, A, or SB.');
+        }
         if (sampleNumber != null && !sampleCode) {
           throw new HttpError(400, 'INVALID_SAMPLE_CODE', 'A sample code is required when a sample number is provided.');
         }
@@ -70,7 +76,7 @@ export function createWaterAnalysisService({ colorAnalysisEngine, waterTestModel
         }
         const selectedSampleSite = requestedSampleClass ? sampleSiteForClass(requestedSampleClass) : null;
         if (requestedSampleClass && !selectedSampleSite) {
-          throw new HttpError(400, 'INVALID_SAMPLE_SITE', 'The sample class must be AA, A, or C.');
+          throw new HttpError(400, 'INVALID_SAMPLE_SITE', 'The sample class must be SA, A, or SB.');
         }
         const sampleSite = selectedSampleSite || sampleSiteMatcher(latitude, longitude) || {
           classCode: null,
@@ -79,7 +85,7 @@ export function createWaterAnalysisService({ colorAnalysisEngine, waterTestModel
           latitude: null,
           longitude: null,
         };
-        const resolvedSampleClass = requestedSampleClass || sampleSite.classCode || null;
+        const resolvedSampleClass = requestedSampleClass || canonicalizeSampleClass(sampleSite.classCode) || sampleSite.classCode || null;
         storedFile = await validateStoredImage(file);
         const analysisLogger = requestDebugLogger || debugLogger;
         const log = (stage, details = {}) => analysisLogger?.(stage, { analysisId: requestId || null, ...details });

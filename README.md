@@ -1,6 +1,6 @@
 # 💧 AQUALITY
 
-AQUALITY is a smartphone application that works with Microfluidic Paper-based Analytical Devices (µPADs). The camera analysis estimates pH by matching ROI Lab color to client-provided references with CIEDE2000 and estimates Nitrite using a provisional hue-to-ppm calibration. The image, analysis metadata, and optional GPS location are stored with each test. These calibration outputs have not been experimentally validated and are not certified water-safety measurements.
+AQUALITY is a smartphone application that works with Microfluidic Paper-based Analytical Devices (µPADs). Registered pH and Nitrite sensing regions are measured separately and compared with the current client-provided color references. Nitrite uses direct RGB reference classes; HSV values remain diagnostic only. A parameter is shown only when its configured reference match is supported. The image, analysis metadata, and optional GPS location are stored with each test. These provisional references are not a certified water-safety method.
 
 It is designed as a simple, portable, and low-cost monitoring tool for students, researchers, and communities.
 

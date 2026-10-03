@@ -58,12 +58,12 @@ test('real client image completes authenticated upload, analysis, persistence, a
 
     assert.equal(response.status, 201);
     assert.equal(response.body.scanStatus, 'Completed');
-    assert.equal(response.body.sampleCode, 'AA-03');
-    assert.equal(response.body.sampleClass, 'AA');
+    assert.equal(response.body.sampleCode, 'SA-03');
+    assert.equal(response.body.sampleClass, 'SA');
     assert.equal(response.body.pH, null);
-    assert.equal(response.body.resultData.pH, 'Unavailable');
+    assert.equal(response.body.resultData.pH, 'No reference match');
     assert.equal(response.body.nitrite.value, null);
-    assert.equal(response.body.resultData.Nitrite, 'Unavailable');
+    assert.equal(response.body.resultData.Nitrite, 'No reference match');
     assert.equal(response.body.roiLocalizationStatus, 'Registered µPAD template');
     assert.equal(persisted.estimatedPH, null);
     assert.equal(persisted.estimatedNitrite, null);
@@ -71,6 +71,11 @@ test('real client image completes authenticated upload, analysis, persistence, a
     assert.notDeepEqual(persisted.analysisData.pH.roi.normalized, persisted.analysisData.nitrite.roi.normalized);
     assert.equal(response.body.pHResult.measuredRGB.length, 3);
     assert.equal(response.body.nitrite.measuredRGB.length, 3);
+    assert.deepEqual(response.body.pHResult.measuredRGB, [141, 151, 115]);
+    assert.deepEqual(response.body.nitrite.measuredRGB, [161, 154, 144]);
+    assert.match(response.body.remarks, /RGB 141, 151, 115/);
+    assert.match(response.body.remarks, /RGB 161, 154, 144/);
+    assert.doesNotMatch(response.body.remarks, /laboratory|scientific validation|certified/i);
   }
 });
 
@@ -116,7 +121,7 @@ test('real client pH ROI value survives API persistence, Result/History mapping,
     assert.ok(response.body.pHResult.measuredRGB.every(Number.isFinite));
     assert.equal(response.body.resultData.pH, '2.00');
     assert.equal(response.body.nitrite.value, null);
-    assert.equal(response.body.resultData.Nitrite, 'Unavailable');
+    assert.equal(response.body.resultData.Nitrite, 'No reference match');
     assert.equal(persisted.estimatedPH, 2);
     assert.deepEqual(persisted.analysisData.pH.measuredRGB, response.body.pHResult.measuredRGB);
     assert.deepEqual(persisted.analysisData.pH.roi.normalized, response.body.pHResult.roi.normalized);
@@ -133,7 +138,7 @@ test('real client pH ROI value survives API persistence, Result/History mapping,
 
     const pdf = buildPdfHtml({ test: historyView });
     assert.match(pdf, /pH:<\/strong> 2\.00/);
-    assert.match(pdf, /Nitrite:<\/strong> Unavailable/);
+    assert.match(pdf, /Nitrite:<\/strong> No reference match/);
     assert.deepEqual(historyView.pHResult.measuredRGB, response.body.pHResult.measuredRGB);
     assert.deepEqual(historyView.nitrite.measuredRGB, response.body.nitrite.measuredRGB);
     assert.doesNotMatch(pdf, /NaN|null ppm|undefined/);

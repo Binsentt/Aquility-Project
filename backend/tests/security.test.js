@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import request from 'supertest';
 import { createApp } from '../app.js';
 import { createAuthTokenService } from '../services/authTokenService.js';
+import { createMapService } from '../services/mapService.js';
 
 const userA = { id: '8ed82724-1db6-452a-a872-f6e5c81d8b5a', fullName: 'Ana Cruz', email: 'ana@example.test' };
 const userB = { id: '2ed82724-1db6-452a-a872-f6e5c81d8b5a', fullName: 'Ben Cruz', email: 'ben@example.test' };
@@ -42,22 +43,24 @@ function createSecureApp() {
       async update(id, payload) { return { id, userId: userA.id, ...payload }; },
       async remove() {},
     },
-    mapService: {
-      async listMarkers() {
-        return [{
-          id: '3ec25331-d511-491f-a1b6-11670bc4a2d6',
-          latitude: 14.6,
-          longitude: 120.98,
-          overallStatus: 'Safe',
-          capturedAt: '2026-08-04T00:00:00.000Z',
-          barangay: 'San Isidro',
-          municipality: 'Sample City',
-          sampleClass: 'AA',
-          siteName: 'Pawikan',
-          sourceType: 'Coastal / Pawikan',
-        }];
+    mapService: createMapService({
+      waterTestModel: {
+        async listMarkers() {
+          return [{
+            id: '3ec25331-d511-491f-a1b6-11670bc4a2d6',
+            latitude: 14.6,
+            longitude: 120.98,
+            overallStatus: 'Safe',
+            capturedAt: '2026-08-04T00:00:00.000Z',
+            barangay: 'San Isidro',
+            municipality: 'Sample City',
+            sampleClass: 'AA',
+            siteName: 'Pawikan',
+            sourceType: 'Coastal / Pawikan',
+          }];
+        },
       },
-    },
+    }),
   });
 }
 
@@ -183,7 +186,7 @@ test('authenticated map feed contains only anonymous marker data', async () => {
     capturedAt: '2026-08-04T00:00:00.000Z',
     barangay: 'San Isidro',
     municipality: 'Sample City',
-    sampleClass: 'AA',
+    sampleClass: 'SA',
     siteName: 'Pawikan',
     sourceType: 'Coastal / Pawikan',
   }]);

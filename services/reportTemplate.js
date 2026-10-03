@@ -1,3 +1,5 @@
+import { canonicalizeSampleClass, canonicalizeSampleCode } from './sampleSites.js';
+
 function escapeHtml(value) {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -24,16 +26,12 @@ function formatRgb(value) {
   return value.map((channel) => String(Number(channel))).join(', ');
 }
 
-function formatComparisonNumber(value, suffix = '') {
-  if (value == null || !Number.isFinite(Number(value))) return 'Unavailable';
-  return `${Number(value).toFixed(2)}${suffix}`;
-}
-
-function renderLabComparison(name, comparison = {}) {
-  if (comparison.labValue == null || !Number.isFinite(Number(comparison.labValue))) return '';
-  return `<p><strong>Laboratory ${escapeHtml(name)}:</strong> ${formatComparisonNumber(comparison.labValue)}<br>
-  <strong>${escapeHtml(name)} absolute difference:</strong> ${formatComparisonNumber(comparison.absoluteDifference)}<br>
-  <strong>${escapeHtml(name)} percent difference:</strong> ${formatComparisonNumber(comparison.percentDifference, '%')}</p>`;
+function cleanClientRemarks(value) {
+  const remarks = typeof value === 'string' ? value : '';
+  if (/client-provided provisional references|provisional client reference colors|analytically validated method|HSV H\/S\/V|scientific (?:validation|comparison)|laboratory (?:comparison|validation)|certified water-safety/i.test(remarks)) {
+    return 'Separate µPAD sensing areas were localized. Results are shown only when a configured reference matches.';
+  }
+  return remarks || 'Unavailable';
 }
 
 export function buildPdfHtml({ user = {}, test = {}, brandImageUri = null } = {}) {
@@ -46,7 +44,8 @@ export function buildPdfHtml({ user = {}, test = {}, brandImageUri = null } = {}
   const reactionTime = test.reactionTime ?? test.immersionTime ?? null;
   const pHStatus = test.phStatus || test.pHResult?.status || 'Unavailable';
   const nitriteStatus = test.nitriteStatus || test.nitrite?.status || 'Unavailable';
-  const labComparison = test.labComparison || {};
+  const sampleClass = canonicalizeSampleClass(test.sampleClass) || test.sampleClass || 'Unknown';
+  const sampleCode = canonicalizeSampleCode(test.sampleCode) || test.sampleCode || 'Unavailable';
   const roiColors = `pH ROI median RGB: ${formatRgb(test.pHResult?.measuredRGB)}; Nitrite ROI median RGB: ${formatRgb(test.nitrite?.measuredRGB)}`;
 
   return `
@@ -69,9 +68,9 @@ export function buildPdfHtml({ user = {}, test = {}, brandImageUri = null } = {}
         <h2 style="font-size: 18px; border-bottom: 1px solid #D8E6EE; padding-bottom: 6px;">Test Information</h2>
         <p><strong>Date and time:</strong> ${escapeHtml(formatDate(test.capturedAt || test.generatedAt || test.createdAt))}<br>
         <strong>GPS coordinates:</strong> ${escapeHtml(`${latitude}, ${longitude}`)}<br>
-        <strong>Sample code:</strong> ${escapeHtml(test.sampleCode || 'Unavailable')}<br>
+        <strong>Sample code:</strong> ${escapeHtml(sampleCode)}<br>
         <strong>Sample number:</strong> ${escapeHtml(test.sampleNumber == null ? 'Unavailable' : test.sampleNumber)}<br>
-        <strong>Sample class:</strong> ${escapeHtml(test.sampleClass || 'Unknown')}<br>
+        <strong>Sample class:</strong> ${escapeHtml(sampleClass)}<br>
         <strong>Sampling site:</strong> ${escapeHtml(test.siteName || 'Unknown sampling site')}<br>
         <strong>Water source:</strong> ${escapeHtml(test.sourceType || 'Unknown')}<br>
         <strong>Reaction/immersion time:</strong> ${escapeHtml(reactionTime == null ? 'Not supplied' : reactionTime)}${mapUrl ? `<br><strong>Map location:</strong> <a href="${escapeHtml(mapUrl)}">Open map location</a>` : ''}</p>
@@ -84,12 +83,9 @@ export function buildPdfHtml({ user = {}, test = {}, brandImageUri = null } = {}
         <strong>Scan Status:</strong> ${escapeHtml(test.scanStatus || 'Unavailable')}<br>
         <strong>Overall Water Status:</strong> ${escapeHtml(test.overallStatus || 'NOT CLASSIFIED')}<br>
         <strong>Measured Parameters Status:</strong> ${escapeHtml(test.measuredParametersStatus || results['Measured Parameters Status'] || 'Not classified')}<br>
-        <strong>Scientific Validation:</strong> ${escapeHtml(test.scientificValidationStatus || results['Scientific Validation'] || 'Pending laboratory validation')}<br>
-        <strong>Remarks:</strong> ${escapeHtml(test.remarks || test.summary || 'Unavailable')}</p>
+        <strong>Remarks:</strong> ${escapeHtml(cleanClientRemarks(test.remarks || test.summary))}</p>
         <h2 style="font-size: 18px; border-bottom: 1px solid #D8E6EE; padding-bottom: 6px;">Analysis Evidence</h2>
         <p>${escapeHtml(roiColors)}</p>
-        ${renderLabComparison('pH', labComparison.pH)}
-        ${renderLabComparison('Nitrite', labComparison.Nitrite)}
       </body>
     </html>
   `;

@@ -25,8 +25,14 @@ const item = {
     pH: { value: 6, unit: 'pH', measuredRGB: [200, 190, 40], measuredLab: [80, -10, 60], matchedReference: { label: '6' }, deltaE00: 2.1 },
     nitrite: { value: 0.5, unit: 'ppm', measuredRGB: [190, 172, 187.5], matchState: 'EXACT_OR_IN_RANGE', matchingMethod: 'direct-client-rgb-range' },
   },
+  sampleClass: 'AA',
+  sampleCode: 'AA-03',
+  siteName: 'Pawikan',
+  sourceType: 'Coastal / Pawikan',
   overallStatus: 'Unvalidated',
   remarks: 'Client calibration output requires experimental validation.',
+  scientificValidationStatus: 'Pending laboratory validation',
+  labPH: 7.2,
   createdAt: '2026-08-04T00:01:00.000Z',
   user: { id: '8ed82724-1db6-452a-a872-f6e5c81d8b5a', fullName: 'Ana Cruz', email: 'ana@example.test' },
 };
@@ -50,6 +56,12 @@ test('GET /api/water-tests returns authenticated user records with the stable re
   assert.equal(response.body.items[0].nitrite.value, 0.5);
   assert.equal(response.body.items[0].nitrite.unit, 'ppm');
   assert.equal(response.body.items[0].resultData.Nitrite, '0.50 ppm');
+  assert.equal(response.body.items[0].sampleClass, 'SA');
+  assert.equal(response.body.items[0].sampleCode, 'SA-03');
+  assert.equal(response.body.items[0].sampleSite.classCode, 'SA');
+  assert.equal(response.body.items[0].scientificValidationStatus, undefined);
+  assert.equal(response.body.items[0].labComparison, undefined);
+  assert.equal(response.body.items[0].resultData['Scientific Validation'], undefined);
   assert.deepEqual(response.body.items[0].gps, { latitude: 14.6, longitude: 120.98 });
   assert.equal(response.body.items[0].user.passwordHash, undefined);
   assert.equal(response.body.items[0].imageUri, '/api/water-tests/3ec25331-d511-491f-a1b6-11670bc4a2d6/image?token=signed-3ec25331-d511-491f-a1b6-11670bc4a2d6');

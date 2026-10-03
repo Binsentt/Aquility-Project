@@ -7,7 +7,8 @@ import { COLORS, LAYOUT, RADII, SHADOWS, SIZES, SPACING } from '../../styles/the
 import { createPdfExport, createPngExport, shareExportFile } from '../../services/exportService';
 import { toSafeExportMessage } from '../../services/exportErrors';
 import { loadBackendWaterTest } from '../../services/waterTestRecordService';
-import { displayMeasuredParametersStatus, displayScientificValidationStatus } from '../../services/apiMappers';
+import { cleanClientRemarks, displayMeasuredParametersStatus } from '../../services/apiMappers';
+import { canonicalizeSampleClass, canonicalizeSampleCode } from '../../services/sampleSites';
 
 export default function ResultScreen() {
   const navigation = useNavigation();
@@ -21,6 +22,8 @@ export default function ResultScreen() {
   const [backendPayload, setBackendPayload] = useState(null);
   const [backendError, setBackendError] = useState(null);
   const payload = backendPayload || routePayload;
+  const sampleClass = canonicalizeSampleClass(payload.sampleClass) || payload.sampleClass;
+  const sampleCode = canonicalizeSampleCode(payload.sampleCode) || payload.sampleCode;
   const payloadFound = Boolean(payload?.id || routeParams?.id || payload?.title || payload?.images?.length || payload?.imageUri || payload?.image || payload?.uri);
   const imageUri = payload?.imageUri || payload?.image || payload?.uri || (Array.isArray(payload?.images) ? payload.images[0] : null);
   const createdAt = payload.generatedAt || payload.createdAt || new Date().toISOString();
@@ -44,7 +47,8 @@ export default function ResultScreen() {
 
   const metrics = useMemo(() => {
     const source = payload.resultData || {};
-    return Object.entries(source).slice(0, 6);
+    const visibleKeys = new Set(['pH', 'Nitrite', 'Measured Parameters Status']);
+    return Object.entries(source).filter(([key]) => visibleKeys.has(key));
   }, [payload.resultData]);
 
   const handleExportPdf = async () => {
@@ -136,14 +140,6 @@ export default function ResultScreen() {
               <Text style={styles.metaLabel}>Measured Parameters Status</Text>
               <Text style={styles.metaValue}>{payload.measuredParametersDisplayStatus || displayMeasuredParametersStatus(payload.measuredParametersStatus)}</Text>
             </View>
-            <View style={styles.metaRow}>
-              <Text style={styles.metaLabel}>Laboratory Comparison</Text>
-              <Text style={styles.metaValue}>{payload.laboratoryComparisonStatus || 'Not entered yet'}</Text>
-            </View>
-            <View style={styles.metaRow}>
-              <Text style={styles.metaLabel}>Scientific Validation</Text>
-              <Text style={styles.metaValue}>{payload.scientificValidationDisplayStatus || displayScientificValidationStatus(payload.scientificValidationStatus)}</Text>
-            </View>
             {payload.location && Number.isFinite(Number(payload.location.latitude)) && Number.isFinite(Number(payload.location.longitude)) ? (
               <View style={styles.metaRow}>
                 <Text style={styles.metaLabel}>Location</Text>
@@ -158,11 +154,11 @@ export default function ResultScreen() {
             ) : null}
             <View style={styles.metaRow}>
               <Text style={styles.metaLabel}>Sample</Text>
-              <Text style={styles.metaValue}>{payload.sampleCode || 'Not selected'}</Text>
+              <Text style={styles.metaValue}>{sampleCode || 'Not selected'}</Text>
             </View>
             <View style={styles.metaRow}>
               <Text style={styles.metaLabel}>Sample class</Text>
-              <Text style={styles.metaValue}>{payload.sampleClass || 'Unknown'}</Text>
+              <Text style={styles.metaValue}>{sampleClass || 'Unknown'}</Text>
             </View>
             <View style={styles.metaRow}>
               <Text style={styles.metaLabel}>Sampling site</Text>
@@ -172,8 +168,7 @@ export default function ResultScreen() {
               <Text style={styles.metaLabel}>Water source</Text>
               <Text style={styles.metaValue}>{payload.sourceType || 'Unknown'}</Text>
             </View>
-            <Text style={styles.summaryText}>{payload.summary || 'No summary available yet.'}</Text>
-            <Text style={styles.secondaryText}>{payload.interpretation || 'Results are estimates based on the current water-test analysis settings.'}</Text>
+            <Text style={styles.summaryText}>{cleanClientRemarks(payload.summary) || 'No summary available yet.'}</Text>
             {backendError ? <Text style={styles.secondaryText}>{backendError}</Text> : null}
           </View>
 

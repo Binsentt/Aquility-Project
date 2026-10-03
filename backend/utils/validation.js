@@ -1,4 +1,5 @@
 import { HttpError } from '../middleware/errorHandler.js';
+import { canonicalizeSampleCode } from '../services/sampleSites.js';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -96,10 +97,9 @@ export function validateCapturedAt(value, { required = true } = {}) {
 export function validateSampleCode(value) {
   const sampleCode = text(value, 'Sample code', { maxLength: 6 });
   if (!sampleCode) return null;
-  if (!/^(AA|A|C)-(0[1-9]|1[0-5])$/.test(sampleCode)) {
-    throw new HttpError(400, 'INVALID_SAMPLE_CODE', 'Sample code must be AA-01 to AA-15, A-01 to A-15, or C-01 to C-15.');
-  }
-  return sampleCode;
+  const canonicalSampleCode = canonicalizeSampleCode(sampleCode);
+  if (!canonicalSampleCode) throw new HttpError(400, 'INVALID_SAMPLE_CODE', 'Sample code must use SA-01 to SA-15, A-01 to A-15, or SB-01 to SB-15.');
+  return canonicalSampleCode;
 }
 
 export function validateSampleNumber(value) {

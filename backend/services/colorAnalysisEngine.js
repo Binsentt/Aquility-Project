@@ -9,6 +9,12 @@ import { buildUPadDiagnosticOverlaySvg, createUPadDiagnosticOverlay, detectUPadR
 
 const databaseDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'database');
 
+function formatRgb(rgb) {
+  return Array.isArray(rgb) && rgb.length === 3 && rgb.every((channel) => Number.isFinite(Number(channel)))
+    ? rgb.map((channel) => Math.round(Number(channel))).join(', ')
+    : 'unavailable';
+}
+
 async function readFixture(name) {
   return JSON.parse(await readFile(join(databaseDir, name), 'utf8'));
 }
@@ -251,6 +257,12 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
         : (nitriteEstimate.matchState === 'AMBIGUOUS'
           ? 'NITRITE_MEASUREMENT_UNRELIABLE'
           : 'NITRITE_OUTSIDE_CALIBRATION_RANGE');
+      const pHRemarks = phReliable
+        ? ''
+        : `pH ROI RGB ${formatRgb(phStats.measuredRGB)}: no reliable reference match (${phReliabilityStatus}).`;
+      const nitriteRemarks = nitriteQuantitativeAvailable
+        ? ''
+        : `Nitrite ROI RGB ${formatRgb(nitriteStats.measuredRGB)}: no configured reference match (${nitriteEstimate.matchState}).`;
 
       return {
         pH: {
@@ -332,7 +344,7 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
           phZoneDetected: true,
           overlay: { ...createUPadDiagnosticOverlay(registration), svg: buildUPadDiagnosticOverlaySvg(registration) },
         } : null,
-        remarks: `The µPAD and its separate sensing areas were localized. Client-provided provisional references are not an analytically validated method. HSV H/S/V are retained as diagnostics only; results are not a certified water-safety assessment. ${roiLocalizationStatus}. ${classification.reason || 'Approved classification limits are configured.'} ${phReliable ? '' : 'pH is unavailable because a reliable provisional match could not be established.'} ${nitriteQuantitativeAvailable ? '' : 'Nitrite is unavailable because its color could not be reliably matched to the configured references.'}`,
+        remarks: `Separate µPAD sensing areas were localized. Values are shown only when a configured reference matches. ${pHRemarks} ${nitriteRemarks}`.trim(),
       };
     },
   };

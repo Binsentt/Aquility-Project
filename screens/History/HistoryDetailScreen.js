@@ -7,7 +7,8 @@ import { COLORS, LAYOUT, RADII, SHADOWS, SIZES, SPACING } from '../../styles/the
 import { createPdfExport, createPngExport, shareExportFile } from '../../services/exportService';
 import { toSafeExportMessage } from '../../services/exportErrors';
 import { loadBackendWaterTest } from '../../services/waterTestRecordService';
-import { displayMeasuredParametersStatus, displayScientificValidationStatus } from '../../services/apiMappers';
+import { cleanClientRemarks, displayMeasuredParametersStatus } from '../../services/apiMappers';
+import { canonicalizeSampleClass, canonicalizeSampleCode } from '../../services/sampleSites';
 
 function safeImageDebugUrl(uri) {
   if (!uri || typeof uri !== 'string') return null;
@@ -39,6 +40,8 @@ export default function HistoryDetailScreen({ route, navigation }) {
     routeItem.imageUri || routeItem.image || routeItem.uri || routeItem.images?.[0] ? 'loading' : 'unavailable'
   );
   const item = detailItem || routeItem;
+  const sampleClass = canonicalizeSampleClass(item.sampleClass) || item.sampleClass;
+  const sampleCode = canonicalizeSampleCode(item.sampleCode) || item.sampleCode;
   const imageUri = item.imageUri || item.image || item.uri || (Array.isArray(item.images) ? item.images[0] : null);
   const createdAt = item.createdAt || new Date().toISOString();
   const [busy, setBusy] = useState(false);
@@ -82,12 +85,10 @@ export default function HistoryDetailScreen({ route, navigation }) {
     () => [
       { label: 'Scan Status', value: item.scanStatus || 'Completed' },
       { label: 'Measured Parameters Status', value: item.measuredParametersDisplayStatus || displayMeasuredParametersStatus(item.measuredParametersStatus) },
-      { label: 'Laboratory Comparison', value: item.laboratoryComparisonStatus || 'Not entered yet' },
-      { label: 'Scientific Validation', value: item.scientificValidationDisplayStatus || displayScientificValidationStatus(item.scientificValidationStatus) },
       { label: 'Scan date', value: new Date(createdAt).toLocaleString() },
-      { label: 'Result summary', value: item.summary || 'Not available' },
+      { label: 'Result summary', value: cleanClientRemarks(item.summary) || 'Not available' },
     ],
-    [createdAt, item.laboratoryComparisonStatus, item.measuredParametersDisplayStatus, item.measuredParametersStatus, item.scanStatus, item.scientificValidationDisplayStatus, item.scientificValidationStatus, item.summary]
+    [createdAt, item.measuredParametersDisplayStatus, item.measuredParametersStatus, item.scanStatus, item.summary]
   );
 
   const handleExport = async (type) => {
@@ -201,7 +202,7 @@ export default function HistoryDetailScreen({ route, navigation }) {
 
         <View style={styles.fieldRow}>
           <Text style={styles.fieldLabel}>Sample</Text>
-          <Text style={styles.fieldValue}>{item.sampleCode || 'Not selected'}</Text>
+          <Text style={styles.fieldValue}>{sampleCode || 'Not selected'}</Text>
         </View>
         {item.gpsAccuracyMeters != null ? (
           <View style={styles.fieldRow}>
@@ -210,11 +211,11 @@ export default function HistoryDetailScreen({ route, navigation }) {
           </View>
         ) : null}
 
-        {item.sampleClass || item.siteName || item.sourceType ? (
+        {sampleClass || item.siteName || item.sourceType ? (
           <>
             <View style={styles.fieldRow}>
               <Text style={styles.fieldLabel}>Sample class</Text>
-              <Text style={styles.fieldValue}>{item.sampleClass || 'Unknown'}</Text>
+              <Text style={styles.fieldValue}>{sampleClass || 'Unknown'}</Text>
             </View>
             <View style={styles.fieldRow}>
               <Text style={styles.fieldLabel}>Sampling site</Text>
@@ -229,9 +230,9 @@ export default function HistoryDetailScreen({ route, navigation }) {
 
         {detailError ? <Text style={styles.errorText}>{detailError}</Text> : null}
 
-        {item.resultData && Object.keys(item.resultData).length > 0 ? (
+        {item.resultData && Object.keys(item.resultData).some((key) => ['pH', 'Nitrite', 'Measured Parameters Status'].includes(key)) ? (
           <View style={styles.metricsWrap}>
-            {Object.entries(item.resultData).map(([key, value]) => (
+            {Object.entries(item.resultData).filter(([key]) => ['pH', 'Nitrite', 'Measured Parameters Status'].includes(key)).map(([key, value]) => (
               <View key={key} style={styles.metricBox}>
                 <Text style={styles.metricLabel}>{key}</Text>
                 <Text style={styles.metricValue}>{String(value || 'Not available')}</Text>
@@ -267,7 +268,7 @@ export default function HistoryDetailScreen({ route, navigation }) {
             <MaterialCommunityIcons name="image" size={18} color={COLORS.white} />
             <Text style={styles.exportText}>Image</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.exportBtn, busy && styles.disabledBtn]} onPress={() => Share.share({ message: `${item.title || 'AQUALITY result'}\n\n${item.summary || 'No summary available.'}` })} disabled={busy}>
+          <TouchableOpacity style={[styles.exportBtn, busy && styles.disabledBtn]} onPress={() => Share.share({ message: `${item.title || 'AQUALITY result'}\n\n${cleanClientRemarks(item.summary) || 'No summary available.'}` })} disabled={busy}>
             <MaterialCommunityIcons name="share" size={18} color={COLORS.white} />
             <Text style={styles.exportText}>Share</Text>
           </TouchableOpacity>

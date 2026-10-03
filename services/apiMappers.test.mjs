@@ -13,6 +13,7 @@ const apiWaterTest = {
   remarks: 'Client calibration output requires experimental validation.',
   gps: { latitude: 14.6, longitude: 120.98 },
   sampleClass: 'AA',
+  sampleCode: 'AA-03',
   siteName: 'Pawikan',
   sourceType: 'Coastal / Pawikan',
   barangay: 'San Isidro',
@@ -21,32 +22,31 @@ const apiWaterTest = {
   analyzedAt: '2026-08-04T00:01:00.000Z',
 };
 
-test('toScanResult maps API chemistry and GPS to the existing result screen contract', () => {
+test('toScanResult maps API values and canonicalizes a historical sample class/code', () => {
   const scan = toScanResult(apiWaterTest, 'http://localhost:4000');
 
   assert.equal(scan.id, apiWaterTest.analysisId);
   assert.equal(scan.scanStatus, 'Completed');
   assert.equal(scan.analysisStatus, 'Completed');
-  assert.equal(scan.scientificStatus, 'Pending laboratory validation');
   assert.equal(scan.measuredParametersStatus, 'Not classified');
   assert.equal(scan.measuredParametersDisplayStatus, 'Awaiting approved limits');
-  assert.equal(scan.scientificValidationStatus, 'Pending laboratory validation');
-  assert.equal(scan.scientificValidationDisplayStatus, 'Pending laboratory comparison');
-  assert.equal(scan.laboratoryComparisonStatus, 'Not entered yet');
+  assert.equal(scan.scientificValidationStatus, undefined);
+  assert.equal(scan.laboratoryComparisonStatus, undefined);
   assert.deepEqual(scan.detectedParameters, ['pH', 'Nitrite']);
   assert.equal(scan.nitrite.hue, 340);
   assert.deepEqual(scan.location, { latitude: 14.6, longitude: 120.98 });
   assert.equal(scan.actualLatitude, 14.6);
   assert.equal(scan.actualLongitude, 120.98);
-  assert.equal(scan.sampleClass, 'AA');
+  assert.equal(scan.sampleClass, 'SA');
+  assert.equal(scan.sampleCode, 'SA-03');
   assert.equal(scan.siteName, 'Pawikan');
   assert.equal(scan.sourceType, 'Coastal / Pawikan');
   assert.deepEqual(scan.resultData, {
     pH: '6.80',
     Nitrite: '0.50 ppm',
     'Measured Parameters Status': 'Awaiting approved limits',
-    'Scientific Validation': 'Pending laboratory comparison',
   });
+  assert.equal(scan.labComparison, undefined);
   assert.equal(scan.imageUri, 'http://localhost:4000/api/water-tests/3ec25331-d511-491f-a1b6-11670bc4a2d6/image?token=short-lived-token');
 });
 
@@ -92,7 +92,7 @@ test('markerColorFor maps every backend safety class to a distinct map color', (
   assert.equal(markerColorFor('Unsafe'), '#D92D20');
 });
 
-test('toScanResult does not invent a safety class when the backend has no classification', () => {
+test('toScanResult does not invent a safety class and removes comparison-only fields', () => {
   const scan = toScanResult({
     analysisId: 'scan-without-classification',
     pH: 7,
@@ -100,23 +100,28 @@ test('toScanResult does not invent a safety class when the backend has no classi
     overallStatus: null,
     measuredParametersStatus: 'Not classified',
     scientificValidationStatus: 'Pending laboratory validation',
+    labComparison: { pH: { labValue: 7.1 }, Nitrite: { labValue: null } },
   }, 'http://localhost:4000/api');
 
   assert.equal(scan.status, 'NOT CLASSIFIED');
   assert.equal(scan.overallStatus, 'NOT CLASSIFIED');
   assert.equal(scan.measuredParametersStatus, 'Not classified');
-  assert.equal(scan.scientificValidationStatus, 'Pending laboratory validation');
   assert.equal(scan.measuredParametersDisplayStatus, 'Awaiting approved limits');
-  assert.equal(scan.scientificValidationDisplayStatus, 'Pending laboratory comparison');
+  assert.equal(scan.scientificValidationStatus, undefined);
+  assert.equal(scan.scientificStatus, undefined);
+  assert.equal(scan.laboratoryComparisonStatus, undefined);
+  assert.equal(scan.labComparison, undefined);
+  assert.equal(scan.resultData['Scientific Validation'], undefined);
 });
 
-test('toScanResult labels laboratory comparison only when a lab value exists', () => {
+test('toScanResult never exposes laboratory comparison data to client screens', () => {
   const scan = toScanResult({
     analysisId: 'scan-with-lab-value',
     labComparison: { pH: { labValue: 7.1 }, Nitrite: { labValue: null } },
   }, 'http://localhost:4000/api');
 
-  assert.equal(scan.laboratoryComparisonStatus, 'Entered');
+  assert.equal(scan.laboratoryComparisonStatus, undefined);
+  assert.equal(scan.labComparison, undefined);
 });
 
 test('toScanResult keeps an unavailable Nitrite value unavailable', () => {
@@ -128,6 +133,21 @@ test('toScanResult keeps an unavailable Nitrite value unavailable', () => {
 
   assert.equal(scan.nitrite.value, null);
   assert.equal(scan.resultData.Nitrite, 'Unavailable');
+});
+
+test('measured but unmatched ROIs show a reference-match state instead of generic Unavailable', () => {
+  const scan = toScanResult({
+    analysisId: 'measured-but-unmatched',
+    pH: null,
+    pHResult: { value: null, status: 'PH_MEASUREMENT_UNRELIABLE', measuredRGB: [141, 151, 115] },
+    nitrite: { value: null, unit: 'ppm', status: 'NITRITE_OUTSIDE_CALIBRATION_RANGE', measuredRGB: [161, 154, 144] },
+  }, 'https://aquality-api-production.up.railway.app/api');
+
+  assert.equal(scan.resultData.pH, 'No reference match');
+  assert.equal(scan.resultData.Nitrite, 'No reference match');
+  assert.deepEqual(scan.pHResult.measuredRGB, [141, 151, 115]);
+  assert.deepEqual(scan.nitrite.measuredRGB, [161, 154, 144]);
+  assert.doesNotMatch(JSON.stringify(scan.resultData), /NaN|null ppm|undefined/);
 });
 
 test('toScanResult keeps both unavailable scientific values explicit', () => {
@@ -160,6 +180,12 @@ test('map marker sanitizer filters invalid coordinates and unstable IDs', () => 
   assert.deepEqual(markers[0].coordinate, { latitude: 14.6, longitude: 120.98 });
   assert.equal(markers[0].createdAt, '2026-08-04T00:00:00.000Z');
   assert.equal(markers[1].createdAt, null);
+});
+
+test('historical map marker classes are normalized in marker titles', () => {
+  assert.equal(toMapMarker({ id: 'old-pawikan', latitude: 14.6, longitude: 120.98, sampleClass: 'AA', siteName: 'Pawikan' }).sampleClass, 'SA');
+  assert.equal(toMapMarker({ id: 'old-farm', latitude: 14.6, longitude: 120.98, sampleClass: 'C', siteName: 'Fish Farm' }).title, 'Class SB — Fish Farm');
+  assert.equal(toMapMarker({ id: 'well', latitude: 14.6, longitude: 120.98, sampleClass: 'A', siteName: 'Well' }).sampleClass, 'A');
 });
 
 test('map API failure and location denial resolve to safe empty values', () => {

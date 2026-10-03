@@ -1,3 +1,5 @@
+import { canonicalizeSampleClass, canonicalizeSampleCode } from './sampleSites.js';
+
 export function apiBaseOrigin(apiBaseUrl) {
   return apiBaseUrl.replace(/\/api\/?$/, '').replace(/\/$/, '');
 }
@@ -12,8 +14,12 @@ export function displayMeasuredParametersStatus(status) {
   return status === 'Not classified' ? 'Awaiting approved limits' : (status || 'Awaiting approved limits');
 }
 
-export function displayScientificValidationStatus(status) {
-  return status === 'Pending laboratory validation' ? 'Pending laboratory comparison' : (status || 'Pending laboratory comparison');
+export function cleanClientRemarks(value) {
+  const remarks = typeof value === 'string' ? value : '';
+  if (/client-provided provisional references|provisional client reference colors|analytically validated method|HSV H\/S\/V|scientific (?:validation|comparison)|laboratory (?:comparison|validation)|certified water-safety/i.test(remarks)) {
+    return 'Separate µPAD sensing areas were localized. Results are shown only when a configured reference matches.';
+  }
+  return remarks;
 }
 
 export function toApiProfile(payload = {}) {
@@ -47,33 +53,36 @@ export function toScanResult(waterTest = {}, apiBaseUrl) {
   const nitriteValue = waterTest.nitrite?.value == null ? null : Number(waterTest.nitrite.value);
   const imageUri = resolveMediaUrl(waterTest.imageUri || waterTest.imagePath, apiBaseUrl);
   const measuredParametersStatus = waterTest.measuredParametersStatus || 'Not classified';
-  const scientificValidationStatus = waterTest.scientificValidationStatus || waterTest.scientificStatus || 'Pending laboratory validation';
-  const labComparison = waterTest.labComparison || { pH: {}, Nitrite: {} };
-  const laboratoryComparisonStatus = [labComparison.pH?.labValue, labComparison.Nitrite?.labValue]
-    .some((value) => value != null)
-    ? 'Entered'
-    : 'Not entered yet';
   const overallStatus = waterTest.overallStatus && waterTest.overallStatus !== 'Unvalidated'
     ? waterTest.overallStatus
     : 'NOT CLASSIFIED';
   const persisted = Boolean(waterTest.analysisId || waterTest.id);
+  const pHResult = waterTest.pHResult || null;
+  const sampleClassInput = waterTest.sampleClass || waterTest.sampleSite?.classCode || null;
+  const sampleClass = canonicalizeSampleClass(sampleClassInput) || sampleClassInput;
+  const sampleCodeInput = waterTest.sampleCode || null;
+  const sampleCode = canonicalizeSampleCode(sampleCodeInput) || sampleCodeInput;
+  const hasMeasuredRgb = (value) => Array.isArray(value?.measuredRGB)
+    && value.measuredRGB.length === 3
+    && value.measuredRGB.every((channel) => Number.isFinite(Number(channel)));
+  const pHDisplay = typeof pH === 'number' ? pH.toFixed(2) : (hasMeasuredRgb(pHResult) ? 'No reference match' : 'Unavailable');
+  const nitriteDisplay = typeof waterTest.nitrite?.displayValue === 'string' && waterTest.nitrite.displayValue.trim()
+    ? waterTest.nitrite.displayValue
+    : (Number.isFinite(nitriteValue) ? `${nitriteValue.toFixed(2)} ${waterTest.nitrite?.unit || 'ppm'}` : (hasMeasuredRgb(waterTest.nitrite) ? 'No reference match' : 'Unavailable'));
+  const summary = cleanClientRemarks(waterTest.remarks || waterTest.summary)
+    || 'Water test result received from the AQUALITY backend.';
 
   return {
     id: waterTest.analysisId || waterTest.id,
     title: waterTest.title || 'Water Test',
     status: overallStatus,
     overallStatus,
-    summary: waterTest.remarks || waterTest.summary || 'Water test result received from the AQUALITY backend.',
+    summary,
     scanStatus: waterTest.scanStatus || (persisted ? 'Completed' : 'Pending'),
     analysisStatus: waterTest.analysisStatus || (persisted ? 'Completed' : 'Pending'),
-    scientificStatus: scientificValidationStatus,
     measuredParametersStatus,
     measuredParametersDisplayStatus: displayMeasuredParametersStatus(measuredParametersStatus),
-    scientificValidationStatus,
-    scientificValidationDisplayStatus: displayScientificValidationStatus(scientificValidationStatus),
-    laboratoryComparisonStatus,
     roiLocalizationStatus: waterTest.roiLocalizationStatus || 'STRIP REGISTRATION REQUIRED',
-    interpretation: 'pH uses provisional client-provided RGB/Lab references. Nitrite uses four discrete provisional client-provided RGB classes (0, 0.5, 1, and >1 ppm); HSV H/S/V are diagnostics only. Neither result is a certified laboratory measurement.',
     warnings: [],
     recommendations: [],
     detectedParameters: ['pH', 'Nitrite'],
@@ -88,30 +97,26 @@ export function toScanResult(waterTest = {}, apiBaseUrl) {
     actualLongitude: waterTest.actualLongitude ?? waterTest.gps?.longitude ?? waterTest.location?.longitude ?? null,
     barangay: waterTest.barangay || null,
     municipality: waterTest.municipality || null,
-    sampleClass: waterTest.sampleClass || waterTest.sampleSite?.classCode || null,
+    sampleClass,
     siteName: waterTest.siteName || waterTest.sampleSite?.siteName || 'Unknown sampling site',
     sourceType: waterTest.sourceType || waterTest.sampleSite?.sourceType || null,
     user: waterTest.user || null,
     userId: waterTest.userId || waterTest.user?.id || null,
     resultData: {
-      pH: typeof pH === 'number' ? pH.toFixed(2) : pH || 'Unavailable',
-      Nitrite: typeof waterTest.nitrite?.displayValue === 'string' && waterTest.nitrite.displayValue.trim()
-        ? waterTest.nitrite.displayValue
-        : (Number.isFinite(nitriteValue) ? `${nitriteValue.toFixed(2)} ${waterTest.nitrite?.unit || 'ppm'}` : 'Unavailable'),
+      pH: pHDisplay,
+      Nitrite: nitriteDisplay,
       'Measured Parameters Status': displayMeasuredParametersStatus(measuredParametersStatus),
-      'Scientific Validation': displayScientificValidationStatus(scientificValidationStatus),
     },
     pH,
-    pHResult: waterTest.pHResult || null,
+    pHResult,
     phStatus: waterTest.phStatus || null,
     nitrite: waterTest.nitrite || null,
-    sampleCode: waterTest.sampleCode || null,
+    sampleCode,
     sampleNumber: waterTest.sampleNumber == null ? null : Number(waterTest.sampleNumber),
     gpsAccuracyMeters: waterTest.gpsAccuracyMeters == null ? null : Number(waterTest.gpsAccuracyMeters),
     gpsCapturedAt: waterTest.gpsCapturedAt || null,
     canonicalLocation: waterTest.canonicalLocation || null,
-    labComparison: waterTest.labComparison || { pH: null, Nitrite: null },
-    notes: waterTest.remarks || '',
+    notes: summary,
     files: [],
     mode: 'backend',
     certified: false,
@@ -154,7 +159,8 @@ export function toMapMarker(payload = {}) {
   const timestamp = rawDate == null ? null : Date.parse(rawDate);
   const createdAt = Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : null;
   const overallStatus = payload.overallStatus || payload.status || 'NOT CLASSIFIED';
-  const sampleClass = payload.sampleClass || null;
+  const sampleClassInput = payload.sampleClass || null;
+  const sampleClass = canonicalizeSampleClass(sampleClassInput) || sampleClassInput;
   const siteName = payload.siteName || 'Unknown sampling site';
 
   return {

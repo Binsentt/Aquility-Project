@@ -34,16 +34,15 @@ test('buildPdfHtml includes public user data, strip image, chemistry, GPS, statu
       },
       overallStatus: 'NOT CLASSIFIED',
       measuredParametersStatus: 'Not classified',
-      scientificValidationStatus: 'Pending laboratory validation',
       remarks: 'Water quality appears acceptable based on the current estimated values.',
     },
   });
 
-  for (const expected of ['Ana Cruz', 'ana@example.test', '09171234567', 'San Isidro', '6.80', '0.50 ppm', 'Nitrite:', '14.6000', 'AA', 'Pawikan', 'Coastal / Pawikan', 'Not classified', 'Pending laboratory validation', 'acceptable']) {
+  for (const expected of ['Ana Cruz', 'ana@example.test', '09171234567', 'San Isidro', '6.80', '0.50 ppm', 'Nitrite:', '14.6000', 'SA', 'Pawikan', 'Coastal / Pawikan', 'Not classified', 'acceptable']) {
     assert.match(html, new RegExp(expected));
   }
   assert.match(html, /Measured Parameters Status/);
-  assert.match(html, /Scientific Validation/);
+  assert.doesNotMatch(html, /Scientific Validation|Laboratory Comparison|Pending laboratory/i);
   assert.match(html, /<img /);
   assert.match(html, /water-tests\/3ec25331-d511-491f-a1b6-11670bc4a2d6\/image\?token=short-lived-token/);
   assert.match(html, /google\.com\/maps/);
@@ -78,7 +77,7 @@ test('buildPdfHtml preserves the qualified Nitrite display text from the saved r
   assert.doesNotMatch(html, /NaN|null ppm|undefined|1\.00 ppm/);
 });
 
-test('buildPdfHtml preserves saved sample identity, measurement statuses, ROI colors, and entered lab comparisons', () => {
+test('buildPdfHtml normalizes historical sample identity and omits comparison-only fields', () => {
   const html = buildPdfHtml({
     test: {
       sampleCode: 'AA-03',
@@ -104,9 +103,10 @@ test('buildPdfHtml preserves saved sample identity, measurement statuses, ROI co
   });
 
   for (const value of [
-    'AA-03', 'Sample number', '1 minute', 'Scan Status', 'Completed',
+    'SA-03', 'Sample number', '1 minute', 'Scan Status', 'Completed',
     'pH Status', 'Estimated', 'Nitrite Status', 'ABOVE_1_PPM',
-    '173, 139, 123', '197, 179, 195', 'Laboratory pH', '8.21', '0.21', '2.56',
+    '173, 139, 123', '197, 179, 195', 'SA',
   ]) assert.ok(html.includes(value), `expected report to include ${value}`);
+  assert.doesNotMatch(html, /Scientific Validation|Laboratory Comparison|Laboratory pH|Pending laboratory|8\.21|0\.21|2\.56/i);
   assert.doesNotMatch(html, /Copper|Cu²⁺|Cu2\+/i);
 });

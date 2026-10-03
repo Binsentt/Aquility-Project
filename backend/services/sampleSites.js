@@ -3,13 +3,28 @@
  * until the client supplies a GPS capture or verified map pin.
  */
 export const SAMPLE_SITES = Object.freeze({
-  AA: Object.freeze({ classCode: 'AA', name: 'Pawikan', sourceType: 'Coastal / Pawikan', latitude: null, longitude: null, radiusMeters: 500 }),
+  SA: Object.freeze({ classCode: 'SA', name: 'Pawikan', sourceType: 'Coastal / Pawikan', latitude: null, longitude: null, radiusMeters: 500 }),
   A: Object.freeze({ classCode: 'A', name: 'Well', sourceType: 'Well / Groundwater', latitude: null, longitude: null, radiusMeters: 500 }),
-  C: Object.freeze({ classCode: 'C', name: 'Fish Farm', sourceType: 'Fish Farm / Aquaculture', latitude: null, longitude: null, radiusMeters: 500 }),
+  SB: Object.freeze({ classCode: 'SB', name: 'Fish Farm', sourceType: 'Fish Farm / Aquaculture', latitude: null, longitude: null, radiusMeters: 500 }),
 });
 
+const SAMPLE_CLASS_ALIASES = Object.freeze({ AA: 'SA', SA: 'SA', A: 'A', C: 'SB', SB: 'SB' });
+
+export function canonicalizeSampleClass(classCode) {
+  if (typeof classCode !== 'string') return null;
+  return SAMPLE_CLASS_ALIASES[classCode.trim().toUpperCase()] || null;
+}
+
+export function canonicalizeSampleCode(sampleCode) {
+  if (typeof sampleCode !== 'string') return null;
+  const match = /^(AA|SA|A|C|SB)-(0[1-9]|1[0-5])$/i.exec(sampleCode.trim());
+  if (!match) return null;
+  return `${canonicalizeSampleClass(match[1])}-${match[2]}`;
+}
+
 export function sampleSiteForClass(classCode, sites = SAMPLE_SITES) {
-  const site = sites?.[classCode];
+  const canonicalClass = canonicalizeSampleClass(classCode);
+  const site = canonicalClass ? sites?.[canonicalClass] : null;
   if (!site) return null;
   return {
     classCode: site.classCode,

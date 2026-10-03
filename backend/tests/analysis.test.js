@@ -81,10 +81,10 @@ test('analysis service stores actual GPS alongside server-matched sampling-site 
 
   assert.equal(createdRecord.latitude, 14.6);
   assert.equal(createdRecord.longitude, 120.98);
-  assert.equal(createdRecord.sampleClass, 'AA');
+  assert.equal(createdRecord.sampleClass, 'SA');
   assert.equal(createdRecord.siteName, 'Pawikan');
   assert.equal(createdRecord.sourceType, 'Coastal / Pawikan');
-  assert.equal(result.sampleClass, 'AA');
+  assert.equal(result.sampleClass, 'SA');
   assert.equal(result.siteName, 'Pawikan');
 });
 
@@ -111,9 +111,9 @@ test('analysis service preserves an explicitly selected sample code when canonic
     authenticatedUserId: '8ed82724-1db6-452a-a872-f6e5c81d8b5a',
   });
 
-  assert.equal(createdRecord.sampleCode, 'AA-03');
+  assert.equal(createdRecord.sampleCode, 'SA-03');
   assert.equal(createdRecord.sampleNumber, null);
-  assert.equal(createdRecord.sampleClass, 'AA');
+  assert.equal(createdRecord.sampleClass, 'SA');
   assert.equal(createdRecord.siteName, 'Pawikan');
   assert.equal(createdRecord.sourceType, 'Coastal / Pawikan');
 });
@@ -162,8 +162,8 @@ test('analysis service maps selected sample metadata to its study site independe
     authenticatedUserId: '8ed82724-1db6-452a-a872-f6e5c81d8b5a',
   });
 
-  assert.equal(createdRecord.sampleClass, 'C');
-  assert.equal(createdRecord.sampleCode, 'C-15');
+  assert.equal(createdRecord.sampleClass, 'SB');
+  assert.equal(createdRecord.sampleCode, 'SB-15');
   assert.equal(createdRecord.sampleNumber, 15);
   assert.equal(createdRecord.siteName, 'Fish Farm');
   assert.equal(createdRecord.sourceType, 'Fish Farm / Aquaculture');
@@ -210,10 +210,29 @@ test('water-test serialization retains pH color metadata and direct Nitrite RGB 
   assert.equal(result.nitrite.matchingMethod, 'direct-client-rgb-range');
   assert.equal(result.resultData.Nitrite, '0.50 ppm');
   assert.equal(result.nitrate, undefined);
-  assert.deepEqual(result.labComparison, {
-    pH: { labValue: null, absoluteDifference: null, percentDifference: null },
-    Nitrite: { labValue: null, absoluteDifference: null, percentDifference: null },
+  assert.equal(result.labComparison, undefined);
+  assert.equal(result.scientificValidationStatus, undefined);
+  assert.equal(result.resultData['Scientific Validation'], undefined);
+});
+
+test('historical C sample records serialize as canonical SB identity without database mutation', () => {
+  const result = serializeWaterTest({
+    id: 'historical-fish-farm',
+    sampleClass: 'C',
+    sampleCode: 'C-01',
+    sampleNumber: 1,
+    siteName: 'Fish Farm',
+    sourceType: 'Fish Farm / Aquaculture',
+    analysisData: { pH: { value: null, measuredRGB: [90, 90, 90] }, nitrite: { value: null, measuredRGB: [90, 90, 90] } },
   });
+
+  assert.equal(result.sampleClass, 'SB');
+  assert.equal(result.sampleCode, 'SB-01');
+  assert.equal(result.sampleSite.classCode, 'SB');
+  assert.equal(result.resultData.pH, 'No reference match');
+  assert.equal(result.resultData.Nitrite, 'No reference match');
+  assert.equal(result.labComparison, undefined);
+  assert.equal(result.scientificValidationStatus, undefined);
 });
 
 test('qualified Nitrite values serialize as display text while exact numeric value stays null', () => {
@@ -245,7 +264,7 @@ test('qualified Nitrite values serialize as display text while exact numeric val
   assert.equal(result.nitrite.qualifier, '>');
   assert.equal(result.nitrite.lowerBound, 1);
   assert.equal(result.resultData.Nitrite, '>1 ppm');
-  assert.equal(result.labComparison.Nitrite.labValue, null);
+  assert.equal(result.labComparison, undefined);
   assert.doesNotMatch(JSON.stringify(result.resultData), /NaN|null ppm|undefined|1\.00 ppm/);
 });
 
@@ -263,7 +282,7 @@ test('legacy Nitrate-only records do not serialize their concentration as Nitrit
   assert.equal(result.nitrite.value, null);
   assert.equal(result.resultData.Nitrite, 'Unavailable');
   assert.equal(result.overallStatus, 'NOT CLASSIFIED');
-  assert.match(result.remarks, /cannot be interpreted as Nitrite/);
+  assert.match(result.remarks, /older parameter result/);
 });
 
 test('analysis endpoint rejects a request without an image', async () => {

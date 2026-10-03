@@ -32,9 +32,9 @@ import { createUploadDiagnostics } from '../../services/uploadDiagnostics';
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const scannerDebugEnabled = process.env.NODE_ENV === 'development' || process.env.EXPO_PUBLIC_AQUALITY_DEBUG === 'true';
 const SAMPLE_CLASSES = [
-  { code: 'AA', siteName: 'Pawikan', sourceType: 'Coastal / Pawikan' },
+  { code: 'SA', siteName: 'Pawikan', sourceType: 'Coastal / Pawikan' },
   { code: 'A', siteName: 'Well', sourceType: 'Well / Groundwater' },
-  { code: 'C', siteName: 'Fish Farm', sourceType: 'Fish Farm / Aquaculture' },
+  { code: 'SB', siteName: 'Fish Farm', sourceType: 'Fish Farm / Aquaculture' },
 ];
 const SAMPLE_NUMBERS = Array.from({ length: 15 }, (_, index) => index + 1);
 
