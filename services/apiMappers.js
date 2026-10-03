@@ -73,7 +73,7 @@ export function toScanResult(waterTest = {}, apiBaseUrl) {
     scientificValidationDisplayStatus: displayScientificValidationStatus(scientificValidationStatus),
     laboratoryComparisonStatus,
     roiLocalizationStatus: waterTest.roiLocalizationStatus || 'STRIP REGISTRATION REQUIRED',
-    interpretation: 'pH uses provisional client-provided Lab references and CIEDE2000. Nitrite uses three discrete provisional client-provided RGB reference classes (0, 0.5, and 1 ppm); HSV H/S/V are diagnostics only. Neither result is a certified laboratory measurement.',
+    interpretation: 'pH uses provisional client-provided RGB/Lab references. Nitrite uses four discrete provisional client-provided RGB classes (0, 0.5, 1, and >1 ppm); HSV H/S/V are diagnostics only. Neither result is a certified laboratory measurement.',
     warnings: [],
     recommendations: [],
     detectedParameters: ['pH', 'Nitrite'],
@@ -95,7 +95,9 @@ export function toScanResult(waterTest = {}, apiBaseUrl) {
     userId: waterTest.userId || waterTest.user?.id || null,
     resultData: {
       pH: typeof pH === 'number' ? pH.toFixed(2) : pH || 'Unavailable',
-      Nitrite: Number.isFinite(nitriteValue) ? `${nitriteValue.toFixed(2)} ${waterTest.nitrite?.unit || 'ppm'}` : 'Unavailable',
+      Nitrite: typeof waterTest.nitrite?.displayValue === 'string' && waterTest.nitrite.displayValue.trim()
+        ? waterTest.nitrite.displayValue
+        : (Number.isFinite(nitriteValue) ? `${nitriteValue.toFixed(2)} ${waterTest.nitrite?.unit || 'ppm'}` : 'Unavailable'),
       'Measured Parameters Status': displayMeasuredParametersStatus(measuredParametersStatus),
       'Scientific Validation': displayScientificValidationStatus(scientificValidationStatus),
     },

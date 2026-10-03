@@ -56,6 +56,8 @@ test('native map and application permission effects ignore late async results af
   assert.match(mapScreen, /if \(isMounted\) setMapFeed/);
   assert.match(fullMapScreen, /let isMounted = true/);
   assert.match(fullMapScreen, /if \(isMounted\) setMapFeed/);
+  assert.match(mapScreen, /provider=\{Platform\.OS === 'android' \? PROVIDER_GOOGLE : undefined\}/);
+  assert.match(fullMapScreen, /provider=\{Platform\.OS === 'android' \? PROVIDER_GOOGLE : undefined\}/);
   assert.match(applicationSettings, /let isMounted = true/);
   assert.match(applicationSettings, /if \(isMounted\) \{\s*setCameraStatus[\s\S]*setPhotoStatus/);
 });

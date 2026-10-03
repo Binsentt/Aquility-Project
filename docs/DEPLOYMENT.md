@@ -17,6 +17,8 @@ Required production values:
 
 The Expo root `.env` contains only the non-secret `EXPO_PUBLIC_API_BASE_URL` and optional `EXPO_PUBLIC_ALLOW_LOCAL_API` flag. The default and EAS value is `https://aquality-api-production.up.railway.app/api`; private localhost/LAN URLs are ignored unless the allow flag is explicitly `true`. No database or JWT credential belongs in the mobile app.
 
+For standalone Android map builds, provide `GOOGLE_MAPS_ANDROID_API_KEY` through the EAS build environment. `app.config.js` passes it to Expo's Android Google Maps configuration only when present; never commit the key or put it in the mobile `.env`. The key must have Maps SDK for Android enabled and be restricted to the AQUALITY Android package and release signing certificate. If the build variable is absent, this project does not insert a placeholder key.
+
 ## Database migration
 
 1. Back up the target database.

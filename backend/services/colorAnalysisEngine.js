@@ -123,11 +123,12 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
       const phQuality = assessColorQuality(phStats.measuredRGB);
       const nitriteQuality = assessColorQuality(nitriteStats.measuredRGB);
       debugLogger?.('roi-quality', { pH: phQuality, nitrite: nitriteQuality });
-      if (!phQuality.reliable) {
+      if (!phQuality.reliable && !registration) {
         throw new HttpError(422, 'IMAGE_QUALITY_INSUFFICIENT', 'The sensing areas are too gray, dark, bright, or unclear for a reliable analysis. Please retake the image with the µPAD clearly visible.');
       }
       const measuredLab = rgbToLab(phStats.measuredRGB);
       const maxDeltaE00 = calibration.pH?.maxDeltaE00;
+      const phThresholdConfigured = Number.isFinite(maxDeltaE00) && maxDeltaE00 >= 0;
       const legacyLabMatch = matchPHReference(measuredLab, calibration.pH.references, { maxDeltaE00 });
       const clientRgbMatch = matchPHClientRgbRange(
         phStats.measuredRGB,
@@ -168,18 +169,30 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
           },
         };
       }
-      if (!Number.isFinite(maxDeltaE00)) {
-        throw new HttpError(422, 'PH_MEASUREMENT_UNRELIABLE', 'No approved pH color-match confidence threshold is configured for this test strip.');
-      }
-      if (!phMatch || phMatch.deltaE00 > maxDeltaE00) {
-        throw new HttpError(422, 'PH_MEASUREMENT_UNRELIABLE', 'The captured pH color does not match the provisional references closely enough for a reliable estimate.');
-      }
+      const directClientRgbMatch = Boolean(clientRgbMatch);
+      const phReferenceReliable = directClientRgbMatch
+        || (phThresholdConfigured && phMatch && phMatch.deltaE00 <= maxDeltaE00);
+      const phReliable = Boolean(phQuality.reliable && phReferenceReliable);
+      const phReliabilityStatus = !phQuality.reliable
+        ? 'IMAGE_QUALITY_INSUFFICIENT'
+        : directClientRgbMatch
+          ? 'CLIENT_RGB_RANGE_MATCH'
+        : !phThresholdConfigured
+          ? 'THRESHOLD_NOT_CONFIGURED'
+          : !phMatch
+            ? 'NO_VALID_REFERENCE_MATCH'
+            : phMatch.deltaE00 > maxDeltaE00
+              ? 'COLOR_MATCH_OUTSIDE_THRESHOLD'
+              : 'RELIABLE_WITHIN_PROVISIONAL_THRESHOLD';
       const nitriteHsv = rgbToHsv(nitriteStats.measuredRGB);
       const nitriteEstimate = matchNitriteClientRgbRange(
         nitriteStats.measuredRGB,
         calibration.nitrite?.references,
         calibration.nitrite?.matching,
       );
+      const nitriteReferenceMatched = nitriteEstimate.matchState === 'EXACT_OR_IN_RANGE'
+        || nitriteEstimate.matchState === 'ABOVE_1_PPM';
+      const nitriteColorReliable = nitriteQuality.reliable || nitriteReferenceMatched;
       debugLogger?.('nitrite-diagnostics', {
         width: info.width,
         height: info.height,
@@ -216,16 +229,24 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
       if (!phMatch) throw new Error('No pH color references are configured.');
 
       const classification = classifyMeasurements({
-        pH: phMatch.reference.exactValue,
-        nitrite: nitriteEstimate.value,
+        pH: phReliable ? phMatch.reference.exactValue : null,
+        nitrite: nitriteColorReliable ? nitriteEstimate.value : null,
         thresholds: calibration.thresholds || null,
       });
       const roiLocalizationStatus = registration ? 'Registered µPAD template' : 'Configured pad ROIs';
-      const phValue = phMatch.reference.exactValue == null ? phMatch.reference.value : phMatch.reference.exactValue;
-      const phStatus = phMatch.reference.exactValue == null ? 'EstimatedRange' : 'Estimated';
-      const nitriteQuantitativeAvailable = nitriteEstimate.matchState === 'EXACT_OR_IN_RANGE'
-        || nitriteEstimate.matchState === 'NEAR_REFERENCE';
-      const nitriteStatus = nitriteQuantitativeAvailable
+      const phValue = phReliable
+        ? (phMatch.reference.exactValue == null ? phMatch.reference.value : phMatch.reference.exactValue)
+        : null;
+      const phStatus = phReliable
+        ? (phMatch.reference.exactValue == null ? 'EstimatedRange' : 'Estimated')
+        : !phQuality.reliable ? 'IMAGE_QUALITY_INSUFFICIENT' : 'PH_MEASUREMENT_UNRELIABLE';
+      const nitriteQuantitativeAvailable = nitriteColorReliable && (nitriteReferenceMatched
+        || nitriteEstimate.matchState === 'NEAR_REFERENCE');
+      const nitriteStatus = !nitriteColorReliable
+        ? 'NITRITE_IMAGE_QUALITY_INSUFFICIENT'
+        : nitriteEstimate.matchState === 'ABOVE_1_PPM'
+          ? 'ABOVE_1_PPM'
+        : nitriteQuantitativeAvailable
         ? (nitriteEstimate.matchState === 'NEAR_REFERENCE' ? 'NEAR_REFERENCE' : 'Estimated')
         : (nitriteEstimate.matchState === 'AMBIGUOUS'
           ? 'NITRITE_MEASUREMENT_UNRELIABLE'
@@ -234,14 +255,16 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
       return {
         pH: {
           value: phValue,
-          exactValue: phMatch.reference.exactValue,
+          exactValue: phReliable ? phMatch.reference.exactValue : null,
           unit: 'pH',
+          status: phStatus,
           measuredRGB: phStats.measuredRGB,
           measuredLab,
-          matchedReference: { label: phMatch.reference.label, lab: phMatch.reference.lab, source: phMatch.reference.source || 'client-lab-reference' },
-          deltaE00: phMatch.deltaE00,
-          reliabilityStatus: phMatch.reliabilityStatus,
-          rgbMatch: phMatch.rgbMatch ? {
+          matchedReference: phReliable ? { label: phMatch.reference.label, lab: phMatch.reference.lab, source: phMatch.reference.source || 'client-lab-reference' } : null,
+          matchMethod: phReliable && phMatch.rgbMatch ? 'direct-client-rgb-range' : 'ciede2000-lab-reference',
+          deltaE00: phMatch?.deltaE00 ?? null,
+          reliabilityStatus: phReliabilityStatus,
+          rgbMatch: phReliable && phMatch.rgbMatch ? {
             status: phMatch.rgbMatch.status,
             confidence: phMatch.rgbMatch.confidence,
             provisional: phMatch.rgbMatch.provisional,
@@ -251,7 +274,6 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
           roi: roiMetadata(phRoi, phStats, 'pH'),
         },
         nitrite: {
-          value: nitriteEstimate.value,
           unit: 'ppm',
           measuredRGB: nitriteStats.measuredRGB,
           hue: nitriteHsv.hue,
@@ -275,6 +297,11 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
           clamped: false,
           quantitativeAvailable: nitriteQuantitativeAvailable,
           status: nitriteStatus,
+          measuredColorReliable: nitriteColorReliable,
+          value: nitriteQuantitativeAvailable ? nitriteEstimate.value : null,
+          displayValue: nitriteQuantitativeAvailable ? nitriteEstimate.displayValue : null,
+          qualifier: nitriteQuantitativeAvailable ? nitriteEstimate.qualifier ?? null : null,
+          lowerBound: nitriteQuantitativeAvailable ? nitriteEstimate.lowerBound ?? null : null,
           roi: roiMetadata(nitriteRoi, nitriteStats, 'nitrite'),
           calibrationMetadata: {
             version: calibration.version,
@@ -305,7 +332,7 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
           phZoneDetected: true,
           overlay: { ...createUPadDiagnosticOverlay(registration), svg: buildUPadDiagnosticOverlaySvg(registration) },
         } : null,
-        remarks: `Color matching and discrete provisional Nitrite RGB reference matching were performed using client-provided references. HSV H/S/V are retained as diagnostics only; the analytical method requires experimental validation and is not a certified water-safety assessment. ${roiLocalizationStatus}. ${classification.reason || 'Approved classification limits are configured.'} ${nitriteQuantitativeAvailable ? '' : 'The Nitrite color is outside or ambiguous within the configured calibration references; no exact concentration is reported.'}`,
+        remarks: `The µPAD and its separate sensing areas were localized. Client-provided provisional references are not an analytically validated method. HSV H/S/V are retained as diagnostics only; results are not a certified water-safety assessment. ${roiLocalizationStatus}. ${classification.reason || 'Approved classification limits are configured.'} ${phReliable ? '' : 'pH is unavailable because a reliable provisional match could not be established.'} ${nitriteQuantitativeAvailable ? '' : 'Nitrite is unavailable because its color could not be reliably matched to the configured references.'}`,
       };
     },
   };

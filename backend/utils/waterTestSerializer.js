@@ -81,7 +81,9 @@ export function serializeWaterTest(record, authTokenService = null) {
     createdAt: record.createdAt,
     resultData: {
       pH: typeof pH === 'number' ? pH.toFixed(2) : pH || 'Unavailable',
-      Nitrite: nitrite.value == null ? 'Unavailable' : `${Number(nitrite.value).toFixed(2)} ppm`,
+      Nitrite: typeof nitrite.displayValue === 'string' && nitrite.displayValue.trim()
+        ? nitrite.displayValue
+        : (nitrite.value == null ? 'Unavailable' : `${Number(nitrite.value).toFixed(2)} ppm`),
       'Measured Parameters Status': record.measuredParametersStatus || 'Not classified',
       'Scientific Validation': record.scientificValidationStatus || 'Pending laboratory validation',
     },

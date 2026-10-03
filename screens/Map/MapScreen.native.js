@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import * as Location from 'expo-location';
-import MapView, { Callout, Marker } from 'react-native-maps';
+import MapView, { Callout, Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useAuth } from '../../context/AuthContext';
 import { COLORS, RADII, SHADOWS, SPACING } from '../../styles/theme';
 import { filterValidMapMarkers, normalizeMapCoordinate, safeMapFeed } from '../../services/apiMappers';
@@ -91,7 +91,7 @@ export default function MapScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <View style={styles.mapBoard}>
-        <MapView style={styles.map} initialRegion={region}>
+        <MapView provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined} style={styles.map} initialRegion={region}>
           {userLocation ? <Marker coordinate={userLocation} title="Your location" description="Current position" pinColor="#2E86AB" /> : null}
           {markers.map((marker) => (
             <Marker key={marker.id} coordinate={marker.coordinate} title={marker.title} description={marker.description} pinColor={marker.pinColor}>

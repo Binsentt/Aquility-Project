@@ -95,6 +95,35 @@ test('real Android strip photo registers despite softened fiducial contours', as
   assert.equal(result.diagnostics.physicalPriorScore, null);
 });
 
+test('high-resolution client µPAD photo registers at its original phone resolution', async () => {
+  const image = await readFile(new URL('./fixtures/real-client-930-aw-1min.jpg', import.meta.url));
+  const { data, info } = await sharp(image).rotate().removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  const result = detectUPadRegistration(data, info.width, info.height, { debug: true });
+
+  assert.equal(info.width, 3048);
+  assert.equal(info.height, 4064);
+  assert.equal(result.status, 'REGISTERED');
+  assert.ok(result.candidates.square >= 1);
+  assert.ok(result.candidates.triangle >= 1);
+  assert.ok(result.nitrite.roi);
+  assert.ok(result.pH.roi);
+  assert.notDeepEqual(result.nitrite.roi, result.pH.roi);
+});
+
+test('landscape client µPAD with reacted color zones registers without perfect fiducial contours', async () => {
+  const image = await readFile(new URL('./fixtures/real-client-930-c-fs-landscape.jpg', import.meta.url));
+  const { data, info } = await sharp(image).rotate().removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  const result = detectUPadRegistration(data, info.width, info.height, { debug: true });
+
+  assert.equal(info.width, 4064);
+  assert.equal(info.height, 3048);
+  assert.equal(result.status, 'REGISTERED');
+  assert.ok(result.square.center.x < result.nitrite.center.x);
+  assert.ok(result.nitrite.center.x < result.pH.center.x);
+  assert.ok(result.pH.center.x < result.triangle.center.x);
+  assert.notDeepEqual(result.nitrite.roi, result.pH.roi);
+});
+
 test('registration preserves zone assignment through rotation and scale changes', async () => {
   for (const transform of ['rotate180', 'rotate90', 'rotate270', 'resize50', 'resize75', 'resize150']) {
     const { data, info } = await rawSvg(templateSvg(), transform);
@@ -227,24 +256,22 @@ test('random objects and incomplete reference pairs are rejected before analysis
   }
 });
 
-test('analysis uses registered circle ROIs and remains fail-closed without a pH threshold', async () => {
+test('real client µPAD reaches a completed result when pH reliability is not configured', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'aquility-upad-engine-'));
-  const imagePath = join(directory, 'registered.png');
-  const { data, info } = await rawSvg(templateSvg());
-  await sharp(data, { raw: { width: info.width, height: info.height, channels: 3 } }).png().toFile(imagePath);
-  const diagnostics = [];
+  const imagePath = join(directory, 'client-real.jpg');
+  const clientPhoto = await readFile(new URL('./fixtures/real-client-930-aw-1min.jpg', import.meta.url));
+  await sharp(clientPhoto).toFile(imagePath);
 
   try {
-    await assert.rejects(
-      () => createColorAnalysisEngine().analyze({
-        imagePath,
-        debugLogger: (stage, details) => diagnostics.push({ stage, details }),
-      }),
-      { code: 'PH_MEASUREMENT_UNRELIABLE', status: 422 },
-    );
-    const registration = diagnostics.find(({ stage }) => stage === 'upad-registration');
-    assert.equal(registration.details.status, 'REGISTERED');
-    assert.ok(registration.details.overlay.labels.some(({ label }) => label === 'NITRITE ZONE'));
+    const result = await createColorAnalysisEngine().analyze({ imagePath });
+
+    assert.equal(result.scanStatus, 'Completed');
+    assert.equal(result.registration.status, 'REGISTERED');
+    assert.equal(result.pH.value, null);
+    assert.equal(result.phStatus, 'PH_MEASUREMENT_UNRELIABLE');
+    assert.ok(result.nitrite.roi);
+    assert.ok(result.pH.roi);
+    assert.notDeepEqual(result.nitrite.roi.normalized, result.pH.roi.normalized);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

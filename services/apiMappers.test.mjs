@@ -62,6 +62,30 @@ test('Result screen contract displays backend-returned pH and Nitrite values', (
   assert.doesNotMatch(JSON.stringify(scan.resultData), /undefined|NaN|null ppm/);
 });
 
+test('Result and History preserve a qualified >1 ppm Nitrite display without inventing a number', () => {
+  const scan = toScanResult({
+    analysisId: 'qualified-nitrite-scan',
+    pH: 2,
+    nitrite: {
+      value: null,
+      unit: 'ppm',
+      status: 'ABOVE_1_PPM',
+      matchState: 'ABOVE_1_PPM',
+      displayValue: '>1 ppm',
+      qualifier: '>',
+      lowerBound: 1,
+    },
+    resultData: { pH: '2.00', Nitrite: '>1 ppm' },
+  }, 'https://aquality-api-production.up.railway.app/api');
+
+  assert.equal(scan.nitrite.value, null);
+  assert.equal(scan.nitrite.displayValue, '>1 ppm');
+  assert.equal(scan.nitrite.qualifier, '>');
+  assert.equal(scan.nitrite.lowerBound, 1);
+  assert.equal(scan.resultData.Nitrite, '>1 ppm');
+  assert.doesNotMatch(JSON.stringify(scan.resultData), /null ppm|NaN|undefined|1\.00 ppm/);
+});
+
 test('markerColorFor maps every backend safety class to a distinct map color', () => {
   assert.equal(markerColorFor('Safe'), '#22A06B');
   assert.equal(markerColorFor('Moderate'), '#D48A00');

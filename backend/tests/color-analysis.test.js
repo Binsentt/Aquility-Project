@@ -117,10 +117,10 @@ test('client pH 1-4 RGB ranges match provisional exact values from ROI medians',
   assert.equal(calibration.pH.clientRgbRanges[2].normalizedSourceOrder, 'min=113,max=116');
   assert.deepEqual(calibration.pH.clientRgbRanges[3].rgbRange, { r: [166, 167], g: [124, 127], b: [123, 127] });
   const expected = [
-    [168, 133, 122.5],
-    [173, 138, 133.5],
-    [169, 130.5, 114.5],
-    [166.5, 125.5, 125],
+    [168, 133, 122],
+    [173, 138, 133],
+    [169, 130, 115],
+    [166, 125, 125],
   ];
   expected.forEach((rgb, index) => {
     const match = matchPHClientRgbRange(rgb, calibration.pH.clientRgbRanges, { tolerance: 8 });
@@ -175,6 +175,35 @@ test('analysis returns provisional pH 1-4 values only when the registered ROI ma
   }
 });
 
+test('an exact client pH 1-4 RGB match is independent of the unset Lab threshold', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'aquility-client-ph-threshold-'));
+  const imagePath = join(directory, 'pH-1-no-lab-threshold.png');
+  const pixels = Buffer.alloc(20 * 20 * 3);
+  for (let y = 0; y < 20; y += 1) {
+    for (let x = 0; x < 20; x += 1) {
+      pixels.set(x < 10 ? [168, 133, 122] : [190, 172, 187], (y * 20 + x) * 3);
+    }
+  }
+  await sharp(pixels, { raw: { width: 20, height: 20, channels: 3 } }).png().toFile(imagePath);
+  try {
+    const calibration = configuredCalibration(await readBaseCalibration());
+    calibration.pH.maxDeltaE00 = null;
+    const result = await createColorAnalysisEngine({
+      readJson: async () => calibration,
+      allowDeveloperRoiFixture: true,
+    }).analyze({ imagePath });
+
+    assert.equal(result.scanStatus, 'Completed');
+    assert.equal(result.pH.value, 1);
+    assert.equal(result.pH.exactValue, 1);
+    assert.equal(result.pH.rgbMatch.status, 'EXACT_IN_RANGE');
+    assert.equal(result.pH.reliabilityStatus, 'CLIENT_RGB_RANGE_MATCH');
+    assert.equal(result.nitrite.value, 0.5);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test('analysis uses the registered Nitrite ROI and direct RGB classes', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'aquility-direct-nitrite-'));
   const imagePath = join(directory, 'nitrite-05.png');
@@ -218,22 +247,98 @@ test('RGB to HSV extracts pink hue for the Griess nitrite response', () => {
   assert.ok(Math.abs(rgbToHsv([255, 127.5, 63.75]).hue - 20) < 0.001);
 });
 
-test('direct Nitrite RGB calibration matches only the three supplied provisional classes', async () => {
+test('direct Nitrite RGB calibration includes client 0, 0.5, 1, and qualified >1 ppm classes', async () => {
   const calibration = await readBaseCalibration();
   assert.equal(calibration.nitrite.source, 'CLIENT_DIRECT_NITRITE_RGB');
   assert.equal(calibration.nitrite.unit, 'ppm');
   assert.equal(calibration.nitrite.provisional, true);
   assert.equal(calibration.nitrite.huePoints, undefined);
   assert.equal(calibration.nitrite.ppmValues, undefined);
-  assert.equal(calibration.nitrite.references.length, 3);
-  const expected = [[183, 172, 180], [190, 172, 187.5], [202, 183, 182]];
-  expected.forEach((rgb, index) => {
+  assert.equal(calibration.nitrite.references.length, 4);
+  const expected = [
+    { rgb: [183, 172, 180], matchState: 'EXACT_OR_IN_RANGE', value: 0, displayValue: '0 ppm' },
+    { rgb: [190, 172, 187], matchState: 'EXACT_OR_IN_RANGE', value: 0.5, displayValue: '0.5 ppm' },
+    { rgb: [202, 183, 182], matchState: 'EXACT_OR_IN_RANGE', value: 1, displayValue: '1 ppm' },
+    { rgb: [197, 179, 195], matchState: 'ABOVE_1_PPM', value: null, displayValue: '>1 ppm' },
+  ];
+  expected.forEach(({ rgb, matchState, value, displayValue }) => {
     const match = matchNitriteClientRgbRange(rgb, calibration.nitrite.references);
-    assert.equal(match.matchState, 'EXACT_OR_IN_RANGE');
-    assert.equal(match.reference.value, [0, 0.5, 1][index]);
+    assert.equal(match.matchState, matchState);
+    assert.equal(match.value, value);
+    assert.equal(match.displayValue, displayValue);
     assert.equal(match.provisional, true);
     assert.equal(match.unit, 'ppm');
   });
+});
+
+test('Nitrite >1 interval wins by complete RGB vector and never returns exact 1 ppm', async () => {
+  const calibration = await readBaseCalibration();
+  const references = calibration.nitrite.references;
+  const aboveOne = matchNitriteClientRgbRange([197, 179, 195], references);
+  const exactOne = matchNitriteClientRgbRange([197, 179, 192], references);
+
+  assert.equal(aboveOne.matchState, 'ABOVE_1_PPM');
+  assert.equal(aboveOne.value, null);
+  assert.equal(aboveOne.displayValue, '>1 ppm');
+  assert.equal(aboveOne.qualifier, '>');
+  assert.equal(aboveOne.lowerBound, 1);
+  assert.equal(exactOne.matchState, 'EXACT_OR_IN_RANGE');
+  assert.equal(exactOne.value, 1);
+  assert.equal(exactOne.displayValue, '1 ppm');
+});
+
+test('exact low-saturation client Nitrite reference is accepted from the measured ROI', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'aquility-direct-nitrite-zero-'));
+  const imagePath = join(directory, 'nitrite-zero.png');
+  const pixels = Buffer.alloc(20 * 20 * 3);
+  for (let y = 0; y < 20; y += 1) {
+    for (let x = 0; x < 20; x += 1) {
+      pixels.set(x < 10 ? [168, 133, 122] : [183, 172, 180], (y * 20 + x) * 3);
+    }
+  }
+  await sharp(pixels, { raw: { width: 20, height: 20, channels: 3 } }).png().toFile(imagePath);
+  try {
+    const result = await createColorAnalysisEngine({
+      readJson: async () => configuredCalibration(await readBaseCalibration()),
+      allowDeveloperRoiFixture: true,
+    }).analyze({ imagePath });
+
+    assert.equal(result.scanStatus, 'Completed');
+    assert.deepEqual(result.nitrite.measuredRGB, [183, 172, 180]);
+    assert.equal(result.nitrite.matchState, 'EXACT_OR_IN_RANGE');
+    assert.equal(result.nitrite.value, 0);
+    assert.equal(result.nitrite.displayValue, '0 ppm');
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('engine reports the >1 ppm client class from the measured Nitrite ROI without exact numeric output', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'aquality-nitrite-above-one-'));
+  const imagePath = join(directory, 'nitrite-above-one.png');
+  const pixels = Buffer.alloc(20 * 20 * 3);
+  for (let y = 0; y < 20; y += 1) {
+    for (let x = 0; x < 20; x += 1) {
+      pixels.set(x < 10 ? [168, 133, 122] : [197, 179, 195], (y * 20 + x) * 3);
+    }
+  }
+  await sharp(pixels, { raw: { width: 20, height: 20, channels: 3 } }).png().toFile(imagePath);
+  try {
+    const result = await createColorAnalysisEngine({
+      readJson: async () => configuredCalibration(await readBaseCalibration()),
+      allowDeveloperRoiFixture: true,
+    }).analyze({ imagePath });
+
+    assert.equal(result.scanStatus, 'Completed');
+    assert.deepEqual(result.nitrite.measuredRGB, [197, 179, 195]);
+    assert.equal(result.nitrite.value, null);
+    assert.equal(result.nitrite.matchState, 'ABOVE_1_PPM');
+    assert.equal(result.nitrite.displayValue, '>1 ppm');
+    assert.equal(result.nitrite.status, 'ABOVE_1_PPM');
+    assert.equal(result.nitrite.lowerBound, 1);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test('direct Nitrite RGB matching includes every supplied boundary', async () => {
@@ -245,13 +350,17 @@ test('direct Nitrite RGB matching includes every supplied boundary', async () =>
       for (const endpoint of reference.rgbRange[channel]) {
         const rgb = ['r', 'g', 'b'].map((name) => name === channel ? endpoint : midpoint(reference.rgbRange[name]));
         const match = matchNitriteClientRgbRange(rgb, calibration.nitrite.references);
-        assert.equal(match.matchState, 'EXACT_OR_IN_RANGE');
+        assert.equal(match.matchState, reference.qualifier === '>' ? 'ABOVE_1_PPM' : 'EXACT_OR_IN_RANGE');
         assert.equal(match.reference.value, reference.value);
+        if (reference.qualifier === '>') {
+          assert.equal(match.value, null);
+          assert.equal(match.displayValue, '>1 ppm');
+        }
         boundaryCount += 1;
       }
     }
   }
-  assert.equal(boundaryCount, 18);
+  assert.equal(boundaryCount, 24);
 });
 
 test('near, ambiguous, and outside Nitrite colors never invent a concentration', async () => {
@@ -396,7 +505,7 @@ test('gray/background sensing colors are rejected instead of becoming pH 8', asy
   }
 });
 
-test('valid ROIs still fail closed when no pH confidence threshold is configured', async () => {
+test('valid ROIs complete the scan with unavailable pH when no confidence threshold is configured', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'aquility-pH-threshold-'));
   const imagePath = join(directory, 'threshold-missing.png');
   const pixels = Buffer.alloc(20 * 20 * 3);
@@ -408,8 +517,7 @@ test('valid ROIs still fail closed when no pH confidence threshold is configured
   await sharp(pixels, { raw: { width: 20, height: 20, channels: 3 } }).png().toFile(imagePath);
 
   try {
-    await assert.rejects(
-      () => createColorAnalysisEngine({
+    const result = await createColorAnalysisEngine({
         readJson: async () => ({
           ...await readBaseCalibration(),
           roi: {
@@ -420,9 +528,14 @@ test('valid ROIs still fail closed when no pH confidence threshold is configured
           },
         }),
         allowDeveloperRoiFixture: true,
-      }).analyze({ imagePath }),
-      { code: 'PH_MEASUREMENT_UNRELIABLE', status: 422 },
-    );
+      }).analyze({ imagePath });
+
+    assert.equal(result.scanStatus, 'Completed');
+    assert.equal(result.pH.value, null);
+    assert.equal(result.phStatus, 'PH_MEASUREMENT_UNRELIABLE');
+    assert.equal(result.pH.reliabilityStatus, 'THRESHOLD_NOT_CONFIGURED');
+    assert.equal(result.nitrite.value, null);
+    assert.equal(result.nitriteStatus, 'NITRITE_OUTSIDE_CALIBRATION_RANGE');
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

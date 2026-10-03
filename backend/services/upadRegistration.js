@@ -717,7 +717,7 @@ export function detectUPadRegistration(pixels, imageWidth, imageHeight, options 
   const step = Math.max(1, Math.ceil(Math.max(imageWidth, imageHeight) / config.maxDetectionDimension));
   const minimumCandidateArea = Math.max(
     config.minimumFeatureArea,
-    Math.ceil(imageWidth * imageHeight * 0.0001),
+    Math.ceil(Math.ceil(imageWidth / step) * Math.ceil(imageHeight / step) * 0.00005),
   );
   const darkMask = makeMask(pixels, imageWidth, imageHeight, step, (red, green, blue) => luminance(red, green, blue) <= config.darkThreshold);
   const bodyCandidates = connectedComponents(darkMask.mask, darkMask.width, darkMask.height, { minArea: config.minimumBodyArea });
@@ -768,9 +768,12 @@ export function detectUPadRegistration(pixels, imageWidth, imageHeight, options 
   const shapes = deduplicateFeatureShapes([...brightShapes, ...darkShapes]);
 
   const squareCandidates = shapes
-    .filter((shape) => shape.corners >= 3 && shape.corners <= 12 && shape.aspectRatio <= 1.65 && shape.fillRatio >= 0.42)
+    .filter((shape) => shape.corners >= 3 && shape.corners <= 20 && shape.aspectRatio <= 1.65 && shape.fillRatio >= 0.42)
     .map((shape) => ({ ...shape, confidence: shapeConfidence(shape, 'square') }))
-    .filter((shape) => shape.confidence >= 0.45);
+    // Real phone images can fragment/soften a square's contour into more than
+    // twelve hull vertices. The paired triangle, ordered sensing zones, and
+    // template relation remain the joint acceptance gate.
+    .filter((shape) => shape.confidence >= 0.24);
   const triangleCandidates = shapes
     .filter((shape) => shape.corners >= 3 && shape.corners <= 20 && shape.corners !== 6
       && shape.aspectRatio <= 2.1 && shape.fillRatio >= 0.24

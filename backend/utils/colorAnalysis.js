@@ -290,10 +290,22 @@ export function matchNitriteClientRgbRange(measuredRGB, references, {
     if (exact.length > 1) return { ...base, matchState: 'AMBIGUOUS' };
   } else {
     const match = exact[0];
+    if (match.reference.qualifier === '>') {
+      return {
+        ...base,
+        ...match,
+        value: null,
+        displayValue: match.reference.displayValue || `>${match.reference.lowerBound} ppm`,
+        qualifier: match.reference.qualifier,
+        lowerBound: match.reference.lowerBound,
+        matchState: 'ABOVE_1_PPM',
+      };
+    }
     return {
       ...base,
       ...match,
       value: match.reference.value,
+      displayValue: match.reference.displayValue || `${match.reference.value} ppm`,
       matchState: 'EXACT_OR_IN_RANGE',
     };
   }
@@ -310,6 +322,7 @@ export function matchNitriteClientRgbRange(measuredRGB, references, {
     ...base,
     ...match,
     value: match.reference.value,
+    displayValue: match.reference.displayValue || `${match.reference.value} ppm`,
     matchState: 'NEAR_REFERENCE',
   };
 }

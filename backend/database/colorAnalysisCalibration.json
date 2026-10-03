@@ -98,6 +98,16 @@
         "sourceRgbRange": { "r": [193, 212], "g": [172, 194], "b": [173, 192] },
         "rgbRange": { "r": [193, 212], "g": [172, 194], "b": [173, 192] },
         "provenance": "CLIENT_DIRECT_NITRITE_RGB"
+      },
+      {
+        "label": ">1",
+        "value": null,
+        "displayValue": ">1 ppm",
+        "qualifier": ">",
+        "lowerBound": 1,
+        "sourceRgbRange": { "r": [196, 198], "g": [178, 180], "b": [194, 196] },
+        "rgbRange": { "r": [196, 198], "g": [178, 180], "b": [194, 196] },
+        "provenance": "CLIENT_DIRECT_NITRITE_RGB"
       }
     ],
     "outOfRange": "Return null with NITRITE_OUTSIDE_CALIBRATION_RANGE or NITRITE_MEASUREMENT_UNRELIABLE; never interpolate or clamp.",

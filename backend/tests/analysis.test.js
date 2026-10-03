@@ -216,6 +216,39 @@ test('water-test serialization retains pH color metadata and direct Nitrite RGB 
   });
 });
 
+test('qualified Nitrite values serialize as display text while exact numeric value stays null', () => {
+  const result = serializeWaterTest({
+    id: 'aquality-qualified-nitrite',
+    imagePath: '/uploads/strip.jpg',
+    estimatedPH: 2,
+    estimatedNitrite: null,
+    nitriteStatus: 'ABOVE_1_PPM',
+    analysisData: {
+      pH: { value: 2, exactValue: 2, measuredRGB: [173, 139, 123], status: 'Estimated' },
+      nitrite: {
+        value: null,
+        unit: 'ppm',
+        matchState: 'ABOVE_1_PPM',
+        displayValue: '>1 ppm',
+        qualifier: '>',
+        lowerBound: 1,
+        measuredRGB: [197, 179, 195],
+        status: 'ABOVE_1_PPM',
+      },
+    },
+    overallStatus: 'NOT CLASSIFIED',
+    remarks: 'Nitrite exceeded the supplied 1 ppm reference.',
+  });
+
+  assert.equal(result.nitrite.value, null);
+  assert.equal(result.nitrite.displayValue, '>1 ppm');
+  assert.equal(result.nitrite.qualifier, '>');
+  assert.equal(result.nitrite.lowerBound, 1);
+  assert.equal(result.resultData.Nitrite, '>1 ppm');
+  assert.equal(result.labComparison.Nitrite.labValue, null);
+  assert.doesNotMatch(JSON.stringify(result.resultData), /NaN|null ppm|undefined|1\.00 ppm/);
+});
+
 test('legacy Nitrate-only records do not serialize their concentration as Nitrite', () => {
   const result = serializeWaterTest({
     id: '3ec25331-d511-491f-a1b6-11670bc4a2d6',

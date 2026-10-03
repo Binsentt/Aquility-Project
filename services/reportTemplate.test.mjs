@@ -64,3 +64,49 @@ test('buildPdfHtml renders unavailable scientific values without null or NaN tex
   assert.match(html, /Nitrite:<\/strong> Unavailable/);
   assert.doesNotMatch(html, /NaN|null ppm|undefined/);
 });
+
+test('buildPdfHtml preserves the qualified Nitrite display text from the saved result', () => {
+  const html = buildPdfHtml({
+    test: {
+      resultData: { pH: '2.00', Nitrite: '>1 ppm' },
+      nitrite: { value: null, displayValue: '>1 ppm', qualifier: '>', lowerBound: 1 },
+      remarks: 'Nitrite is above the supplied 1 ppm reference.',
+    },
+  });
+
+  assert.match(html, /Nitrite:<\/strong> &gt;1 ppm/);
+  assert.doesNotMatch(html, /NaN|null ppm|undefined|1\.00 ppm/);
+});
+
+test('buildPdfHtml preserves saved sample identity, measurement statuses, ROI colors, and entered lab comparisons', () => {
+  const html = buildPdfHtml({
+    test: {
+      sampleCode: 'AA-03',
+      sampleNumber: 3,
+      sampleClass: 'AA',
+      siteName: 'Pawikan',
+      sourceType: 'Coastal water',
+      reactionTime: '1 minute',
+      capturedAt: '2026-10-03T03:11:55.000Z',
+      scanStatus: 'Completed',
+      phStatus: 'Estimated',
+      pHResult: { measuredRGB: [173, 139, 123], status: 'Estimated' },
+      nitrite: { measuredRGB: [197, 179, 195], displayValue: '>1 ppm', status: 'ABOVE_1_PPM' },
+      measuredParametersStatus: 'Not classified',
+      scientificValidationStatus: 'Pending laboratory validation',
+      labComparison: {
+        pH: { labValue: 8.21, absoluteDifference: 0.21, percentDifference: 2.56 },
+        Nitrite: { labValue: null, absoluteDifference: null, percentDifference: null },
+      },
+      resultData: { pH: '8.00', Nitrite: '>1 ppm' },
+      remarks: 'Provisional result.',
+    },
+  });
+
+  for (const value of [
+    'AA-03', 'Sample number', '1 minute', 'Scan Status', 'Completed',
+    'pH Status', 'Estimated', 'Nitrite Status', 'ABOVE_1_PPM',
+    '173, 139, 123', '197, 179, 195', 'Laboratory pH', '8.21', '0.21', '2.56',
+  ]) assert.ok(html.includes(value), `expected report to include ${value}`);
+  assert.doesNotMatch(html, /Copper|Cu²⁺|Cu2\+/i);
+});

@@ -1,0 +1,6 @@
+[
+  { "id": "square", "label": "Square", "kind": "fiducial", "shape": "square", "x": 0.12, "y": 0.5 },
+  { "id": "nitrite", "label": "Nitrite", "kind": "sensing-zone", "shape": "circle", "x": 0.34, "y": 0.5 },
+  { "id": "ph", "label": "pH", "kind": "sensing-zone", "shape": "circle", "x": 0.59, "y": 0.5 },
+  { "id": "triangle", "label": "Triangle", "kind": "fiducial", "shape": "triangle", "x": 0.82, "y": 0.5 }
+]
