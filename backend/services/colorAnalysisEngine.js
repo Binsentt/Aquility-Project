@@ -145,10 +145,6 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
       const clientRgbMatch = matchPHClientRgbRange(
         phStats.measuredRGB,
         calibration.pH?.clientRgbRanges,
-        {
-          tolerance: calibration.pH?.clientRgbTolerance ?? 8,
-          ambiguityMargin: calibration.pH?.clientRgbAmbiguityMargin ?? 0.2,
-        },
       );
       let phMatch = legacyLabMatch;
       if (clientRgbMatch) {
@@ -200,7 +196,6 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
       const nitriteEstimate = matchNitriteClientRgbRange(
         nitriteStats.measuredRGB,
         calibration.nitrite?.references,
-        calibration.nitrite?.matching,
       );
       const nitriteReferenceMatched = nitriteEstimate.matchState === 'EXACT_OR_IN_RANGE'
         || nitriteEstimate.matchState === 'ABOVE_1_PPM';
@@ -252,14 +247,13 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
       const phStatus = phReliable
         ? (phMatch.reference.exactValue == null ? 'EstimatedRange' : 'Estimated')
         : !phQuality.reliable ? 'IMAGE_QUALITY_INSUFFICIENT' : 'PH_MEASUREMENT_UNRELIABLE';
-      const nitriteQuantitativeAvailable = nitriteColorReliable && (nitriteReferenceMatched
-        || nitriteEstimate.matchState === 'NEAR_REFERENCE');
+      const nitriteQuantitativeAvailable = nitriteColorReliable && nitriteReferenceMatched;
       const nitriteStatus = !nitriteColorReliable
         ? 'NITRITE_IMAGE_QUALITY_INSUFFICIENT'
         : nitriteEstimate.matchState === 'ABOVE_1_PPM'
           ? 'ABOVE_1_PPM'
         : nitriteQuantitativeAvailable
-        ? (nitriteEstimate.matchState === 'NEAR_REFERENCE' ? 'NEAR_REFERENCE' : 'Estimated')
+        ? 'Estimated'
         : (nitriteEstimate.matchState === 'AMBIGUOUS'
           ? 'NITRITE_MEASUREMENT_UNRELIABLE'
           : 'NITRITE_OUTSIDE_CALIBRATION_RANGE');

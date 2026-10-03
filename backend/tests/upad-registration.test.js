@@ -7,12 +7,14 @@ import { join } from 'node:path';
 import { buildUPadDiagnosticOverlaySvg, detectUPadRegistration, UPAD_TEMPLATE } from '../services/upadRegistration.js';
 import { createColorAnalysisEngine } from '../services/colorAnalysisEngine.js';
 
-const templateSvg = ({ background = '#eeeeee', extra = '' } = {}) => `<svg xmlns="http://www.w3.org/2000/svg" width="500" height="100">
+const toHexColor = (rgb) => `#${rgb.map((channel) => Number(channel).toString(16).padStart(2, '0')).join('')}`;
+
+const templateSvg = ({ background = '#eeeeee', extra = '', nitriteColor = '#e79b8a', pHColor = '#79a8dc' } = {}) => `<svg xmlns="http://www.w3.org/2000/svg" width="500" height="100">
   <rect width="500" height="100" fill="${background}"/>
   <rect x="10" y="25" width="480" height="50" rx="12" fill="#111111"/>
   <rect x="48" y="43" width="14" height="14" fill="#ffffff"/>
-  <circle cx="106" cy="50" r="18" fill="#e79b8a"/>
-  <circle cx="202" cy="50" r="18" fill="#79a8dc"/>
+  <circle cx="106" cy="50" r="18" fill="${nitriteColor}"/>
+  <circle cx="202" cy="50" r="18" fill="${pHColor}"/>
   <polygon points="260,40 260,60 280,50" fill="#ffffff"/>
   ${extra}
 </svg>`;
@@ -105,6 +107,39 @@ test('client schematic registration detects square, triangle, and separate order
     < Math.hypot(result.nitrite.center.x - result.triangle.center.x, result.nitrite.center.y - result.triangle.center.y));
   assert.ok(Math.hypot(result.pH.center.x - result.triangle.center.x, result.pH.center.y - result.triangle.center.y)
     < Math.hypot(result.pH.center.x - result.square.center.x, result.pH.center.y - result.square.center.y));
+});
+
+test('registered production pipeline returns individual pH and Nitrite levels from their own sensing circles', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'aquality-registered-calibration-'));
+  const cases = [
+    { pH: 1, pHRgb: [168, 133, 122], nitriteRgb: [183, 172, 180], nitriteExpected: '0 ppm' },
+    { pH: 2, pHRgb: [173, 138, 133], nitriteRgb: [190, 172, 187], nitriteExpected: '0.5 ppm' },
+    { pH: 3, pHRgb: [169, 130, 115], nitriteRgb: [202, 183, 183], nitriteExpected: '1 ppm' },
+    { pH: 4, pHRgb: [166, 125, 125], nitriteRgb: [197, 179, 195], nitriteExpected: '>1 ppm' },
+  ];
+
+  try {
+    const engine = createColorAnalysisEngine();
+    for (const sample of cases) {
+      const imagePath = join(directory, `registered-pH-${sample.pH}.png`);
+      await sharp(Buffer.from(templateSvg({
+        nitriteColor: toHexColor(sample.nitriteRgb),
+        pHColor: toHexColor(sample.pHRgb),
+      }))).png().toFile(imagePath);
+      const result = await engine.analyze({ imagePath });
+
+      assert.equal(result.registration.status, 'REGISTERED');
+      assert.equal(result.pH.roi.zone, 'pH');
+      assert.equal(result.nitrite.roi.zone, 'nitrite');
+      assert.deepEqual(result.pH.measuredRGB, sample.pHRgb);
+      assert.deepEqual(result.nitrite.measuredRGB, sample.nitriteRgb);
+      assert.equal(result.pH.value, sample.pH);
+      assert.equal(result.nitrite.displayValue, sample.nitriteExpected);
+      assert.equal(result.measuredParametersStatus, 'Not classified');
+    }
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test('fiducials on a plain background do not register nonexistent sensing circles', async () => {

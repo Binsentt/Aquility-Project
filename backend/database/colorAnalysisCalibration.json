@@ -37,8 +37,6 @@
   "pH": {
     "method": "RGB median -> CIE Lab D65 -> nearest reference by CIEDE2000",
     "maxDeltaE00": null,
-    "clientRgbTolerance": 8,
-    "clientRgbAmbiguityMargin": 0.2,
     "reliabilityNote": "No client-approved pH acceptance threshold is available. Production analysis must remain unreliable until a provisional threshold is explicitly configured and validated against paired standards.",
     "references": [
       { "label": "0-4", "value": "0-4", "exactValue": null, "lab": [50.9, 66.5, 54.0] },
@@ -72,10 +70,8 @@
     "method": "Registered left Nitrite ROI median RGB -> discrete inclusive RGB-range matching",
     "provisional": true,
     "matching": {
-      "nearChannelTolerance": 8,
-      "nearDistance": 18,
-      "ambiguityDistance": 2,
-      "distanceMetric": "RGB Euclidean distance to interval midpoint; exact/in-range evaluated first"
+      "acceptance": "Inclusive client RGB intervals only; colors outside every interval are unavailable",
+      "distanceMetric": "RGB Euclidean distance to interval midpoint; diagnostic only"
     },
     "references": [
       {

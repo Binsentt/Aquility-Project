@@ -55,10 +55,6 @@ export async function generateCalibrationQaReport(imagePaths, {
       const pHClientMatch = matchPHClientRgbRange(
         result.pH?.measuredRGB,
         activeCalibration.pH?.clientRgbRanges,
-        {
-          tolerance: activeCalibration.pH?.clientRgbTolerance ?? 8,
-          ambiguityMargin: activeCalibration.pH?.clientRgbAmbiguityMargin ?? 0.2,
-        },
       );
       const pHLabMatch = matchPHReference(result.pH?.measuredLab, activeCalibration.pH?.references || []);
       const pHNearest = pHClientMatch

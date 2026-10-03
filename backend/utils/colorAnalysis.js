@@ -199,13 +199,10 @@ function normalizedRange(value) {
  * pH 1–4 are supplied as RGB intervals, while pH 0 has no individual client
  * reference and must never be invented.
  */
-export function matchPHClientRgbRange(measuredRGB, clientRgbRanges, {
-  tolerance = 8,
-  ambiguityMargin = 0.2,
-} = {}) {
+export function matchPHClientRgbRange(measuredRGB, clientRgbRanges) {
   if (!Array.isArray(measuredRGB) || measuredRGB.length !== 3
     || measuredRGB.some((channel) => !Number.isFinite(channel))) return null;
-  if (!Array.isArray(clientRgbRanges) || !Number.isFinite(tolerance) || tolerance <= 0) return null;
+  if (!Array.isArray(clientRgbRanges)) return null;
 
   const candidates = clientRgbRanges.map((reference) => {
     const ranges = ['r', 'g', 'b'].map((channel) => normalizedRange(reference?.rgbRange?.[channel]));
@@ -219,20 +216,18 @@ export function matchPHClientRgbRange(measuredRGB, clientRgbRanges, {
       ranges,
       distances,
       maxDistance: Math.max(...distances),
-      score: distances.reduce((sum, distance) => sum + distance / tolerance, 0),
     };
-  }).filter(Boolean).sort((left, right) => left.score - right.score);
+  }).filter(Boolean);
 
-  const best = candidates[0] || null;
-  if (!best || best.maxDistance > tolerance) return null;
-  const second = candidates[1];
-  if (second && Math.abs(second.score - best.score) < ambiguityMargin) return null;
+  const exactMatches = candidates.filter(({ maxDistance }) => maxDistance === 0);
+  if (exactMatches.length !== 1) return null;
+  const best = exactMatches[0];
 
   return {
     ...best,
-    status: best.maxDistance === 0 ? 'EXACT_IN_RANGE' : 'NEAR_RANGE',
+    status: 'EXACT_IN_RANGE',
     provisional: true,
-    confidence: Math.max(0, 1 - (best.score / 3)),
+    confidence: 1,
     normalizedRanges: best.ranges,
   };
 }
@@ -266,11 +261,7 @@ function rangeDistance(value, range) {
  * interpolation, extrapolation, or endpoint clamping without validated
  * calibration data.
  */
-export function matchNitriteClientRgbRange(measuredRGB, references, {
-  nearChannelTolerance = 8,
-  nearDistance = 18,
-  ambiguityDistance = 2,
-} = {}) {
+export function matchNitriteClientRgbRange(measuredRGB, references) {
   const invalid = !Array.isArray(measuredRGB) || measuredRGB.length !== 3
     || measuredRGB.some((channel) => !Number.isFinite(channel))
     || !Array.isArray(references);
@@ -327,19 +318,5 @@ export function matchNitriteClientRgbRange(measuredRGB, references, {
     };
   }
 
-  const near = candidates.filter(({ maxChannelDistance, distance }) => (
-    maxChannelDistance <= nearChannelTolerance && distance <= nearDistance
-  ));
-  if (!near.length) return { ...base, matchState: 'OUTSIDE_REFERENCE_SPACE' };
-  if (near.length > 1 && near[1].distance - near[0].distance <= ambiguityDistance) {
-    return { ...base, matchState: 'AMBIGUOUS', candidates: near };
-  }
-  const match = near[0];
-  return {
-    ...base,
-    ...match,
-    value: match.reference.value,
-    displayValue: match.reference.displayValue || `${match.reference.value} ppm`,
-    matchState: 'NEAR_REFERENCE',
-  };
+  return { ...base, matchState: 'OUTSIDE_REFERENCE_SPACE' };
 }

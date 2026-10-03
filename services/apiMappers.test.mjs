@@ -56,10 +56,12 @@ test('Result screen contract displays backend-returned pH and Nitrite values', (
     analysisId: 'backend-measured-values',
     pH: 7.25,
     nitrite: { value: 0.5, unit: 'ppm', status: 'Estimated' },
+    measuredParametersStatus: 'Not classified',
   }, 'https://aquality-api-production.up.railway.app/api');
 
   assert.equal(scan.resultData.pH, '7.25');
   assert.equal(scan.resultData.Nitrite, '0.50 ppm');
+  assert.equal(scan.resultData['Measured Parameters Status'], 'Awaiting approved limits');
   assert.doesNotMatch(JSON.stringify(scan.resultData), /undefined|NaN|null ppm/);
 });
 
@@ -149,6 +151,29 @@ test('measured but unmatched ROIs show a reference-match state instead of generi
   assert.deepEqual(scan.pHResult.measuredRGB, [141, 151, 115]);
   assert.deepEqual(scan.nitrite.measuredRGB, [161, 154, 144]);
   assert.doesNotMatch(JSON.stringify(scan.resultData), /NaN|null ppm|undefined/);
+});
+
+test('unmatched measured colors are not mislabeled as awaiting classification limits or exposed as diagnostics', () => {
+  const scan = toScanResult({
+    analysisId: 'unmatched-client-scan',
+    pH: null,
+    pHResult: { value: null, status: 'PH_MEASUREMENT_UNRELIABLE', measuredRGB: [150, 147, 123] },
+    nitrite: {
+      value: null,
+      unit: 'ppm',
+      status: 'NITRITE_OUTSIDE_CALIBRATION_RANGE',
+      measuredRGB: [155, 144, 120],
+    },
+    measuredParametersStatus: 'Not classified',
+    remarks: 'Separate µPAD sensing areas were localized. pH ROI RGB 150,147,123: no reliable reference match (THRESHOLD_NOT_CONFIGURED). Nitrite ROI RGB 155,144,120: no configured reference match (OUTSIDE_REFERENCE_SPACE).',
+  }, 'https://aquality-api-production.up.railway.app/api');
+
+  assert.equal(scan.resultData.pH, 'No reference match');
+  assert.equal(scan.resultData.Nitrite, 'No reference match');
+  assert.equal(scan.resultData['Measured Parameters Status'], 'No reference match');
+  assert.equal(scan.measuredParametersStatus, 'Not classified');
+  assert.equal(scan.summary, 'pH color did not match the configured reference levels. Nitrite color did not match the configured reference levels.');
+  assert.doesNotMatch(scan.summary, /150,147,123|155,144,120|THRESHOLD_NOT_CONFIGURED|OUTSIDE_REFERENCE_SPACE/);
 });
 
 test('toScanResult keeps both unavailable scientific values explicit', () => {

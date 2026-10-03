@@ -123,53 +123,76 @@ test('client pH 1-4 RGB ranges match provisional exact values from ROI medians',
     [166, 125, 125],
   ];
   expected.forEach((rgb, index) => {
-    const match = matchPHClientRgbRange(rgb, calibration.pH.clientRgbRanges, { tolerance: 8 });
+    const match = matchPHClientRgbRange(rgb, calibration.pH.clientRgbRanges);
     assert.equal(match.reference.value, index + 1);
     assert.equal(match.status, 'EXACT_IN_RANGE');
     assert.equal(match.provisional, true);
   });
   calibration.pH.clientRgbRanges.forEach((reference) => {
     const rgb = ['r', 'g', 'b'].map((channel) => reference.rgbRange[channel][0]);
-    assert.equal(matchPHClientRgbRange(rgb, calibration.pH.clientRgbRanges, { tolerance: 8 }).reference.value, reference.value);
+    assert.equal(matchPHClientRgbRange(rgb, calibration.pH.clientRgbRanges).reference.value, reference.value);
   });
   assert.equal(calibration.pH.references.find(({ label }) => label === '0-4').exactValue, null);
 });
 
 test('pH RGB range matching rejects unsupported pH 0 and ambiguous/unrelated colors', async () => {
   const calibration = await readBaseCalibration();
-  assert.equal(matchPHClientRgbRange([150, 120, 100], calibration.pH.clientRgbRanges, { tolerance: 2 }), null);
-  assert.equal(matchPHClientRgbRange([170.5, 135.5, 128], calibration.pH.clientRgbRanges, { tolerance: 8, ambiguityMargin: 0.8 }), null);
+  assert.equal(matchPHClientRgbRange([150, 120, 100], calibration.pH.clientRgbRanges), null);
+  assert.equal(matchPHClientRgbRange([170.5, 135.5, 128], calibration.pH.clientRgbRanges), null);
   assert.equal(calibration.pH.references.find(({ label }) => label === '0-4').exactValue, null);
   assert.equal(calibration.pH.references.find(({ label }) => label === '10-14').exactValue, null);
 });
 
-test('slightly outside pH RGB ranges are reported as provisional near matches', async () => {
+test('latest unmatched ROI colors and unlabeled client RGB samples do not force a calibration result', async () => {
   const calibration = await readBaseCalibration();
-  const match = matchPHClientRgbRange([170, 136, 124], calibration.pH.clientRgbRanges, { tolerance: 8 });
-  assert.equal(match.reference.value, 1);
-  assert.equal(match.status, 'NEAR_RANGE');
-  assert.equal(match.provisional, true);
+  const currentScan = {
+    pH: [150, 147, 123],
+    nitrite: [155, 144, 120],
+  };
+  assert.equal(matchPHClientRgbRange(currentScan.pH, calibration.pH.clientRgbRanges), null);
+  assert.equal(matchNitriteClientRgbRange(currentScan.nitrite, calibration.nitrite.references).matchState, 'OUTSIDE_REFERENCE_SPACE');
+
+  for (const unlabeledRgb of [[185, 188, 194], [180, 184, 188]]) {
+    assert.equal(matchPHClientRgbRange(unlabeledRgb, calibration.pH.clientRgbRanges), null);
+    assert.equal(matchNitriteClientRgbRange(unlabeledRgb, calibration.nitrite.references).matchState, 'OUTSIDE_REFERENCE_SPACE');
+  }
 });
 
-test('analysis returns provisional pH 1-4 values only when the registered ROI matches the client RGB ranges', async () => {
+test('pH colors just outside client RGB ranges remain unavailable without paired tolerance data', async () => {
+  const calibration = await readBaseCalibration();
+  const match = matchPHClientRgbRange([170, 136, 124], calibration.pH.clientRgbRanges);
+  assert.equal(match, null);
+});
+
+test('analysis returns each provisional pH 1-4 value only when the ROI is inside its client RGB range', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'aquility-client-ph-ranges-'));
-  const imagePath = join(directory, 'pH-1.png');
-  const pixels = Buffer.alloc(20 * 20 * 3);
-  for (let y = 0; y < 20; y += 1) {
-    for (let x = 0; x < 20; x += 1) {
-      pixels.set(x < 10 ? [168, 133, 123] : [255, 64, 64], (y * 20 + x) * 3);
-    }
-  }
-  await sharp(pixels, { raw: { width: 20, height: 20, channels: 3 } }).png().toFile(imagePath);
   try {
-    const result = await createColorAnalysisEngine({
+    const engine = createColorAnalysisEngine({
       readJson: async () => configuredCalibration(await readBaseCalibration()),
       allowDeveloperRoiFixture: true,
-    }).analyze({ imagePath });
-    assert.equal(result.pH.value, 1);
-    assert.equal(result.pH.exactValue, 1);
-    assert.equal(result.pH.rgbMatch.status, 'EXACT_IN_RANGE');
-    assert.equal(result.pH.matchedReference.source, 'client-rgb-range');
+    });
+    const references = [
+      { value: 1, rgb: [168, 133, 122] },
+      { value: 2, rgb: [173, 138, 133] },
+      { value: 3, rgb: [169, 130, 115] },
+      { value: 4, rgb: [166, 125, 125] },
+    ];
+    for (const reference of references) {
+      const imagePath = join(directory, `pH-${reference.value}.png`);
+      const pixels = Buffer.alloc(20 * 20 * 3);
+      for (let y = 0; y < 20; y += 1) {
+        for (let x = 0; x < 20; x += 1) {
+          pixels.set(x < 10 ? reference.rgb : [190, 172, 187], (y * 20 + x) * 3);
+        }
+      }
+      await sharp(pixels, { raw: { width: 20, height: 20, channels: 3 } }).png().toFile(imagePath);
+      const result = await engine.analyze({ imagePath });
+      assert.equal(result.pH.value, reference.value);
+      assert.equal(result.pH.exactValue, reference.value);
+      assert.equal(result.pH.rgbMatch.status, 'EXACT_IN_RANGE');
+      assert.equal(result.pH.matchedReference.source, 'client-rgb-range');
+      assert.equal(result.measuredParametersStatus, 'Not classified');
+    }
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
@@ -199,6 +222,7 @@ test('an exact client pH 1-4 RGB match is independent of the unset Lab threshold
     assert.equal(result.pH.rgbMatch.status, 'EXACT_IN_RANGE');
     assert.equal(result.pH.reliabilityStatus, 'CLIENT_RGB_RANGE_MATCH');
     assert.equal(result.nitrite.value, 0.5);
+    assert.equal(result.measuredParametersStatus, 'Not classified');
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
@@ -392,15 +416,15 @@ test('direct Nitrite RGB matching includes every supplied boundary', async () =>
 
 test('near, ambiguous, and outside Nitrite colors never invent a concentration', async () => {
   const calibration = await readBaseCalibration();
-  const near = matchNitriteClientRgbRange([185, 174, 183], calibration.nitrite.references, { nearChannelTolerance: 8, nearDistance: 18 });
-  assert.equal(near.matchState, 'NEAR_REFERENCE');
-  assert.equal(near.reference.value, 0);
+  const near = matchNitriteClientRgbRange([185, 174, 183], calibration.nitrite.references);
+  assert.equal(near.matchState, 'OUTSIDE_REFERENCE_SPACE');
+  assert.equal(near.value, null);
 
-  const ambiguous = matchNitriteClientRgbRange([186.5, 172, 183.75], calibration.nitrite.references, { nearChannelTolerance: 8, nearDistance: 18, ambiguityDistance: 2 });
-  assert.equal(ambiguous.matchState, 'AMBIGUOUS');
+  const ambiguous = matchNitriteClientRgbRange([186.5, 172, 183.75], calibration.nitrite.references);
+  assert.equal(ambiguous.matchState, 'OUTSIDE_REFERENCE_SPACE');
   assert.equal(ambiguous.value, null);
 
-  for (const rgb of [[255, 0, 0], [0, 255, 0], [0, 0, 255], [20, 20, 20], [255, 255, 255]]) {
+  for (const rgb of [[255, 0, 0], [255, 64, 64], [255, 0, 255], [0, 255, 0], [0, 0, 255], [20, 20, 20], [255, 255, 255]]) {
     const match = matchNitriteClientRgbRange(rgb, calibration.nitrite.references);
     assert.equal(match.matchState, 'OUTSIDE_REFERENCE_SPACE');
     assert.equal(match.value, null);

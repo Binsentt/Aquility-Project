@@ -10,8 +10,13 @@ export function resolveMediaUrl(path, apiBaseUrl) {
   return `${apiBaseOrigin(apiBaseUrl)}${path.startsWith('/') ? path : `/${path}`}`;
 }
 
-export function displayMeasuredParametersStatus(status) {
-  return status === 'Not classified' ? 'Awaiting approved limits' : (status || 'Awaiting approved limits');
+export function displayMeasuredParametersStatus(status, {
+  hasMeasuredResult = true,
+  hasMeasuredColor = false,
+} = {}) {
+  if (status && status !== 'Not classified') return status;
+  if (hasMeasuredResult) return 'Awaiting approved limits';
+  return hasMeasuredColor ? 'No reference match' : 'Unavailable';
 }
 
 function finiteMeasurement(value) {
@@ -32,10 +37,19 @@ export function pHCategoryFor(value) {
 
 export function cleanClientRemarks(value) {
   const remarks = typeof value === 'string' ? value : '';
-  if (/client-provided provisional references|provisional client reference colors|analytically validated method|HSV H\/S\/V|scientific (?:validation|comparison)|laboratory (?:comparison|validation)|certified water-safety/i.test(remarks)) {
+  if (/client-provided provisional references|provisional client reference colors|analytically validated method|HSV H\/S\/V|scientific (?:validation|comparison)|laboratory (?:comparison|validation)|certified water-safety|\b(?:pH|Nitrite) ROI RGB|THRESHOLD_NOT_CONFIGURED|OUTSIDE_REFERENCE_SPACE|PH_MEASUREMENT_UNRELIABLE|NITRITE_OUTSIDE_CALIBRATION_RANGE/i.test(remarks)) {
     return 'Separate µPAD sensing areas were localized. Results are shown only when a configured reference matches.';
   }
   return remarks;
+}
+
+function clientResultSummary(remarks, pHDisplay, nitriteDisplay) {
+  const noMatchMessages = [];
+  if (pHDisplay === 'No reference match') noMatchMessages.push('pH color did not match the configured reference levels.');
+  if (nitriteDisplay === 'No reference match') noMatchMessages.push('Nitrite color did not match the configured reference levels.');
+  if (noMatchMessages.length) return noMatchMessages.join(' ');
+
+  return cleanClientRemarks(remarks) || 'Water test result received from the AQUALITY backend.';
 }
 
 export function toApiProfile(payload = {}) {
@@ -83,11 +97,17 @@ export function toScanResult(waterTest = {}, apiBaseUrl) {
     && value.measuredRGB.length === 3
     && value.measuredRGB.every((channel) => Number.isFinite(Number(channel)));
   const pHDisplay = typeof pH === 'number' ? pH.toFixed(2) : (hasMeasuredRgb(pHResult) ? 'No reference match' : 'Unavailable');
-  const nitriteDisplay = typeof waterTest.nitrite?.displayValue === 'string' && waterTest.nitrite.displayValue.trim()
+  const nitriteHasDisplayValue = typeof waterTest.nitrite?.displayValue === 'string' && waterTest.nitrite.displayValue.trim().length > 0;
+  const nitriteDisplay = nitriteHasDisplayValue
     ? waterTest.nitrite.displayValue
     : (Number.isFinite(nitriteValue) ? `${nitriteValue.toFixed(2)} ${waterTest.nitrite?.unit || 'ppm'}` : (hasMeasuredRgb(waterTest.nitrite) ? 'No reference match' : 'Unavailable'));
-  const summary = cleanClientRemarks(waterTest.remarks || waterTest.summary)
-    || 'Water test result received from the AQUALITY backend.';
+  const hasMeasuredResult = pH != null || nitriteValue != null || nitriteHasDisplayValue;
+  const hasMeasuredColor = hasMeasuredRgb(pHResult) || hasMeasuredRgb(waterTest.nitrite);
+  const measuredParametersDisplayStatus = displayMeasuredParametersStatus(measuredParametersStatus, {
+    hasMeasuredResult,
+    hasMeasuredColor,
+  });
+  const summary = clientResultSummary(waterTest.remarks || waterTest.summary, pHDisplay, nitriteDisplay);
 
   return {
     id: waterTest.analysisId || waterTest.id,
@@ -98,7 +118,7 @@ export function toScanResult(waterTest = {}, apiBaseUrl) {
     scanStatus: waterTest.scanStatus || (persisted ? 'Completed' : 'Pending'),
     analysisStatus: waterTest.analysisStatus || (persisted ? 'Completed' : 'Pending'),
     measuredParametersStatus,
-    measuredParametersDisplayStatus: displayMeasuredParametersStatus(measuredParametersStatus),
+    measuredParametersDisplayStatus,
     roiLocalizationStatus: waterTest.roiLocalizationStatus || 'STRIP REGISTRATION REQUIRED',
     warnings: [],
     recommendations: [],
@@ -123,7 +143,7 @@ export function toScanResult(waterTest = {}, apiBaseUrl) {
       pH: pHDisplay,
       ...(pHCategory ? { 'pH Category': pHCategory } : {}),
       Nitrite: nitriteDisplay,
-      'Measured Parameters Status': displayMeasuredParametersStatus(measuredParametersStatus),
+      'Measured Parameters Status': measuredParametersDisplayStatus,
     },
     pH,
     pHCategory,
