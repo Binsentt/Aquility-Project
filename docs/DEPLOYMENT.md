@@ -101,12 +101,12 @@ the Expo root environment.
 - [ ] Captured images are accessible only through a fresh signed URL or owner bearer token.
 - [ ] Map feed is anonymous and contains only marker fields.
 - [ ] Scanner saves image, GPS/location, and result; History and owned detail reload from the API.
-- [ ] PDF and PNG exports are created from a freshly fetched backend record.
+- [ ] PDF and PNG exports are created from a freshly fetched backend record; on Android, the user selects a destination through the Storage Access Framework and success is reported only after a non-empty file is verified there.
 - [ ] Android bundle succeeds and physical-device capture, GPS, sharing, and permissions have been checked.
 - [ ] Real calibration formulas/reference data have been supplied and validated before any health claim is presented as laboratory-certified.
 
 ## Remaining client inputs
 
-The client must supply the production `DATABASE_URL`, deployment host/TLS configuration, retention/privacy policy for captured images and GPS data, the physical µPAD geometry/reference point and separate pH/Nitrite detection zones, and paired experimental calibration/validation before relying on analytical performance. Until the geometry is configured, the active engine rejects image analysis with `STRIP_REGISTRATION_FAILED`; it never uses a central crop. Once configured, the engine performs image-based pH and direct client-RGB Nitrite class matching for 0, 0.5, and 1 ppm only. Historical Nitrate-after-reduction metadata is not active Nitrite calibration. The implementation does not claim scientific validation.
+The client must supply approved retention/privacy policy for captured images and GPS data, paired experimental calibration/validation, an approved pH Lab-match threshold or sufficient additional paired pH references, and exact Nitrite Safe/Warning/Dangerous thresholds before analytical classification or performance claims. The supplied physical schematic is already configured: the detector uses the square and right-pointing triangle fiducials plus two distinct template-relative circular zones in `square -> Nitrite -> pH -> triangle` order; no center-crop fallback is used. All four currently checked-in real µPAD photos register, but their pH and Nitrite ROI colors fall outside the current supported references, so results remain unavailable (see [`IMAGE_ANALYSIS.md`](IMAGE_ANALYSIS.md)). Active Nitrite references are the client-provided discrete RGB classes 0, 0.5, 1, and qualified `>1 ppm`; historical Nitrate-after-reduction metadata is not active Nitrite calibration. The implementation does not claim scientific validation. Android Save PDF/Save Image destinations and file visibility still require physical-device acceptance.
 
 For local client installation and daily startup commands, see [`../CLIENT_SETUP.md`](../CLIENT_SETUP.md). For the implemented image pipeline and normalized ROI configuration, see [`IMAGE_ANALYSIS.md`](IMAGE_ANALYSIS.md).

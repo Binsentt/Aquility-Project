@@ -10,6 +10,8 @@ const historyDetail = readFileSync(new URL('../screens/History/HistoryDetailScre
 test('Result, History Detail, and PDF use the same persisted pH category and qualified Nitrite display', () => {
   const record = toScanResult({
     id: 'paired-result',
+    sampleClass: 'C',
+    sampleCode: 'C-01',
     pH: 7,
     nitrite: { value: null, displayValue: '>1 ppm', qualifier: '>', lowerBound: 1 },
   }, 'https://api.example.test/api');
@@ -17,11 +19,18 @@ test('Result, History Detail, and PDF use the same persisted pH category and qua
 
   assert.match(resultScreen, /'pH Category'/);
   assert.match(historyDetail, /'pH Category'/);
+  assert.match(resultScreen, /sampleCode/);
+  assert.match(historyDetail, /sampleCode/);
   assert.equal(record.resultData.pH, '7.00');
   assert.equal(record.resultData['pH Category'], 'Neutral');
   assert.equal(record.resultData.Nitrite, '>1 ppm');
+  assert.equal(record.sampleClass, 'SB');
+  assert.equal(record.sampleCode, 'SB-01');
   assert.match(pdf, /pH:<\/strong> 7\.00/);
   assert.match(pdf, /pH Category:<\/strong> Neutral/);
   assert.match(pdf, /Nitrite:<\/strong> &gt;1 ppm/);
+  assert.match(pdf, /Sample code:<\/strong> SB-01/);
+  assert.match(pdf, /Sample class:<\/strong> SB/);
   assert.doesNotMatch(pdf, /Safe|Warning|Dangerous/);
+  assert.doesNotMatch(pdf, /undefined|NaN/);
 });

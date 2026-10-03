@@ -4,7 +4,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { COLORS, LAYOUT, RADII, SHADOWS, SIZES, SPACING } from '../../styles/theme';
-import { createPdfExport, createPngExport, shareExportFile } from '../../services/exportService';
+import { savePdfExport, savePngExport, exportOutcomeNotice } from '../../services/exportService';
 import { toSafeExportMessage } from '../../services/exportErrors';
 import { loadBackendWaterTest } from '../../services/waterTestRecordService';
 import { cleanClientRemarks, displayMeasuredParametersStatus } from '../../services/apiMappers';
@@ -99,17 +99,17 @@ export default function HistoryDetailScreen({ route, navigation }) {
       const record = await loadBackendWaterTest(item.id);
 
       if (type === 'pdf') {
-        const exported = await createPdfExport({ ...record, user: record.user || currentUser, generatedAt: createdAt });
-        await shareExportFile(exported.uri, 'AQUALITY scan result exported as PDF.');
-        Alert.alert('PDF export shared', 'The PDF report was generated and shared successfully.');
+        const outcome = await savePdfExport({ ...record, user: record.user || currentUser, generatedAt: createdAt });
+        const notice = exportOutcomeNotice('PDF', outcome);
+        if (notice) Alert.alert(notice.title, notice.message);
         return;
       }
 
       const backendImageUri = record.imageUri || record.image || record.uri || record.images?.[0];
       if (type === 'image' && backendImageUri) {
-        const exported = await createPngExport(backendImageUri);
-        await shareExportFile(exported.uri, 'AQUALITY scan image exported.');
-        Alert.alert('PNG export shared', 'The image export was generated and shared successfully.');
+        const outcome = await savePngExport(backendImageUri, record);
+        const notice = exportOutcomeNotice('Image', outcome);
+        if (notice) Alert.alert(notice.title, notice.message);
         return;
       }
 

@@ -172,9 +172,12 @@ function shapeConfidence(shape, expected) {
   if (expected === 'square') {
     const cornerScore = 1 - Math.min(1, Math.abs(shape.corners - 4) / 5);
     const aspectScore = 1 - Math.min(1, Math.abs(shape.aspectRatio - 1) / 0.7);
-    const fillScore = clamp((shape.fillRatio - 0.45) / 0.45, 0, 1);
+    // A real triangle can also approximate to 6–9 contour vertices on phone
+    // images. Prefer the square's filled bounding-box evidence so it is not
+    // assigned as a triangle merely because its softened contour is noisier.
+    const fillScore = clamp((shape.fillRatio - 0.6) / 0.35, 0, 1);
     const circularPenalty = clamp((shape.circularity - 0.92) / 0.1, 0, 1);
-    return clamp(0.45 * cornerScore + 0.35 * aspectScore + 0.2 * fillScore - 0.25 * circularPenalty, 0, 1);
+    return clamp(0.25 * cornerScore + 0.25 * aspectScore + 0.5 * fillScore - 0.25 * circularPenalty, 0, 1);
   }
   if (expected === 'triangle') {
     const cornerScore = shape.corners >= 6 && shape.corners <= 9 && shape.circularity < 0.95
@@ -775,7 +778,7 @@ export function detectUPadRegistration(pixels, imageWidth, imageHeight, options 
     // template relation remain the joint acceptance gate.
     .filter((shape) => shape.confidence >= 0.24);
   const triangleCandidates = shapes
-    .filter((shape) => shape.corners >= 3 && shape.corners <= 20 && shape.corners !== 6
+    .filter((shape) => shape.corners >= 3 && shape.corners <= 20
       && shape.aspectRatio <= 2.1 && shape.fillRatio >= 0.24
       && !(shape.circularity > 0.92 && shape.fillRatio > 0.8)
       && (shape.corners <= 8 || shape.circularity < 0.95))

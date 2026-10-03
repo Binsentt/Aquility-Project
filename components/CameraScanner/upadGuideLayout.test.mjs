@@ -27,3 +27,11 @@ test('camera overlay draws a soft µPAD silhouette with a tapered shoulder and n
   assert.match(source, /styles\.padHandle/);
   assert.doesNotMatch(source, /onPress|registration|ROI|detector/i);
 });
+
+test('scanner guide uses a right-facing triangle while preserving the soft landmark order', async () => {
+  const source = await readFile(new URL('./ScannerOverlay.js', import.meta.url), 'utf8');
+  assert.match(source, /▶/);
+  assert.doesNotMatch(source, /▲/);
+  assert.deepEqual(UPAD_GUIDE_LANDMARKS.map(({ id }) => id), ['square', 'nitrite', 'ph', 'triangle']);
+  assert.match(source, /pointerEvents="none"/);
+});

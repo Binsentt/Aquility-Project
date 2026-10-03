@@ -110,6 +110,27 @@ test('high-resolution client µPAD photo registers at its original phone resolut
   assert.notDeepEqual(result.nitrite.roi, result.pH.roi);
 });
 
+test('portrait client µPAD assigns sensing circles from the true square-to-triangle order', async () => {
+  const image = await readFile(new URL('./fixtures/real-client-930-aw-ph2.jpg', import.meta.url));
+  const normalized = await sharp(image).rotate().toBuffer();
+
+  for (const rotation of [0, 180]) {
+    const { data, info } = await sharp(normalized).rotate(rotation).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+    const result = detectUPadRegistration(data, info.width, info.height, { debug: true });
+
+    assert.equal(result.status, 'REGISTERED', `rotation ${rotation}`);
+    if (rotation === 0) {
+      assert.ok(result.square.center.y > result.triangle.center.y, 'square is the lower physical fiducial');
+      assert.ok(result.nitrite.center.y > result.pH.center.y, 'Nitrite is nearer the square and pH is nearer the triangle');
+    } else {
+      assert.ok(result.square.center.y < result.triangle.center.y, 'square remains the physical square after rotation');
+      assert.ok(result.nitrite.center.y < result.pH.center.y, 'Nitrite remains nearer the square after rotation');
+    }
+    assert.ok(result.nitrite.roi && result.pH.roi);
+    assert.notDeepEqual(result.nitrite.roi, result.pH.roi);
+  }
+});
+
 test('landscape client µPAD with reacted color zones registers without perfect fiducial contours', async () => {
   const image = await readFile(new URL('./fixtures/real-client-930-c-fs-landscape.jpg', import.meta.url));
   const { data, info } = await sharp(image).rotate().removeAlpha().raw().toBuffer({ resolveWithObject: true });

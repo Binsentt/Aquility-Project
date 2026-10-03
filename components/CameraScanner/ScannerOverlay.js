@@ -27,7 +27,7 @@ const ScannerOverlay = React.memo(function ScannerOverlay({ detected = false }) 
                   { left: `${landmark.x * 100}%` },
                 ]}
               >
-                {landmark.shape === 'triangle' ? <Text style={styles.triangleGlyph}>▲</Text> : null}
+                {landmark.shape === 'triangle' ? <Text style={styles.triangleGlyph}>▶</Text> : null}
                 {landmark.kind === 'sensing-zone' ? <Text style={styles.landmarkLabel}>{landmark.label}</Text> : null}
               </View>
             ))}

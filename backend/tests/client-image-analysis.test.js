@@ -79,7 +79,7 @@ test('real client image completes authenticated upload, analysis, persistence, a
   }
 });
 
-test('real client pH ROI value survives API persistence, Result/History mapping, and PDF template', async () => {
+test('real portrait client color is not falsely assigned to pH after fiducial role correction', async () => {
   {
     const [{ createApp }, { createColorAnalysisEngine }, { createWaterAnalysisService }] = await Promise.all([
       import('../app.js'),
@@ -114,17 +114,19 @@ test('real client pH ROI value survives API persistence, Result/History mapping,
 
     assert.equal(response.status, 201);
     assert.equal(response.body.scanStatus, 'Completed');
-    assert.equal(response.body.pH, 2);
-    assert.equal(response.body.pHResult.value, 2);
-    assert.equal(response.body.pHResult.matchMethod, 'direct-client-rgb-range');
+    assert.equal(response.body.pH, null);
+    assert.equal(response.body.pHResult.value, null);
+    assert.equal(response.body.pHResult.status, 'PH_MEASUREMENT_UNRELIABLE');
     assert.ok(response.body.pHResult.roi.sampleCount > 0);
     assert.ok(response.body.pHResult.measuredRGB.every(Number.isFinite));
-    assert.equal(response.body.resultData.pH, '2.00');
+    assert.equal(response.body.resultData.pH, 'No reference match');
     assert.equal(response.body.nitrite.value, null);
     assert.equal(response.body.resultData.Nitrite, 'No reference match');
-    assert.equal(persisted.estimatedPH, 2);
+    assert.equal(response.body.pHResult.measuredRGB.join(','), '134,146,122');
+    assert.equal(persisted.estimatedPH, null);
     assert.deepEqual(persisted.analysisData.pH.measuredRGB, response.body.pHResult.measuredRGB);
     assert.deepEqual(persisted.analysisData.pH.roi.normalized, response.body.pHResult.roi.normalized);
+    assert.ok(response.body.nitrite.roi.normalized.y > response.body.pHResult.roi.normalized.y);
 
     const resultView = toScanResult(response.body, 'https://aquality-api.example.test/api');
     const historyRecord = serializeWaterTest({
@@ -137,11 +139,11 @@ test('real client pH ROI value survives API persistence, Result/History mapping,
     assert.equal(resultView.resultData.Nitrite, historyView.resultData.Nitrite);
 
     const pdf = buildPdfHtml({ test: historyView });
-    assert.match(pdf, /pH:<\/strong> 2\.00/);
+    assert.match(pdf, /pH:<\/strong> No reference match/);
     assert.match(pdf, /Nitrite:<\/strong> No reference match/);
     assert.deepEqual(historyView.pHResult.measuredRGB, response.body.pHResult.measuredRGB);
     assert.deepEqual(historyView.nitrite.measuredRGB, response.body.nitrite.measuredRGB);
-    assert.doesNotMatch(pdf, /NaN|null ppm|undefined/);
+    assert.doesNotMatch(pdf, /pH:<\/strong> 2\.00|NaN|null ppm|undefined/);
   }
 });
 

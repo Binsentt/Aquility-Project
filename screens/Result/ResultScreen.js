@@ -4,7 +4,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 import { COLORS, LAYOUT, RADII, SHADOWS, SIZES, SPACING } from '../../styles/theme';
-import { createPdfExport, createPngExport, shareExportFile } from '../../services/exportService';
+import { savePdfExport, savePngExport, exportOutcomeNotice } from '../../services/exportService';
 import { toSafeExportMessage } from '../../services/exportErrors';
 import { loadBackendWaterTest } from '../../services/waterTestRecordService';
 import { cleanClientRemarks, displayMeasuredParametersStatus } from '../../services/apiMappers';
@@ -57,15 +57,15 @@ export default function ResultScreen() {
     try {
       setSaving(true);
       const record = await loadBackendWaterTest(payload?.id);
-      const exported = await createPdfExport({
+      const outcome = await savePdfExport({
         ...record,
         user: record.user || currentUser,
         generatedAt: createdAt,
       });
-      await shareExportFile(exported.uri, 'AQUALITY result exported as PDF.');
-      Alert.alert('PDF export shared', 'The PDF report was generated and shared successfully.');
+      const notice = exportOutcomeNotice('PDF', outcome);
+      if (notice) Alert.alert(notice.title, notice.message);
     } catch (error) {
-      Alert.alert('PDF Export Failed', toSafeExportMessage(error, 'Unable to generate or share the PDF report. Please try again.'));
+      Alert.alert('PDF Export Failed', toSafeExportMessage(error, 'Unable to save the PDF report. Please try again.'));
     } finally {
       setSaving(false);
     }
@@ -75,6 +75,7 @@ export default function ResultScreen() {
     if (saving) return;
 
     try {
+      setSaving(true);
       const record = await loadBackendWaterTest(payload?.id);
       const backendImageUri = record.imageUri || record.image || record.uri || record.images?.[0];
       if (!backendImageUri) {
@@ -82,12 +83,11 @@ export default function ResultScreen() {
         return;
       }
 
-      setSaving(true);
-      const exported = await createPngExport(backendImageUri);
-      await shareExportFile(exported.uri, 'AQUALITY scan image exported.');
-      Alert.alert('PNG export shared', 'The image export was generated and shared successfully.');
+      const outcome = await savePngExport(backendImageUri, record);
+      const notice = exportOutcomeNotice('Image', outcome);
+      if (notice) Alert.alert(notice.title, notice.message);
     } catch (error) {
-      Alert.alert('PNG Export Failed', toSafeExportMessage(error, 'Unable to generate or share the image export. Please try again.'));
+      Alert.alert('PNG Export Failed', toSafeExportMessage(error, 'Unable to save the image report. Please try again.'));
     } finally {
       setSaving(false);
     }
@@ -206,7 +206,7 @@ export default function ResultScreen() {
 
           <View style={[styles.sectionCard, SHADOWS.card]}>
             <Text style={styles.sectionTitle}>Export report</Text>
-            <Text style={styles.secondaryText}>Export a PDF or image snapshot for your water-quality records. Files are saved in app storage when supported.</Text>
+            <Text style={styles.secondaryText}>Save a PDF or image report to a folder you choose, or share it with another app.</Text>
             <View style={styles.exportRow}>
               <TouchableOpacity style={[styles.exportBtn, saving && styles.disabledBtn]} onPress={handleExportPdf} disabled={saving}>
                 <MaterialCommunityIcons name="file-pdf-box" size={18} color={COLORS.white} />

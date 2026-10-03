@@ -3,8 +3,10 @@ import { Asset } from 'expo-asset';
 import * as Print from 'expo-print';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as Sharing from 'expo-sharing';
+import { Platform } from 'react-native';
 import { buildPdfHtml } from './reportTemplate';
 import { toSafeExportMessage } from './exportErrors';
+import { assertBackendReportPayload, buildExportFileName, saveExportToDirectory } from './exportDestination';
 
 const brandLogoSource = require('../assets/AQUALITY-Logo.png');
 
@@ -149,23 +151,12 @@ function shouldSkipFilesystemProbe(uri) {
   return uri.startsWith('content://') || uri.startsWith('ph://');
 }
 
-function assertBackendReportPayload(payload = {}) {
-  const imageUri = payload.imageUri || payload.image || payload.uri || payload.images?.[0];
-  const resultData = payload.resultData || {};
-  if (!payload.id) throw new Error('This report is not linked to a saved AQUALITY water-test record. Refresh the result and try again.');
-  if (!imageUri) throw new Error('The captured water-test image is unavailable. Refresh the result and try again.');
-  if (!resultData.pH || !resultData.Nitrite) {
-    throw new Error('The saved water-test analysis is incomplete. Refresh the result and try again.');
-  }
-}
-
 export async function createPdfExport(payload = {}) {
   try {
-    assertBackendReportPayload(payload);
+    const sourceImageUri = assertBackendReportPayload(payload);
     const exportDir = await ensureExportsDirectory();
     const targetUri = `${exportDir}AQUALITY_Report_${Date.now()}.pdf`;
     const brandImageUri = await resolvePdfBrandImageUri();
-    const sourceImageUri = payload.imageUri || payload.image || payload.uri || payload.images?.[0];
     const resolvedImageUri = await resolveExportImageUri(sourceImageUri);
     const html = buildPdfHtml({
       user: payload?.user,
@@ -188,14 +179,15 @@ export async function createPdfExport(payload = {}) {
 
     return {
       uri: verifiedUri,
-      fileName: 'AQUALITY_Report.pdf',
+      fileName: buildExportFileName({ ...payload, extension: 'pdf' }),
+      mimeType: 'application/pdf',
     };
   } catch (error) {
     throw new Error(toSafeExportMessage(error, 'Unable to generate the PDF report.'));
   }
 }
 
-export async function createPngExport(imageUri) {
+export async function createPngExport(imageUri, report = {}) {
   try {
     const resolvedSourceUri = await resolveExportImageUri(imageUri);
 
@@ -215,7 +207,8 @@ export async function createPngExport(imageUri) {
 
     return {
       uri: verifiedUri,
-      fileName: 'AQUALITY_Image.png',
+      fileName: buildExportFileName({ ...report, extension: 'png' }),
+      mimeType: 'image/png',
     };
   } catch (error) {
     throw new Error(toSafeExportMessage(error, 'Unable to create the PNG export.'));
@@ -241,3 +234,52 @@ export async function shareExportFile(uri, message = 'AQUALITY export') {
     throw new Error(toSafeExportMessage(error, 'The export could not be shared.'));
   }
 }
+
+function androidDirectoryFileSystem() {
+  const storage = FileSystem.StorageAccessFramework;
+  if (!storage?.requestDirectoryPermissionsAsync) {
+    throw new Error('Folder saving is not available on this Android version.');
+  }
+  return {
+    requestDirectoryPermissionsAsync: (...args) => storage.requestDirectoryPermissionsAsync(...args),
+    readDirectoryAsync: (...args) => storage.readDirectoryAsync(...args),
+    createFileAsync: (...args) => storage.createFileAsync(...args),
+    readAsStringAsync: (...args) => storage.readAsStringAsync(...args),
+    writeAsStringAsync: (...args) => storage.writeAsStringAsync(...args),
+    getInfoAsync: (...args) => FileSystem.getInfoAsync(...args),
+    deleteAsync: (...args) => storage.deleteAsync(...args),
+  };
+}
+
+/**
+ * Android saves to a folder explicitly selected through SAF. Other platforms
+ * retain the existing system share sheet; that outcome is never described as
+ * a saved file because the app cannot observe whether the share target saved it.
+ */
+export async function deliverExportFile(exported, message) {
+  if (Platform.OS === 'android') {
+    return saveExportToDirectory(exported, androidDirectoryFileSystem());
+  }
+  await shareExportFile(exported.uri, message);
+  return { status: 'shared', fileName: exported.fileName };
+}
+
+export async function savePdfExport(payload = {}) {
+  const exported = await createPdfExport(payload);
+  try {
+    return await deliverExportFile(exported, 'AQUALITY water-test PDF');
+  } catch (error) {
+    throw new Error(toSafeExportMessage(error, 'Unable to save the PDF report. Please try again.'));
+  }
+}
+
+export async function savePngExport(imageUri, report = {}) {
+  const exported = await createPngExport(imageUri, report);
+  try {
+    return await deliverExportFile(exported, 'AQUALITY water-test image');
+  } catch (error) {
+    throw new Error(toSafeExportMessage(error, 'Unable to save the image report. Please try again.'));
+  }
+}
+
+export { exportOutcomeNotice } from './exportDestination';
