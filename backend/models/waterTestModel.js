@@ -182,23 +182,38 @@ export function createWaterTestModel(pool) {
     async listMarkers() {
       const { rows } = await pool.query(
         `SELECT id, latitude, longitude, sample_class AS "sampleClass", site_name AS "siteName", source_type AS "sourceType",
-                overall_status AS "overallStatus", captured_at AS "capturedAt", barangay, municipality
+                overall_status AS "overallStatus", captured_at AS "capturedAt", barangay, municipality,
+                estimated_ph AS "pH",
+                analysis_data #>> '{nitrite,displayValue}' AS "nitriteDisplay",
+                analysis_data #>> '{nitrite,value}' AS "nitriteValue"
          FROM water_tests
          WHERE latitude IS NOT NULL AND longitude IS NOT NULL
          ORDER BY created_at DESC`
       );
-      return rows.map((row) => ({
-        id: row.id,
-        latitude: Number(row.latitude),
-        longitude: Number(row.longitude),
-        overallStatus: row.overallStatus,
-        capturedAt: row.capturedAt,
-        barangay: row.barangay,
-        municipality: row.municipality,
-        sampleClass: row.sampleClass,
-        siteName: row.siteName,
-        sourceType: row.sourceType,
-      }));
+      return rows.map((row) => {
+        const pH = row.pH == null || String(row.pH).trim() === '' ? null : Number(row.pH);
+        const nitriteValue = row.nitriteValue == null || String(row.nitriteValue).trim() === ''
+          ? null
+          : Number(row.nitriteValue);
+        const nitriteDisplay = typeof row.nitriteDisplay === 'string' && row.nitriteDisplay.trim()
+          ? row.nitriteDisplay.trim()
+          : (Number.isFinite(nitriteValue) ? `${nitriteValue.toFixed(2)} ppm` : 'Unavailable');
+
+        return {
+          id: row.id,
+          latitude: Number(row.latitude),
+          longitude: Number(row.longitude),
+          overallStatus: row.overallStatus,
+          capturedAt: row.capturedAt,
+          barangay: row.barangay,
+          municipality: row.municipality,
+          sampleClass: row.sampleClass,
+          siteName: row.siteName,
+          sourceType: row.sourceType,
+          pH: Number.isFinite(pH) ? pH : null,
+          nitriteDisplay,
+        };
+      });
     },
   };
 }

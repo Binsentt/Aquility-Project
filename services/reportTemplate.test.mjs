@@ -30,6 +30,7 @@ test('buildPdfHtml includes public user data, strip image, chemistry, GPS, statu
       sourceType: 'Coastal / Pawikan',
       resultData: {
         pH: '6.80',
+        'pH Category': 'Acidic',
         Nitrite: '0.50 ppm',
       },
       overallStatus: 'NOT CLASSIFIED',
@@ -42,6 +43,7 @@ test('buildPdfHtml includes public user data, strip image, chemistry, GPS, statu
     assert.match(html, new RegExp(expected));
   }
   assert.match(html, /Measured Parameters Status/);
+  assert.match(html, /pH Category:<\/strong> Acidic/);
   assert.doesNotMatch(html, /Scientific Validation|Laboratory Comparison|Pending laboratory/i);
   assert.match(html, /<img /);
   assert.match(html, /water-tests\/3ec25331-d511-491f-a1b6-11670bc4a2d6\/image\?token=short-lived-token/);
@@ -61,6 +63,7 @@ test('buildPdfHtml renders unavailable scientific values without null or NaN tex
 
   assert.match(html, /pH:<\/strong> Unavailable/);
   assert.match(html, /Nitrite:<\/strong> Unavailable/);
+  assert.doesNotMatch(html, /pH Category:/);
   assert.doesNotMatch(html, /NaN|null ppm|undefined/);
 });
 

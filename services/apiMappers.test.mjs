@@ -43,6 +43,7 @@ test('toScanResult maps API values and canonicalizes a historical sample class/c
   assert.equal(scan.sourceType, 'Coastal / Pawikan');
   assert.deepEqual(scan.resultData, {
     pH: '6.80',
+    'pH Category': 'Acidic',
     Nitrite: '0.50 ppm',
     'Measured Parameters Status': 'Awaiting approved limits',
   });
@@ -161,7 +162,26 @@ test('toScanResult keeps both unavailable scientific values explicit', () => {
   assert.equal(scan.nitrite.value, null);
   assert.equal(scan.resultData.pH, 'Unavailable');
   assert.equal(scan.resultData.Nitrite, 'Unavailable');
+  assert.equal(scan.pHCategory, null);
+  assert.equal(scan.resultData['pH Category'], undefined);
   assert.doesNotMatch(JSON.stringify(scan.resultData), /NaN|null ppm|undefined/);
+});
+
+test('blank, invalid, or non-numeric pH input never receives a category or fabricated zero', () => {
+  for (const pH of ['', 'Unavailable', 'not-a-number', Number.NaN, Number.POSITIVE_INFINITY, true]) {
+    const scan = toScanResult({ pH }, 'https://api.example.test/api');
+    assert.equal(scan.pH, null);
+    assert.equal(scan.pHCategory, null);
+    assert.equal(scan.resultData.pH, 'Unavailable');
+    assert.equal(scan.resultData['pH Category'], undefined);
+  }
+});
+
+test('valid measured pH gets only the conventional descriptive category, not a safety classification', () => {
+  const categories = [6.99, 7, 7.01].map((pH) => toScanResult({ pH }, 'https://api.example.test/api'));
+  assert.deepEqual(categories.map(({ pHCategory }) => pHCategory), ['Acidic', 'Neutral', 'Alkaline']);
+  assert.deepEqual(categories.map(({ resultData }) => resultData['pH Category']), ['Acidic', 'Neutral', 'Alkaline']);
+  assert.ok(categories.every(({ overallStatus }) => overallStatus === 'NOT CLASSIFIED'));
 });
 
 test('map marker sanitizer filters invalid coordinates and unstable IDs', () => {
@@ -202,4 +222,18 @@ test('map sanitizer handles zero, one, and many valid markers', () => {
     { id: 'two', latitude: 2, longitude: 2 },
     { id: 'three', latitude: 3, longitude: 3 },
   ]).length, 3);
+});
+
+test('map marker includes persisted pH and qualified Nitrite display, but unavailable values stay explicit', () => {
+  const qualified = toMapMarker({
+    id: 'qualified', latitude: 14.6, longitude: 120.98, pH: 6.8, nitriteDisplay: '>1 ppm',
+  });
+  const unavailable = toMapMarker({ id: 'unavailable', latitude: 14.6, longitude: 120.98 });
+
+  assert.equal(qualified.pH, 6.8);
+  assert.equal(qualified.pHCategory, 'Acidic');
+  assert.equal(qualified.nitriteDisplay, '>1 ppm');
+  assert.equal(unavailable.pH, null);
+  assert.equal(unavailable.pHCategory, null);
+  assert.equal(unavailable.nitriteDisplay, 'Unavailable');
 });

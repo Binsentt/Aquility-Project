@@ -12,11 +12,18 @@ test('soft capture guide shows body landmarks in canonical order without imposin
   )));
   assert.equal(UPAD_GUIDE_LANDMARKS.find(({ id }) => id === 'square').kind, 'fiducial');
   assert.equal(UPAD_GUIDE_LANDMARKS.find(({ id }) => id === 'triangle').kind, 'fiducial');
+  assert.deepEqual(UPAD_GUIDE_LANDMARKS.map(({ x }) => x), [0.08, 0.21, 0.41, 0.53]);
+  assert.equal(UPAD_GUIDE_LANDMARKS.find(({ id }) => id === 'nitrite').label, 'Nitrite');
+  assert.equal(UPAD_GUIDE_LANDMARKS.find(({ id }) => id === 'ph').label, 'pH');
 });
 
-test('camera overlay consumes the landmarks as a non-interactive visual guide', async () => {
+test('camera overlay draws a soft µPAD silhouette with a tapered shoulder and narrow handle only', async () => {
   const source = await readFile(new URL('./ScannerOverlay.js', import.meta.url), 'utf8');
   assert.match(source, /pointerEvents="none"/);
   assert.match(source, /UPAD_GUIDE_LANDMARKS\.map/);
   assert.match(source, /padSilhouette/);
+  assert.match(source, /styles\.padBody/);
+  assert.match(source, /styles\.padTaper/);
+  assert.match(source, /styles\.padHandle/);
+  assert.doesNotMatch(source, /onPress|registration|ROI|detector/i);
 });

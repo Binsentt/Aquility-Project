@@ -1,4 +1,4 @@
-import { filterValidMapMarkers, normalizeMapCoordinate, safeMapFeed } from './apiMappers.js';
+import { filterValidMapMarkers, normalizeMapCoordinate, pHCategoryFor, safeMapFeed } from './apiMappers.js';
 
 export const OPENFREEMAP_LIBERTY_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
 
@@ -38,6 +38,7 @@ const PUBLIC_MARKER_FIELDS = [
   'sampleClass',
   'siteName',
   'sourceType',
+  'nitriteDisplay',
 ];
 
 export function buildMapLibreMarkers(markers) {
@@ -58,6 +59,17 @@ export function buildMapLibreMarkers(markers) {
       coordinate,
       lngLat: [coordinate.longitude, coordinate.latitude],
     };
+
+    const rawPH = marker.pH;
+    const pH = rawPH == null || (typeof rawPH === 'string' && rawPH.trim() === '')
+      || (typeof rawPH !== 'number' && typeof rawPH !== 'string')
+      ? null
+      : Number(rawPH);
+    model.pH = Number.isFinite(pH) ? pH : null;
+    model.pHCategory = pHCategoryFor(model.pH);
+    model.nitriteDisplay = typeof marker.nitriteDisplay === 'string' && marker.nitriteDisplay.trim()
+      ? marker.nitriteDisplay.trim()
+      : 'Unavailable';
 
     for (const field of PUBLIC_MARKER_FIELDS) {
       const value = marker[field];
@@ -81,6 +93,9 @@ export function mapMarkersFromHistory(scanHistory) {
     sampleClass: scan?.sampleClass,
     siteName: scan?.siteName,
     sourceType: scan?.sourceType,
+    pH: scan?.pH,
+    nitriteDisplay: scan?.nitrite?.displayValue || scan?.resultData?.Nitrite || null,
+    nitrite: scan?.nitrite,
   })));
 }
 

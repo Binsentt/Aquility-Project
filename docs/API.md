@@ -41,7 +41,7 @@ There is intentionally no list-users endpoint in the production API.
 | DELETE | `/water-tests/:id` | Owner | Permanently deletes one owned record and its associated upload file, then returns `204`. |
 | GET | `/water-tests/:id/image?token=:signedToken` | Signed record URL | Streams the captured image only while its owner remains active. A bearer token for the owner is also accepted. Signed URLs expire after `MEDIA_TOKEN_TTL`. |
 
-Water-test responses retain the API fields used by current screens, including `id`, `imageUri`, `pH`, `pHResult`, `nitrite`, `overallStatus`, `gps`, and `resultData`. Client result payloads include `scanStatus`, `measuredParametersStatus`, ROI status, GPS accuracy/time, and optional sample metadata; internal scientific-validation and lab-comparison columns are not included in client-facing responses. If a measured ROI has no supported reference match, the corresponding result is `No reference match` and the measured RGB plus reason is included in the result remarks; absent measurements remain `Unavailable`. Sample classes are `SA` (Pawikan), `A` (Well), and `SB` (Fish Farm). For compatibility, incoming `AA`/`AA-##` normalize to `SA`/`SA-##`, and `C`/`C-##` normalize to `SB`/`SB-##`; historical stored values are normalized at the serializer boundary without rewriting database rows. `pHResult` includes measured RGB/Lab, matched reference, and ΔE00; direct client pH RGB intervals 1–4 are independent of the separate Lab threshold. Active `nitrite` responses include the registered ROI median RGB, diagnostic HSV H/S/V, match state, matched reference metadata, and calibration metadata. The provisional classes are 0, 0.5, 1, and qualified `>1 ppm`; the qualified result retains `value: null`, `displayValue: ">1 ppm"`, `qualifier: ">"`, and `lowerBound: 1`. Ambiguous or out-of-reference colors return a null value; no interpolation or endpoint clamping is used. With no approved threshold set, `overallStatus` is `NOT CLASSIFIED` and measured parameters are `Not classified`. Historical Nitrate values remain stored for compatibility only and are not exposed as Nitrite. The image fields contain a private signed API URL rather than a public upload path.
+Water-test responses retain the API fields used by current screens, including `id`, `imageUri`, `pH`, `pHResult`, `nitrite`, `overallStatus`, `gps`, and `resultData`. Client result payloads include `scanStatus`, `measuredParametersStatus`, ROI status, GPS accuracy/time, and optional sample metadata; internal scientific-validation and lab-comparison columns are not included in client-facing responses. If a measured ROI has no supported reference match, the corresponding result is `No reference match` and the measured RGB plus reason is included in the result remarks; absent measurements remain `Unavailable`. When a finite measured pH exists, the display may add the conventional descriptive category `Acidic` for pH < 7, `Neutral` for pH = 7, or `Alkaline` for pH > 7; it is omitted for unavailable pH and is not a water-safety classification. Sample classes are `SA` (Pawikan), `A` (Well), and `SB` (Fish Farm). For compatibility, incoming `AA`/`AA-##` normalize to `SA`/`SA-##`, and `C`/`C-##` normalize to `SB`/`SB-##`; historical stored values are normalized at the serializer boundary without rewriting database rows. `pHResult` includes measured RGB/Lab, matched reference, and ΔE00; direct client pH RGB intervals 1–4 are independent of the separate Lab threshold. Active `nitrite` responses include the registered ROI median RGB, diagnostic HSV H/S/V, match state, matched reference metadata, and calibration metadata. The provisional classes are 0, 0.5, 1, and qualified `>1 ppm`; the qualified result retains `value: null`, `displayValue: ">1 ppm"`, `qualifier: ">"`, and `lowerBound: 1`. Ambiguous or out-of-reference colors return a null value; no interpolation or endpoint clamping is used. With no approved threshold set, `overallStatus` is `NOT CLASSIFIED` and measured parameters are `Not classified`. Historical Nitrate values remain stored for compatibility only and are not exposed as Nitrite. The image fields contain a private signed API URL rather than a public upload path.
 
 ## Map feed
 
@@ -59,13 +59,15 @@ The native Map and Full Map screens load the authenticated map feed first and us
       "overallStatus": "Safe",
       "capturedAt": "2026-08-04T08:30:00.000Z",
       "barangay": "Bagumbayan",
-      "municipality": "Quezon City"
+      "municipality": "Quezon City",
+      "pH": 7.25,
+      "nitriteDisplay": ">1 ppm"
     }
   ]
 }
 ```
 
-It never includes a user object, name, email, phone number, image URL, chemistry details, or credentials.
+It exposes only marker/location details and the saved pH number plus Nitrite display string. It never includes a user object, name, email, phone number, image URL, ROI/color diagnostics, full analysis metadata, or credentials. Missing measurements are represented as `pH: null` and/or `nitriteDisplay: "Unavailable"`; no Nitrite safety label is added because approved thresholds are not configured.
 
 ## Guest lifecycle
 

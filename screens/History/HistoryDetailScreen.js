@@ -230,9 +230,9 @@ export default function HistoryDetailScreen({ route, navigation }) {
 
         {detailError ? <Text style={styles.errorText}>{detailError}</Text> : null}
 
-        {item.resultData && Object.keys(item.resultData).some((key) => ['pH', 'Nitrite', 'Measured Parameters Status'].includes(key)) ? (
+        {item.resultData && Object.keys(item.resultData).some((key) => ['pH', 'pH Category', 'Nitrite', 'Measured Parameters Status'].includes(key)) ? (
           <View style={styles.metricsWrap}>
-            {Object.entries(item.resultData).filter(([key]) => ['pH', 'Nitrite', 'Measured Parameters Status'].includes(key)).map(([key, value]) => (
+            {Object.entries(item.resultData).filter(([key]) => ['pH', 'pH Category', 'Nitrite', 'Measured Parameters Status'].includes(key)).map(([key, value]) => (
               <View key={key} style={styles.metricBox}>
                 <Text style={styles.metricLabel}>{key}</Text>
                 <Text style={styles.metricValue}>{String(value || 'Not available')}</Text>

@@ -22,6 +22,11 @@ function displayText(value, fallback = 'Unavailable') {
   return typeof value === 'string' && value.trim() ? value.trim() : fallback;
 }
 
+function formatPHMeasurement(value, category) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 'Unavailable';
+  return `${value.toFixed(2)}${category ? ` — ${category}` : ''}`;
+}
+
 export default function MapLibreWaterMap({
   markers = [],
   userLocation = null,
@@ -130,6 +135,8 @@ export default function MapLibreWaterMap({
           <Text style={styles.detailsText}>Source: {displayText(selectedMarker.sourceType)}</Text>
           <Text style={[styles.detailsText, { color: selectedMarker.pinColor || '#718096' }]}>Status: {displayText(selectedMarker.overallStatus)}</Text>
           <Text style={styles.detailsText}>Tested: {formatTestDate(selectedMarker.createdAt)}</Text>
+          <Text style={styles.detailsText}>pH: {formatPHMeasurement(selectedMarker.pH, selectedMarker.pHCategory)}</Text>
+          <Text style={styles.detailsText}>Nitrite: {displayText(selectedMarker.nitriteDisplay)}</Text>
         </View>
       ) : null}
     </View>

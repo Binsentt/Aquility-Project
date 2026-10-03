@@ -14,6 +14,22 @@ export function displayMeasuredParametersStatus(status) {
   return status === 'Not classified' ? 'Awaiting approved limits' : (status || 'Awaiting approved limits');
 }
 
+function finiteMeasurement(value) {
+  if (value == null || (typeof value === 'string' && value.trim() === '')) return null;
+  if (typeof value !== 'number' && typeof value !== 'string') return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+// Descriptive chemistry convention only; this is not a water-safety classification.
+export function pHCategoryFor(value) {
+  const pH = finiteMeasurement(value);
+  if (pH == null) return null;
+  if (pH < 7) return 'Acidic';
+  if (pH > 7) return 'Alkaline';
+  return 'Neutral';
+}
+
 export function cleanClientRemarks(value) {
   const remarks = typeof value === 'string' ? value : '';
   if (/client-provided provisional references|provisional client reference colors|analytically validated method|HSV H\/S\/V|scientific (?:validation|comparison)|laboratory (?:comparison|validation)|certified water-safety/i.test(remarks)) {
@@ -49,8 +65,9 @@ export function toSessionUser(user = {}, fallback = {}) {
 }
 
 export function toScanResult(waterTest = {}, apiBaseUrl) {
-  const pH = waterTest.pH == null ? null : Number.isFinite(Number(waterTest.pH)) ? Number(waterTest.pH) : waterTest.pH;
-  const nitriteValue = waterTest.nitrite?.value == null ? null : Number(waterTest.nitrite.value);
+  const pH = finiteMeasurement(waterTest.pH);
+  const pHCategory = pHCategoryFor(pH);
+  const nitriteValue = finiteMeasurement(waterTest.nitrite?.value);
   const imageUri = resolveMediaUrl(waterTest.imageUri || waterTest.imagePath, apiBaseUrl);
   const measuredParametersStatus = waterTest.measuredParametersStatus || 'Not classified';
   const overallStatus = waterTest.overallStatus && waterTest.overallStatus !== 'Unvalidated'
@@ -104,10 +121,12 @@ export function toScanResult(waterTest = {}, apiBaseUrl) {
     userId: waterTest.userId || waterTest.user?.id || null,
     resultData: {
       pH: pHDisplay,
+      ...(pHCategory ? { 'pH Category': pHCategory } : {}),
       Nitrite: nitriteDisplay,
       'Measured Parameters Status': displayMeasuredParametersStatus(measuredParametersStatus),
     },
     pH,
+    pHCategory,
     pHResult,
     phStatus: waterTest.phStatus || null,
     nitrite: waterTest.nitrite || null,
@@ -162,6 +181,12 @@ export function toMapMarker(payload = {}) {
   const sampleClassInput = payload.sampleClass || null;
   const sampleClass = canonicalizeSampleClass(sampleClassInput) || sampleClassInput;
   const siteName = payload.siteName || 'Unknown sampling site';
+  const pH = finiteMeasurement(payload.pH);
+  const nitriteDisplayInput = [payload.nitriteDisplay, payload.nitrite?.displayValue, payload.resultData?.Nitrite]
+    .find((value) => typeof value === 'string' && value.trim());
+  const nitriteValue = finiteMeasurement(payload.nitrite?.value);
+  const nitriteDisplay = nitriteDisplayInput?.trim()
+    || (nitriteValue == null ? 'Unavailable' : `${nitriteValue.toFixed(2)} ppm`);
 
   return {
     id,
@@ -176,6 +201,9 @@ export function toMapMarker(payload = {}) {
     sampleClass,
     siteName,
     sourceType: payload.sourceType || null,
+    pH,
+    pHCategory: pHCategoryFor(pH),
+    nitriteDisplay,
   };
 }
 

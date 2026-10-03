@@ -13,6 +13,9 @@ const ScannerOverlay = React.memo(function ScannerOverlay({ detected = false }) 
           <View style={[styles.corner, styles.bottomLeft]} />
           <View style={[styles.corner, styles.bottomRight]} />
           <View style={styles.padSilhouette}>
+            <View style={styles.padBody} />
+            <View style={styles.padTaper} />
+            <View style={styles.padHandle} />
             {UPAD_GUIDE_LANDMARKS.map((landmark) => (
               <View
                 key={landmark.id}
@@ -68,12 +71,48 @@ const styles = StyleSheet.create({
     left: '10%',
     top: '50%',
     width: '80%',
+    height: 48,
+    marginTop: -24,
+  },
+  padBody: {
+    position: 'absolute',
+    left: 0,
+    top: 3,
+    width: '61%',
     height: 42,
-    marginTop: -21,
-    borderRadius: 18,
-    backgroundColor: 'rgba(3, 14, 22, 0.76)',
+    borderRadius: 9,
+    backgroundColor: 'rgba(3, 14, 22, 0.82)',
     borderWidth: 1,
-    borderColor: 'rgba(111, 231, 255, 0.8)',
+    borderColor: 'rgba(111, 231, 255, 0.78)',
+  },
+  padTaper: {
+    position: 'absolute',
+    left: '57%',
+    top: '50%',
+    width: 0,
+    height: 0,
+    marginTop: -21,
+    borderTopWidth: 21,
+    borderBottomWidth: 21,
+    borderLeftWidth: 19,
+    borderTopColor: 'transparent',
+    borderBottomColor: 'transparent',
+    borderLeftColor: 'rgba(3, 14, 22, 0.82)',
+  },
+  padHandle: {
+    position: 'absolute',
+    left: '68%',
+    top: '50%',
+    width: '30%',
+    height: 20,
+    marginTop: -10,
+    borderTopRightRadius: 10,
+    borderBottomRightRadius: 10,
+    backgroundColor: 'rgba(3, 14, 22, 0.82)',
+    borderTopWidth: 1,
+    borderRightWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: 'rgba(111, 231, 255, 0.78)',
   },
   landmark: {
     position: 'absolute',

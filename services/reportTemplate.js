@@ -77,6 +77,7 @@ export function buildPdfHtml({ user = {}, test = {}, brandImageUri = null } = {}
         ${stripImage ? `<h2 style="font-size: 18px; border-bottom: 1px solid #D8E6EE; padding-bottom: 6px;">Captured Test Strip</h2><img src="${escapeHtml(stripImage)}" style="width: 100%; max-height: 320px; object-fit: contain; border-radius: 10px; border: 1px solid #D8E6EE;">` : ''}
         <h2 style="font-size: 18px; border-bottom: 1px solid #D8E6EE; padding-bottom: 6px;">Estimated Results</h2>
         <p><strong>pH:</strong> ${escapeHtml(results.pH || 'Unavailable')}<br>
+        ${results['pH Category'] ? `<strong>pH Category:</strong> ${escapeHtml(results['pH Category'])}<br>` : ''}
         <strong>Nitrite:</strong> ${escapeHtml(results.Nitrite || 'Unavailable')}<br>
         <strong>pH Status:</strong> ${escapeHtml(pHStatus)}<br>
         <strong>Nitrite Status:</strong> ${escapeHtml(nitriteStatus)}<br>

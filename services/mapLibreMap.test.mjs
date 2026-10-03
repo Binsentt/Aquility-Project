@@ -56,7 +56,11 @@ test('MapLibre render models retain safe marker details, add lngLat, and exclude
     sampleClass: 'AA',
     siteName: 'Pawikan',
     sourceType: 'Coastal',
+    pH: 6.8,
+    pHCategory: 'Acidic',
+    nitriteDisplay: '>1 ppm',
     user: { email: 'private@example.test' },
+    analysisData: { measuredRGB: [1, 2, 3] },
     phoneNumber: 'private',
   };
   const before = structuredClone(source);
@@ -76,9 +80,23 @@ test('MapLibre render models retain safe marker details, add lngLat, and exclude
     sampleClass: 'AA',
     siteName: 'Pawikan',
     sourceType: 'Coastal',
+    pH: 6.8,
+    pHCategory: 'Acidic',
+    nitriteDisplay: '>1 ppm',
   }]);
   assert.deepEqual(source, before);
   assert.doesNotMatch(JSON.stringify(rendered), /private@example\.test|phoneNumber|"user"/);
+  assert.doesNotMatch(JSON.stringify(rendered), /analysisData|measuredRGB/);
+});
+
+test('MapLibre detail model normalizes missing measurement displays without inventing classification', () => {
+  const [marker] = buildMapLibreMarkers([{
+    id: 'unavailable', coordinate: { latitude: 1, longitude: 2 }, pH: null, pHCategory: null,
+  }]);
+  assert.equal(marker.pH, null);
+  assert.equal(marker.pHCategory, null);
+  assert.equal(marker.nitriteDisplay, 'Unavailable');
+  assert.equal(marker.nitriteClassification, undefined);
 });
 
 test('MapLibre render models support one and multiple sanitized markers', () => {

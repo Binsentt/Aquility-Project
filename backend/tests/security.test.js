@@ -57,6 +57,12 @@ function createSecureApp() {
             sampleClass: 'AA',
             siteName: 'Pawikan',
             sourceType: 'Coastal / Pawikan',
+            pH: 6.8,
+            nitriteDisplay: '>1 ppm',
+            email: 'private@example.test',
+            phoneNumber: 'private',
+            imagePath: '/private/image.jpg',
+            analysisData: { roi: 'private diagnostics' },
           }];
         },
       },
@@ -189,10 +195,15 @@ test('authenticated map feed contains only anonymous marker data', async () => {
     sampleClass: 'SA',
     siteName: 'Pawikan',
     sourceType: 'Coastal / Pawikan',
+    pH: 6.8,
+    nitriteDisplay: '>1 ppm',
   }]);
   assert.equal('user' in response.body.items[0], false);
   assert.equal('imagePath' in response.body.items[0], false);
   assert.equal('email' in response.body.items[0], false);
+  assert.equal('phoneNumber' in response.body.items[0], false);
+  assert.equal('analysisData' in response.body.items[0], false);
+  assert.equal('nitriteValue' in response.body.items[0], false);
 });
 
 test('a signed water-test image URL cannot be changed to access another record', async () => {

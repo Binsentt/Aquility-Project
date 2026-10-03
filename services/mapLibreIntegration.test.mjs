@@ -42,6 +42,11 @@ test('Map and Full Map keep MapLibre rendering and Map -> Full Map -> Back navig
   assert.match(fullMapScreen, /return\s*\(\)\s*=>\s*\{\s*isMounted\s*=\s*false/s);
   assert.doesNotMatch(mapScreen, /mapMarkersFromHistory\(scanHistory\),\s*\[mapFeed/);
   assert.doesNotMatch(fullMapScreen, /mapMarkersFromHistory\(scanHistory\),\s*\[mapFeed/);
+  const mapRenderer = readFileSync(new URL('../components/MapLibreWaterMap.native.js', import.meta.url), 'utf8');
+  assert.match(mapRenderer, /pH:/);
+  assert.match(mapRenderer, /Nitrite:/);
+  assert.match(mapRenderer, /pHCategory/);
+  assert.match(mapRenderer, /nitriteDisplay/);
 });
 
 test('shared MapLibre renderer provides safe load failure and retry behavior', () => {
