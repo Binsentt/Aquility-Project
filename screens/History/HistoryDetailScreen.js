@@ -7,7 +7,7 @@ import { COLORS, LAYOUT, RADII, SHADOWS, SIZES, SPACING } from '../../styles/the
 import { savePdfExport, savePngExport, exportOutcomeNotice } from '../../services/exportService';
 import { toSafeExportMessage } from '../../services/exportErrors';
 import { loadBackendWaterTest } from '../../services/waterTestRecordService';
-import { cleanClientRemarks, displayMeasuredParametersStatus } from '../../services/apiMappers';
+import { cleanClientRemarks } from '../../services/apiMappers';
 import { canonicalizeSampleClass, canonicalizeSampleCode } from '../../services/sampleSites';
 
 function safeImageDebugUrl(uri) {
@@ -84,11 +84,10 @@ export default function HistoryDetailScreen({ route, navigation }) {
   const summaryFields = useMemo(
     () => [
       { label: 'Scan Status', value: item.scanStatus || 'Completed' },
-      { label: 'Measured Parameters Status', value: item.measuredParametersDisplayStatus || displayMeasuredParametersStatus(item.measuredParametersStatus) },
       { label: 'Scan date', value: new Date(createdAt).toLocaleString() },
       { label: 'Result summary', value: cleanClientRemarks(item.summary) || 'Not available' },
     ],
-    [createdAt, item.measuredParametersDisplayStatus, item.measuredParametersStatus, item.scanStatus, item.summary]
+    [createdAt, item.scanStatus, item.summary]
   );
 
   const handleExport = async (type) => {
@@ -230,9 +229,9 @@ export default function HistoryDetailScreen({ route, navigation }) {
 
         {detailError ? <Text style={styles.errorText}>{detailError}</Text> : null}
 
-        {item.resultData && Object.keys(item.resultData).some((key) => ['pH', 'pH Category', 'Nitrite', 'Nitrite Status', 'Measured Parameters Status'].includes(key)) ? (
+        {item.resultData && Object.keys(item.resultData).some((key) => ['pH', 'pH Category', 'Nitrite', 'Nitrite Status'].includes(key)) ? (
           <View style={styles.metricsWrap}>
-            {Object.entries(item.resultData).filter(([key]) => ['pH', 'pH Category', 'Nitrite', 'Nitrite Status', 'Measured Parameters Status'].includes(key)).map(([key, value]) => (
+            {Object.entries(item.resultData).filter(([key]) => ['pH', 'pH Category', 'Nitrite', 'Nitrite Status'].includes(key)).map(([key, value]) => (
               <View key={key} style={styles.metricBox}>
                 <Text style={styles.metricLabel}>{key}</Text>
                 <Text style={styles.metricValue}>{String(value || 'Not available')}</Text>

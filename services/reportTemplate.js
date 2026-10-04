@@ -87,8 +87,7 @@ export function buildPdfHtml({ user = {}, test = {}, brandImageUri = null } = {}
         <strong>pH Status:</strong> ${escapeHtml(pHStatus)}<br>
         <strong>Nitrite Status:</strong> ${escapeHtml(nitriteStatus)}<br>
         <strong>Scan Status:</strong> ${escapeHtml(test.scanStatus || 'Unavailable')}<br>
-        <strong>Overall Water Status:</strong> ${escapeHtml(test.overallStatus || 'NOT CLASSIFIED')}<br>
-        <strong>Measured Parameters Status:</strong> ${escapeHtml(test.measuredParametersStatus || results['Measured Parameters Status'] || 'Not classified')}<br>
+        <strong>Nitrite estimate basis:</strong> Client-supplied reference colors; laboratory accuracy is not established.<br>
         <strong>Remarks:</strong> ${escapeHtml(cleanClientRemarks(test.remarks || test.summary))}</p>
         <h2 style="font-size: 18px; border-bottom: 1px solid #D8E6EE; padding-bottom: 6px;">Analysis Evidence</h2>
         <p>${escapeHtml(roiColors)}</p>

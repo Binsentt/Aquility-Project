@@ -292,6 +292,8 @@ test('qualified Nitrite values serialize as display text while exact numeric val
   assert.equal(result.resultData.Nitrite, '>1 ppm');
   assert.equal(result.nitriteClassificationStatus, 'Dangerous');
   assert.equal(result.resultData['Nitrite Status'], 'Dangerous');
+  assert.equal(result.resultData['Measured Parameters Status'], undefined);
+  assert.equal(result.measuredParametersStatus, undefined);
   assert.equal(result.labComparison, undefined);
   assert.doesNotMatch(JSON.stringify(result.resultData), /NaN|null ppm|undefined|1\.00 ppm/);
 });

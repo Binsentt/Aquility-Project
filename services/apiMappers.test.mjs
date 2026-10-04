@@ -29,8 +29,8 @@ test('toScanResult maps API values and canonicalizes a historical sample class/c
   assert.equal(scan.id, apiWaterTest.analysisId);
   assert.equal(scan.scanStatus, 'Completed');
   assert.equal(scan.analysisStatus, 'Completed');
-  assert.equal(scan.measuredParametersStatus, 'Not classified');
-  assert.equal(scan.measuredParametersDisplayStatus, 'Awaiting approved limits');
+  assert.equal(scan.measuredParametersStatus, undefined);
+  assert.equal(scan.measuredParametersDisplayStatus, undefined);
   assert.equal(scan.scientificValidationStatus, undefined);
   assert.equal(scan.laboratoryComparisonStatus, undefined);
   assert.deepEqual(scan.detectedParameters, ['pH', 'Nitrite']);
@@ -48,7 +48,6 @@ test('toScanResult maps API values and canonicalizes a historical sample class/c
     'pH Category': 'Acidic',
     Nitrite: '0.50 ppm',
     'Nitrite Status': 'Warning',
-    'Measured Parameters Status': 'Awaiting approved limits',
   });
   assert.equal(scan.labComparison, undefined);
   assert.equal(scan.imageUri, 'http://localhost:4000/api/water-tests/3ec25331-d511-491f-a1b6-11670bc4a2d6/image?token=short-lived-token');
@@ -66,7 +65,7 @@ test('Result screen contract displays backend-returned pH and Nitrite values', (
   assert.equal(scan.resultData.pH, '7.3');
   assert.equal(scan.resultData.Nitrite, '0.50 ppm');
   assert.equal(scan.resultData['Nitrite Status'], 'Warning');
-  assert.equal(scan.resultData['Measured Parameters Status'], 'Awaiting approved limits');
+  assert.equal(scan.resultData['Measured Parameters Status'], undefined);
   assert.doesNotMatch(JSON.stringify(scan.resultData), /undefined|NaN|null ppm/);
 });
 
@@ -115,8 +114,8 @@ test('toScanResult does not invent a safety class and removes comparison-only fi
 
   assert.equal(scan.status, 'NOT CLASSIFIED');
   assert.equal(scan.overallStatus, 'NOT CLASSIFIED');
-  assert.equal(scan.measuredParametersStatus, 'Not classified');
-  assert.equal(scan.measuredParametersDisplayStatus, 'Awaiting approved limits');
+  assert.equal(scan.measuredParametersStatus, undefined);
+  assert.equal(scan.measuredParametersDisplayStatus, undefined);
   assert.equal(scan.scientificValidationStatus, undefined);
   assert.equal(scan.scientificStatus, undefined);
   assert.equal(scan.laboratoryComparisonStatus, undefined);
@@ -177,8 +176,9 @@ test('unmatched measured colors are not mislabeled as awaiting classification li
 
   assert.equal(scan.resultData.pH, 'No reference match');
   assert.equal(scan.resultData.Nitrite, 'No reference match');
-  assert.equal(scan.resultData['Measured Parameters Status'], 'No reference match');
-  assert.equal(scan.measuredParametersStatus, 'Not classified');
+  assert.equal(scan.resultData['Nitrite Status'], 'Unavailable');
+  assert.equal(scan.resultData['Measured Parameters Status'], undefined);
+  assert.equal(scan.measuredParametersStatus, undefined);
   assert.equal(scan.summary, 'pH color did not match the configured reference levels. Nitrite color did not match the configured reference levels.');
   assert.doesNotMatch(scan.summary, /150,147,123|155,144,120|THRESHOLD_NOT_CONFIGURED|OUTSIDE_REFERENCE_SPACE/);
 });
@@ -194,9 +194,24 @@ test('toScanResult keeps both unavailable scientific values explicit', () => {
   assert.equal(scan.nitrite.value, null);
   assert.equal(scan.resultData.pH, 'Unavailable');
   assert.equal(scan.resultData.Nitrite, 'Unavailable');
+  assert.equal(scan.resultData['Nitrite Status'], 'Unavailable');
   assert.equal(scan.pHCategory, null);
   assert.equal(scan.resultData['pH Category'], undefined);
   assert.doesNotMatch(JSON.stringify(scan.resultData), /NaN|null ppm|undefined/);
+});
+
+test('successful pH does not inherit an unavailable Nitrite result in the scan summary', () => {
+  const scan = toScanResult({
+    analysisId: 'ph-success-nitrite-unavailable',
+    pH: 8.2,
+    pHResult: { value: 8.2, measuredRGB: [80, 100, 180] },
+    nitrite: { value: null, unit: 'ppm', measuredRGB: [155, 144, 120] },
+  }, 'https://aquality-api.example.test/api');
+
+  assert.equal(scan.resultData['pH Category'], 'Alkaline');
+  assert.equal(scan.resultData.Nitrite, 'No reference match');
+  assert.equal(scan.resultData['Nitrite Status'], 'Unavailable');
+  assert.equal(scan.summary, 'Nitrite color did not match the configured reference levels.');
 });
 
 test('blank, invalid, or non-numeric pH input never receives a category or fabricated zero', () => {

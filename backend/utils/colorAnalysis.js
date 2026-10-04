@@ -350,9 +350,197 @@ export function matchPHClientColor(measuredRGB, clientRgbRanges) {
   return matchClientColorByCentroid(measuredRGB, clientRgbRanges, { parameter: 'pH' });
 }
 
+const DEFAULT_NITRITE_MATCHING_POLICY = Object.freeze({
+  maximumNormalizedCompositeDistance: 1.5,
+  minimumNormalizedCompositeMargin: 0.2,
+  maximumReferenceFamilyScale: 2,
+});
+
 /** Match discrete client Nitrite classes without interpolation or clamping. */
-export function matchNitriteClientColor(measuredRGB, references) {
-  return matchClientColorByCentroid(measuredRGB, references, { parameter: 'nitrite' });
+export function matchNitriteClientColor(measuredRGB, references, matchingPolicy = {}) {
+  if (!Array.isArray(measuredRGB) || measuredRGB.length !== 3
+    || measuredRGB.some((channel) => !Number.isFinite(channel))
+    || !Array.isArray(references)) {
+    return {
+      accepted: false,
+      reference: null,
+      value: null,
+      matchState: 'OUTSIDE_REFERENCE_SPACE',
+      diagnostics: {
+        parameter: 'nitrite',
+        distanceMetric: 'COMPOSITE_NORMALIZED_COLOR_DISTANCE',
+        accepted: false,
+        reason: 'INVALID_MEASUREMENT_OR_REFERENCES',
+        candidateDistances: [],
+      },
+    };
+  }
+
+  const policy = { ...DEFAULT_NITRITE_MATCHING_POLICY, ...matchingPolicy };
+  const profiles = references.map(clientReferenceProfile).filter(Boolean);
+  const measuredLab = rgbToLab(measuredRGB);
+  const candidates = profiles.map((profile) => {
+    const intervalDistances = measuredRGB.map((value, index) => rangeDistance(value, profile.ranges[index]));
+    return {
+      reference: profile.reference,
+      centroidRGB: profile.centroidRGB,
+      ranges: profile.ranges,
+      rawRgbIntervalMatch: intervalDistances.every((distance) => distance === 0),
+      rgbEuclideanDistance: Math.hypot(...measuredRGB.map((value, index) => value - profile.centroidRGB[index])),
+      deltaE00: deltaE00(measuredLab, profile.centroidLab),
+      normalizedChromaticDistance: normalizedChromaticDistance(measuredRGB, profile.centroidRGB),
+    };
+  });
+
+  const pairwiseDistances = [];
+  for (let first = 0; first < profiles.length; first += 1) {
+    for (let second = first + 1; second < profiles.length; second += 1) {
+      pairwiseDistances.push({
+        deltaE00: deltaE00(profiles[first].centroidLab, profiles[second].centroidLab),
+        rgbEuclideanDistance: Math.hypot(...profiles[first].centroidRGB.map(
+          (value, index) => value - profiles[second].centroidRGB[index],
+        )),
+        normalizedChromaticDistance: normalizedChromaticDistance(
+          profiles[first].centroidRGB,
+          profiles[second].centroidRGB,
+        ),
+      });
+    }
+  }
+  const metricKeys = ['deltaE00', 'rgbEuclideanDistance', 'normalizedChromaticDistance'];
+  const metricScales = Object.fromEntries(metricKeys.map((key) => [
+    key,
+    median(pairwiseDistances.map((pair) => pair[key])),
+  ]));
+  const maximumReferenceSeparations = Object.fromEntries(metricKeys.map((key) => [
+    key,
+    pairwiseDistances.length ? Math.max(...pairwiseDistances.map((pair) => pair[key])) : null,
+  ]));
+  const referenceFamilyLimits = Object.fromEntries(metricKeys.map((key) => [
+    key,
+    Number.isFinite(maximumReferenceSeparations[key])
+      ? maximumReferenceSeparations[key] * Number(policy.maximumReferenceFamilyScale)
+      : null,
+  ]));
+  const scoredCandidates = candidates.map((candidate) => ({
+    ...candidate,
+    normalizedCompositeDistance: metricKeys.every((key) => (
+      Number.isFinite(metricScales[key])
+      && metricScales[key] > 0
+      && Number.isFinite(candidate[key])
+    ))
+      ? metricKeys.reduce((total, key) => total + candidate[key] / metricScales[key], 0) / metricKeys.length
+      : null,
+  })).sort((left, right) => (left.normalizedCompositeDistance ?? Infinity)
+    - (right.normalizedCompositeDistance ?? Infinity));
+
+  const exactMatches = candidates.filter(({ rawRgbIntervalMatch }) => rawRgbIntervalMatch);
+  const best = scoredCandidates[0] || null;
+  const second = scoredCandidates[1] || null;
+  const margin = best && second && Number.isFinite(best.normalizedCompositeDistance)
+    && Number.isFinite(second.normalizedCompositeDistance)
+    ? second.normalizedCompositeDistance - best.normalizedCompositeDistance
+    : null;
+  const maximumNormalizedCompositeDistance = Number(policy.maximumNormalizedCompositeDistance);
+  const minimumRequiredMargin = Number(policy.minimumNormalizedCompositeMargin);
+  const withinAcceptanceThreshold = Boolean(best
+    && Number.isFinite(best.normalizedCompositeDistance)
+    && Number.isFinite(maximumNormalizedCompositeDistance)
+    && best.normalizedCompositeDistance <= maximumNormalizedCompositeDistance);
+  const meetsMinimumMargin = Boolean(Number.isFinite(margin)
+    && Number.isFinite(minimumRequiredMargin)
+    && margin >= minimumRequiredMargin);
+  const withinReferenceFamily = Boolean(best && metricKeys.every((key) => (
+    Number.isFinite(referenceFamilyLimits[key])
+    && Number.isFinite(best[key])
+    && best[key] <= referenceFamilyLimits[key]
+  )));
+  const acceptedExactly = exactMatches.length === 1;
+  const ambiguousExact = exactMatches.length > 1;
+  const acceptedByDistance = exactMatches.length === 0
+    && withinAcceptanceThreshold
+    && meetsMinimumMargin
+    && withinReferenceFamily;
+  const accepted = acceptedExactly || acceptedByDistance;
+  const reason = acceptedExactly
+    ? 'EXACT_RGB_RANGE_MATCH'
+    : ambiguousExact
+      ? 'AMBIGUOUS_RGB_INTERVAL_MATCH'
+      : acceptedByDistance
+        ? 'ACCEPTED_WITH_COMPOSITE_DISTANCE_AND_MARGIN'
+        : !best
+          ? 'NO_VALID_REFERENCE_CLASSES'
+          : withinAcceptanceThreshold && !meetsMinimumMargin
+            ? 'AMBIGUOUS_RUNNER_UP_MARGIN'
+            : !withinReferenceFamily
+              ? 'OUTSIDE_REFERENCE_COLOR_FAMILY'
+              : 'OUTSIDE_COMPOSITE_ACCEPTANCE_THRESHOLD';
+  const matchMethod = acceptedExactly ? 'RAW_RGB_INTERVAL' : 'COMPOSITE_REFERENCE_DISTANCE';
+  const matchedCandidate = accepted ? (acceptedExactly ? exactMatches[0] : best) : null;
+  const value = matchedCandidate?.reference?.qualifier === '>'
+    ? null
+    : matchedCandidate?.reference?.value ?? null;
+  const matchState = !accepted
+    ? (ambiguousExact || (withinAcceptanceThreshold && !meetsMinimumMargin) ? 'AMBIGUOUS' : 'OUTSIDE_REFERENCE_SPACE')
+    : matchedCandidate.reference.qualifier === '>'
+      ? 'ABOVE_1_PPM'
+      : acceptedExactly ? 'EXACT_OR_IN_RANGE' : 'DISTANCE_MATCH';
+  const candidateDistances = scoredCandidates.map((candidate) => ({
+    label: candidate.reference.label,
+    value: candidate.reference.value,
+    deltaE00: candidate.deltaE00,
+    rgbEuclideanDistance: candidate.rgbEuclideanDistance,
+    normalizedChromaticDistance: candidate.normalizedChromaticDistance,
+    normalizedCompositeDistance: candidate.normalizedCompositeDistance,
+    rawRgbIntervalMatch: candidate.rawRgbIntervalMatch,
+    centroidRGB: candidate.centroidRGB,
+  }));
+  const diagnostics = {
+    parameter: 'nitrite',
+    distanceMetric: 'COMPOSITE_NORMALIZED_COLOR_DISTANCE',
+    metricsUsed: ['CIEDE2000', 'RGB_EUCLIDEAN', 'NORMALIZED_CHROMATIC_RGB'],
+    metricScales,
+    referenceFamilyLimits,
+    bestReference: best ? { label: best.reference.label, value: best.reference.value } : null,
+    secondBestReference: second ? { label: second.reference.label, value: second.reference.value } : null,
+    bestDistance: best?.deltaE00 ?? null,
+    secondBestDistance: second?.deltaE00 ?? null,
+    bestCompositeDistance: best?.normalizedCompositeDistance ?? null,
+    secondBestCompositeDistance: second?.normalizedCompositeDistance ?? null,
+    margin,
+    minimumReferenceSeparation: pairwiseDistances.length
+      ? Math.min(...pairwiseDistances.map((pair) => pair.deltaE00))
+      : null,
+    medianPairwiseReferenceSeparations: metricScales,
+    acceptanceThreshold: maximumNormalizedCompositeDistance,
+    minimumRequiredMargin,
+    marginMetric: 'NORMALIZED_COMPOSITE_DISTANCE',
+    withinReferenceFamily,
+    accepted,
+    withinAcceptanceThreshold,
+    meetsMinimumMargin,
+    reason,
+    candidateDistances,
+  };
+
+  return {
+    accepted,
+    reference: matchedCandidate?.reference || null,
+    value,
+    displayValue: matchedCandidate?.reference?.displayValue
+      || (matchedCandidate?.reference?.qualifier === '>' ? `>${matchedCandidate.reference.lowerBound} ppm`
+        : matchedCandidate ? `${matchedCandidate.reference.value} ppm` : null),
+    qualifier: matchedCandidate?.reference?.qualifier ?? null,
+    lowerBound: matchedCandidate?.reference?.lowerBound ?? null,
+    matchMethod,
+    matchState,
+    closestReference: best?.reference || null,
+    distance: best?.deltaE00 ?? null,
+    rgbEuclideanDistance: best?.rgbEuclideanDistance ?? null,
+    normalizedChromaticDistance: best?.normalizedChromaticDistance ?? null,
+    diagnostics,
+    candidates: scoredCandidates,
+  };
 }
 
 function normalizedRange(value) {

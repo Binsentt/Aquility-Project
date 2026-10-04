@@ -39,10 +39,10 @@ test('buildPdfHtml includes public user data, strip image, chemistry, GPS, statu
     },
   });
 
-  for (const expected of ['Ana Cruz', 'ana@example.test', '09171234567', 'San Isidro', '6.80', '0.50 ppm', 'Nitrite:', '14.6000', 'SA', 'Pawikan', 'Coastal / Pawikan', 'Not classified', 'acceptable']) {
+  for (const expected of ['Ana Cruz', 'ana@example.test', '09171234567', 'San Isidro', '6.80', '0.50 ppm', 'Nitrite:', '14.6000', 'SA', 'Pawikan', 'Coastal / Pawikan', 'acceptable']) {
     assert.match(html, new RegExp(expected));
   }
-  assert.match(html, /Measured Parameters Status/);
+  assert.doesNotMatch(html, /Measured Parameters Status|Awaiting approved limits|Overall Water Status/);
   assert.match(html, /pH Category:<\/strong> Acidic/);
   assert.doesNotMatch(html, /Scientific Validation|Laboratory Comparison|Pending laboratory/i);
   assert.match(html, /<img /);

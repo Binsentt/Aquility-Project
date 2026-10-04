@@ -7,7 +7,7 @@ import { COLORS, LAYOUT, RADII, SHADOWS, SIZES, SPACING } from '../../styles/the
 import { savePdfExport, savePngExport, exportOutcomeNotice } from '../../services/exportService';
 import { toSafeExportMessage } from '../../services/exportErrors';
 import { loadBackendWaterTest } from '../../services/waterTestRecordService';
-import { cleanClientRemarks, displayMeasuredParametersStatus } from '../../services/apiMappers';
+import { cleanClientRemarks } from '../../services/apiMappers';
 import { canonicalizeSampleClass, canonicalizeSampleCode } from '../../services/sampleSites';
 
 export default function ResultScreen() {
@@ -47,7 +47,7 @@ export default function ResultScreen() {
 
   const metrics = useMemo(() => {
     const source = payload.resultData || {};
-    const visibleKeys = new Set(['pH', 'pH Category', 'Nitrite', 'Nitrite Status', 'Measured Parameters Status']);
+    const visibleKeys = new Set(['pH', 'pH Category', 'Nitrite', 'Nitrite Status']);
     return Object.entries(source).filter(([key]) => visibleKeys.has(key));
   }, [payload.resultData]);
 
@@ -135,10 +135,6 @@ export default function ResultScreen() {
             <View style={styles.metaRow}>
               <Text style={styles.metaLabel}>Scan Status</Text>
               <Text style={styles.metaValue}>{payload.scanStatus || 'Completed'}</Text>
-            </View>
-            <View style={styles.metaRow}>
-              <Text style={styles.metaLabel}>Measured Parameters Status</Text>
-              <Text style={styles.metaValue}>{payload.measuredParametersDisplayStatus || displayMeasuredParametersStatus(payload.measuredParametersStatus)}</Text>
             </View>
             {payload.location && Number.isFinite(Number(payload.location.latitude)) && Number.isFinite(Number(payload.location.longitude)) ? (
               <View style={styles.metaRow}>

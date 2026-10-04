@@ -4,7 +4,6 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS, LAYOUT, RADII, SHADOWS, SIZES, SPACING } from '../../styles/theme';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
-import { displayMeasuredParametersStatus } from '../../services/apiMappers';
 
 export default function HistoryScreen() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -80,7 +79,7 @@ export default function HistoryScreen() {
               <Text style={styles.cardSite}>
                 {item.sampleClass || 'Unknown'} · {item.siteName || 'Unknown sampling site'} · {item.sourceType || 'Unknown source'}
               </Text>
-              <Text style={styles.cardScientific}>Measured parameters: {item.measuredParametersDisplayStatus || displayMeasuredParametersStatus(item.measuredParametersStatus)}</Text>
+              <Text style={styles.cardScientific}>pH: {item.resultData?.pH || 'Unavailable'} · Nitrite: {item.resultData?.Nitrite || 'Unavailable'}</Text>
               <Text numberOfLines={2} style={styles.cardSummary}>
                 {item.summary || 'No summary available.'}
               </Text>

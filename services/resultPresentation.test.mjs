@@ -6,6 +6,7 @@ import { buildPdfHtml } from './reportTemplate.js';
 
 const resultScreen = readFileSync(new URL('../screens/Result/ResultScreen.js', import.meta.url), 'utf8');
 const historyDetail = readFileSync(new URL('../screens/History/HistoryDetailScreen.js', import.meta.url), 'utf8');
+const historyList = readFileSync(new URL('../screens/History/HistoryScreen.js', import.meta.url), 'utf8');
 const mapDetails = readFileSync(new URL('../components/MapLibreWaterMap.native.js', import.meta.url), 'utf8');
 
 test('Result, History Detail, and PDF use the same persisted pH category and qualified Nitrite display', () => {
@@ -23,6 +24,7 @@ test('Result, History Detail, and PDF use the same persisted pH category and qua
   assert.match(historyDetail, /'pH Category'/);
   assert.match(resultScreen, /'Nitrite Status'/);
   assert.match(historyDetail, /'Nitrite Status'/);
+  assert.match(historyList, /resultData\?\.Nitrite/);
   assert.match(mapDetails, /Nitrite Status: \{displayText\(selectedMarker\.nitriteStatus\)\}/);
   assert.match(resultScreen, /sampleCode/);
   assert.match(historyDetail, /sampleCode/);
@@ -31,6 +33,7 @@ test('Result, History Detail, and PDF use the same persisted pH category and qua
   assert.equal(record.resultData['pH Category'], 'Neutral');
   assert.equal(record.resultData.Nitrite, '>1 ppm');
   assert.equal(record.resultData['Nitrite Status'], 'Dangerous');
+  assert.deepEqual(Object.keys(record.resultData), ['pH', 'pH Category', 'Nitrite', 'Nitrite Status']);
   assert.equal(record.sampleClass, 'SB');
   assert.equal(record.sampleCode, 'SB-01');
   assert.match(pdf, /pH:<\/strong> 7\.0/);
@@ -39,5 +42,7 @@ test('Result, History Detail, and PDF use the same persisted pH category and qua
   assert.match(pdf, /Sample code:<\/strong> SB-01/);
   assert.match(pdf, /Sample class:<\/strong> SB/);
   assert.match(pdf, /Nitrite Status:<\/strong> Dangerous/);
+  assert.doesNotMatch(`${resultScreen}\n${historyDetail}\n${historyList}\n${pdf}`, /Measured Parameters Status|Awaiting approved limits|Overall Water Status/);
+  assert.match(pdf, /Nitrite estimate basis:<\/strong> Client-supplied reference colors/);
   assert.doesNotMatch(pdf, /undefined|NaN/);
 });

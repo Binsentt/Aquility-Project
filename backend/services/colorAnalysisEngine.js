@@ -178,6 +178,7 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
       const nitriteEstimate = matchNitriteClientColor(
         nitriteStats.measuredRGB,
         calibration.nitrite?.references,
+        calibration.nitrite?.matching,
       );
       const nitriteReferenceMatched = nitriteEstimate.accepted;
       const nitriteColorReliable = nitriteQuality.reliable || nitriteReferenceMatched;
@@ -309,7 +310,7 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
           matchState: nitriteEstimate.matchState,
           matchingMethod: nitriteEstimate.matchMethod === 'RAW_RGB_INTERVAL'
             ? 'direct-client-rgb-range'
-            : 'ciede2000-centroid-distance',
+            : 'composite-reference-distance',
           matchedReference: nitriteEstimate.reference ? {
             label: nitriteEstimate.reference.label,
             value: nitriteEstimate.reference.value,
@@ -341,6 +342,7 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
             reaction: calibration.nitrite.reaction,
             provisional: calibration.nitrite.provisional,
             matching: calibration.nitrite.matching,
+            estimateUse: 'reference-color-based estimate; laboratory accuracy is not established',
             references: calibration.nitrite.references,
             researchFeature: calibration.nitrite.researchMetadata?.feature,
             quantitativeUse: 'unvalidated',

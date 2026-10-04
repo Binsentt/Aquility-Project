@@ -94,7 +94,6 @@ export function serializeWaterTest(record, authTokenService = null) {
     remarks,
     summary: remarks,
     scanStatus: 'Completed',
-    measuredParametersStatus: record.measuredParametersStatus || 'Not classified',
     roiLocalizationStatus: record.analysisData?.roiLocalizationStatus || 'STRIP REGISTRATION REQUIRED',
     gps: location,
     location,
@@ -123,8 +122,7 @@ export function serializeWaterTest(record, authTokenService = null) {
     resultData: {
       pH: displayMeasurement(pH, pHResult, (value) => value.toFixed(1)),
       Nitrite: displayMeasurement(nitrite.value, nitrite, (value) => `${value.toFixed(2)} ppm`),
-      ...(nitriteClassificationStatus ? { 'Nitrite Status': nitriteClassificationStatus } : {}),
-      'Measured Parameters Status': record.measuredParametersStatus || 'Not classified',
+      'Nitrite Status': nitriteClassificationStatus || 'Unavailable',
     },
   };
 }

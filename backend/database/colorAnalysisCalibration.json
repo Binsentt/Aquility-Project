@@ -98,11 +98,15 @@
     "unit": "ppm",
     "source": "CLIENT_DIRECT_NITRITE_RGB",
     "reaction": "Griess method, client-provided direct Nitrite reference colors",
-    "method": "Registered left Nitrite ROI median RGB -> discrete inclusive RGB-range matching",
+    "method": "Registered left Nitrite ROI median RGB -> discrete client-reference matching using exact RGB intervals and a guarded three-metric centroid score",
     "provisional": true,
     "matching": {
-      "acceptance": "Inclusive client RGB intervals only; colors outside every interval are unavailable",
-      "distanceMetric": "RGB Euclidean distance to interval midpoint; diagnostic only"
+      "acceptance": "A unique inclusive client RGB interval match is strongest. Otherwise, a discrete class is accepted only when a three-metric centroid score is within the configured limit, has the required runner-up margin, and stays within the reference color family.",
+      "distanceMetric": "Equal-weight mean of CIEDE2000, RGB Euclidean distance, and normalized chromatic RGB distance, each divided by its median pairwise centroid separation",
+      "maximumNormalizedCompositeDistance": 1.5,
+      "minimumNormalizedCompositeMargin": 0.2,
+      "maximumReferenceFamilyScale": 2,
+      "estimateUse": "reference-color-based estimate; laboratory accuracy is not established"
     },
     "references": [
       {

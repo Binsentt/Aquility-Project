@@ -556,7 +556,7 @@ test('computed Nitrite matching accepts configured centroids and nearby unambigu
     assert.equal(result.reference.label, sample.label);
     assert.equal(result.matchMethod, result.diagnostics.reason === 'EXACT_RGB_RANGE_MATCH'
       ? 'RAW_RGB_INTERVAL'
-      : 'CIEDE2000_CENTROID_DISTANCE');
+      : 'COMPOSITE_REFERENCE_DISTANCE');
   }
 
   const centers = references.map(centroid);
@@ -580,6 +580,65 @@ test('computed Nitrite matching accepts configured centroids and nearby unambigu
   assert.equal(latestScan.diagnostics.secondBestReference.label, '0');
   assert.ok(latestScan.diagnostics.bestDistance > latestScan.diagnostics.acceptanceThreshold);
   assert.ok(latestScan.diagnostics.margin < latestScan.diagnostics.minimumRequiredMargin);
+});
+
+test('Nitrite composite matching rejects measurements with unavailable metrics', async () => {
+  const calibration = await readBaseCalibration();
+  const { matchNitriteClientColor } = await import('../utils/colorAnalysis.js');
+  const result = matchNitriteClientColor([0, 0, 0], calibration.nitrite.references);
+
+  assert.equal(result.accepted, false);
+  assert.equal(result.diagnostics.withinReferenceFamily, false);
+  assert.ok(result.diagnostics.candidateDistances.every((candidate) => (
+    candidate.normalizedCompositeDistance === null
+  )));
+});
+
+test('exact Nitrite RGB intervals preserve the four discrete client classes', async () => {
+  const calibration = await readBaseCalibration();
+  const { matchNitriteClientColor } = await import('../utils/colorAnalysis.js');
+  const { classifyNitriteStatus } = await import('../services/measurementClassification.js');
+  const cases = [
+    { label: '0', rgb: [183, 172, 180], display: '0 ppm', value: 0, status: 'Safe' },
+    { label: '0.5', rgb: [190, 172, 188], display: '0.5 ppm', value: 0.5, status: 'Warning' },
+    { label: '1', rgb: [203, 183, 183], display: '1 ppm', value: 1, status: 'Dangerous' },
+    { label: '>1', rgb: [197, 179, 195], display: '>1 ppm', value: null, status: 'Dangerous' },
+  ];
+
+  for (const expected of cases) {
+    const result = matchNitriteClientColor(expected.rgb, calibration.nitrite.references, calibration.nitrite.matching);
+    assert.equal(result.accepted, true, JSON.stringify(result.diagnostics));
+    assert.equal(result.reference.label, expected.label);
+    assert.equal(result.value, expected.value);
+    assert.equal(result.displayValue, expected.display);
+    assert.equal(classifyNitriteStatus({
+      value: result.value,
+      qualifier: result.qualifier,
+      lowerBound: result.lowerBound,
+    }), expected.status);
+  }
+});
+
+test('computed Nitrite matching uses all color distances and accepts a clear real-camera color only', async () => {
+  const calibration = await readBaseCalibration();
+  const { matchNitriteClientColor } = await import('../utils/colorAnalysis.js');
+  const references = calibration.nitrite.references;
+
+  const realCameraColor = matchNitriteClientColor([169, 163, 161], references, calibration.nitrite.matching);
+  assert.equal(realCameraColor.accepted, true, JSON.stringify(realCameraColor.diagnostics));
+  assert.equal(realCameraColor.reference.label, '0');
+  assert.equal(realCameraColor.displayValue, '0 ppm');
+  assert.equal(realCameraColor.matchMethod, 'COMPOSITE_REFERENCE_DISTANCE');
+  assert.deepEqual(
+    realCameraColor.diagnostics.metricsUsed,
+    ['CIEDE2000', 'RGB_EUCLIDEAN', 'NORMALIZED_CHROMATIC_RGB'],
+  );
+  assert.ok(realCameraColor.diagnostics.margin >= realCameraColor.diagnostics.minimumRequiredMargin);
+
+  const unrelated = matchNitriteClientColor([255, 0, 0], references, calibration.nitrite.matching);
+  assert.equal(unrelated.accepted, false);
+  assert.equal(unrelated.reference, null);
+  assert.equal(unrelated.matchState, 'OUTSIDE_REFERENCE_SPACE');
 });
 
 test('analysis refuses numeric output when physical strip ROIs are not configured', async () => {

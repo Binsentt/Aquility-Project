@@ -36,7 +36,8 @@ test('sample classes canonicalize historical values while the scanner offers onl
 test('result and history omit client-facing laboratory comparison and scientific validation', () => {
   for (const source of [resultSource, historySource]) {
     assert.match(source, /Scan Status/);
-    assert.match(source, /displayMeasuredParametersStatus/);
+    assert.match(source, /'Nitrite Status'/);
+    assert.doesNotMatch(source, /Measured Parameters Status|Awaiting approved limits|displayMeasuredParametersStatus/);
     assert.doesNotMatch(source, /Laboratory Comparison|Scientific Validation|Pending laboratory/i);
   }
 });

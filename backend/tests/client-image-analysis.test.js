@@ -296,6 +296,8 @@ test('qualified Nitrite value survives upload API, persistence, Result, History,
   assert.deepEqual(response.body.nitrite.measuredRGB, [197, 179, 195]);
   assert.equal(response.body.resultData.Nitrite, '>1 ppm');
   assert.equal(response.body.resultData['Nitrite Status'], 'Dangerous');
+  assert.equal(response.body.resultData['Measured Parameters Status'], undefined);
+  assert.equal(response.body.resultData.Nitrite, '>1 ppm');
   assert.equal(persisted.estimatedNitrite, null);
   assert.equal(persisted.analysisData.nitrite.matchState, 'ABOVE_1_PPM');
   assert.equal(persisted.analysisData.nitrite.classificationStatus, 'Dangerous');
@@ -352,12 +354,13 @@ test('official-time continuous pH and Nitrite colors reach persisted Result, His
   assert.equal(resultView.resultData.Nitrite, '0.5 ppm');
   assert.equal(resultView.resultData['Nitrite Status'], 'Warning');
   assert.equal(resultView.resultData['pH Category'], 'Alkaline');
-  assert.equal(resultView.resultData['Measured Parameters Status'], 'Awaiting approved limits');
+  assert.deepEqual(Object.keys(resultView.resultData), ['pH', 'pH Category', 'Nitrite', 'Nitrite Status']);
 
   const pdf = buildPdfHtml({ test: historyView });
   assert.match(pdf, /pH:<\/strong> 7\.4/);
   assert.match(pdf, /Nitrite:<\/strong> 0\.5 ppm/);
   assert.match(pdf, /Nitrite Status:<\/strong> Warning/);
+  assert.doesNotMatch(pdf, /Measured Parameters Status|Awaiting approved limits|Overall Water Status/);
   const marker = toMapMarker({
     id: historyRecord.id,
     latitude: 14.6,
@@ -434,6 +437,26 @@ test('the exact 1 ppm Nitrite reference receives Dangerous status and persists i
   assert.equal(response.body.nitriteClassificationStatus, 'Dangerous');
   assert.equal(response.body.resultData['Nitrite Status'], 'Dangerous');
   assert.equal(persistedRecords[0].analysisData.nitrite.classificationStatus, 'Dangerous');
+});
+
+test('a scan with successful pH and unavailable Nitrite reports only the Nitrite limitation', async () => {
+  const { app } = await createComputedResultTestApp();
+  const image = await createDeveloperRoiImage([186, 178, 142], [155, 144, 120]);
+  const response = await submitDeveloperImage(app, image, {
+    sampleClass: 'SB',
+    sampleCode: 'SB-09',
+    gpsLatitude: 14.6,
+    gpsLongitude: 120.98,
+    capturedAt: '2026-10-04T00:00:00.000Z',
+  });
+
+  assert.equal(response.status, 201, JSON.stringify(response.body));
+  const resultView = toScanResult(response.body, 'https://aquality-api.example.test/api');
+  assert.equal(resultView.resultData['pH Category'], 'Alkaline');
+  assert.equal(resultView.resultData.Nitrite, 'No reference match');
+  assert.equal(resultView.resultData['Nitrite Status'], 'Unavailable');
+  assert.deepEqual(Object.keys(resultView.resultData), ['pH', 'pH Category', 'Nitrite', 'Nitrite Status']);
+  assert.equal(resultView.summary, 'Nitrite color did not match the configured reference levels.');
 });
 
 test('changing only sensing-zone RGB changes results under fixed metadata, and unsupported colors stay unavailable', async () => {
