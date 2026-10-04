@@ -47,7 +47,7 @@ export default function ResultScreen() {
 
   const metrics = useMemo(() => {
     const source = payload.resultData || {};
-    const visibleKeys = new Set(['pH', 'pH Category', 'Nitrite', 'Measured Parameters Status']);
+    const visibleKeys = new Set(['pH', 'pH Category', 'Nitrite', 'Nitrite Status', 'Measured Parameters Status']);
     return Object.entries(source).filter(([key]) => visibleKeys.has(key));
   }, [payload.resultData]);
 

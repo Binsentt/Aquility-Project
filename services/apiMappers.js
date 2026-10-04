@@ -82,6 +82,10 @@ export function toScanResult(waterTest = {}, apiBaseUrl) {
   const pH = finiteMeasurement(waterTest.pH);
   const pHCategory = pHCategoryFor(pH);
   const nitriteValue = finiteMeasurement(waterTest.nitrite?.value);
+  const nitriteClassificationStatus = waterTest.nitriteClassificationStatus
+    || waterTest.nitrite?.classificationStatus
+    || waterTest.resultData?.['Nitrite Status']
+    || null;
   const imageUri = resolveMediaUrl(waterTest.imageUri || waterTest.imagePath, apiBaseUrl);
   const measuredParametersStatus = waterTest.measuredParametersStatus || 'Not classified';
   const overallStatus = waterTest.overallStatus && waterTest.overallStatus !== 'Unvalidated'
@@ -143,6 +147,7 @@ export function toScanResult(waterTest = {}, apiBaseUrl) {
       pH: pHDisplay,
       ...(pHCategory ? { 'pH Category': pHCategory } : {}),
       Nitrite: nitriteDisplay,
+      ...(nitriteClassificationStatus ? { 'Nitrite Status': nitriteClassificationStatus } : {}),
       'Measured Parameters Status': measuredParametersDisplayStatus,
     },
     pH,
@@ -150,6 +155,7 @@ export function toScanResult(waterTest = {}, apiBaseUrl) {
     pHResult,
     phStatus: waterTest.phStatus || null,
     nitrite: waterTest.nitrite || null,
+    nitriteClassificationStatus,
     sampleCode,
     sampleNumber: waterTest.sampleNumber == null ? null : Number(waterTest.sampleNumber),
     gpsAccuracyMeters: waterTest.gpsAccuracyMeters == null ? null : Number(waterTest.gpsAccuracyMeters),
@@ -207,6 +213,11 @@ export function toMapMarker(payload = {}) {
   const nitriteValue = finiteMeasurement(payload.nitrite?.value);
   const nitriteDisplay = nitriteDisplayInput?.trim()
     || (nitriteValue == null ? 'Unavailable' : `${nitriteValue.toFixed(2)} ppm`);
+  const nitriteStatus = payload.nitriteStatus
+    || payload.nitriteClassificationStatus
+    || payload.nitrite?.classificationStatus
+    || payload.resultData?.['Nitrite Status']
+    || null;
 
   return {
     id,
@@ -224,6 +235,7 @@ export function toMapMarker(payload = {}) {
     pH,
     pHCategory: pHCategoryFor(pH),
     nitriteDisplay,
+    nitriteStatus,
   };
 }
 

@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 import { HttpError } from '../middleware/errorHandler.js';
 import { assessColorQuality, extractRoiStatistics, matchNitriteClientColor, matchPHClientColor, rgbToHsv, rgbToLab } from '../utils/colorAnalysis.js';
-import { classifyMeasurements, MEASUREMENT_STATUS } from './measurementClassification.js';
+import { classifyMeasurements, classifyNitriteStatus, MEASUREMENT_STATUS } from './measurementClassification.js';
 import { buildUPadDiagnosticOverlaySvg, createUPadDiagnosticOverlay, detectUPadRegistration } from './upadRegistration.js';
 
 const databaseDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'database');
@@ -223,6 +223,13 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
         ? 'Estimated'
         : !phQuality.reliable ? 'IMAGE_QUALITY_INSUFFICIENT' : 'PH_MEASUREMENT_UNRELIABLE';
       const nitriteQuantitativeAvailable = nitriteColorReliable && nitriteReferenceMatched;
+      const nitriteClassificationStatus = nitriteQuantitativeAvailable
+        ? classifyNitriteStatus({
+          value: nitriteEstimate.value,
+          qualifier: nitriteEstimate.qualifier,
+          lowerBound: nitriteEstimate.lowerBound,
+        })
+        : null;
       const nitriteStatus = !nitriteColorReliable
         ? 'NITRITE_IMAGE_QUALITY_INSUFFICIENT'
         : nitriteEstimate.matchState === 'ABOVE_1_PPM'
@@ -289,6 +296,7 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
           calibrationInterval: null,
           clamped: false,
           quantitativeAvailable: nitriteQuantitativeAvailable,
+          classificationStatus: nitriteClassificationStatus,
           status: nitriteStatus,
           measuredColorReliable: nitriteColorReliable,
           value: nitriteQuantitativeAvailable ? nitriteEstimate.value : null,
@@ -311,6 +319,7 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
         },
         phStatus,
         nitriteStatus,
+        nitriteClassificationStatus,
         scanStatus: 'Completed',
         measuredParametersStatus: classification.status,
         scientificValidationStatus: MEASUREMENT_STATUS.SCIENTIFIC_PENDING,

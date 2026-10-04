@@ -59,6 +59,7 @@ test('MapLibre render models retain safe marker details, add lngLat, and exclude
     pH: 6.8,
     pHCategory: 'Acidic',
     nitriteDisplay: '>1 ppm',
+    nitriteStatus: 'Dangerous',
     user: { email: 'private@example.test' },
     analysisData: { measuredRGB: [1, 2, 3] },
     phoneNumber: 'private',
@@ -83,6 +84,7 @@ test('MapLibre render models retain safe marker details, add lngLat, and exclude
     pH: 6.8,
     pHCategory: 'Acidic',
     nitriteDisplay: '>1 ppm',
+    nitriteStatus: 'Dangerous',
   }]);
   assert.deepEqual(source, before);
   assert.doesNotMatch(JSON.stringify(rendered), /private@example\.test|phoneNumber|"user"/);

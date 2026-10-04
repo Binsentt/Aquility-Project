@@ -17,20 +17,26 @@ export function createMapService({ waterTestModel }) {
       const markers = await waterTestModel.listMarkers();
       if (!Array.isArray(markers)) return [];
 
-      return markers.filter((marker) => marker && typeof marker === 'object' && !Array.isArray(marker)).map((marker) => ({
-        id: marker.id,
-        latitude: nullableNumber(marker.latitude),
-        longitude: nullableNumber(marker.longitude),
-        overallStatus: nullableText(marker.overallStatus) || 'NOT CLASSIFIED',
-        capturedAt: marker.capturedAt || null,
-        barangay: nullableText(marker.barangay),
-        municipality: nullableText(marker.municipality),
-        sampleClass: canonicalizeSampleClass(marker.sampleClass) || nullableText(marker.sampleClass),
-        siteName: nullableText(marker.siteName),
-        sourceType: nullableText(marker.sourceType),
-        pH: nullableNumber(marker.pH),
-        nitriteDisplay: nullableText(marker.nitriteDisplay) || 'Unavailable',
-      }));
+      return markers
+        .filter((marker) => marker && typeof marker === 'object' && !Array.isArray(marker))
+        .map((marker) => {
+          const nitriteStatus = nullableText(marker.nitriteStatus);
+          return {
+            id: marker.id,
+            latitude: nullableNumber(marker.latitude),
+            longitude: nullableNumber(marker.longitude),
+            overallStatus: nullableText(marker.overallStatus) || 'NOT CLASSIFIED',
+            capturedAt: marker.capturedAt || null,
+            barangay: nullableText(marker.barangay),
+            municipality: nullableText(marker.municipality),
+            sampleClass: canonicalizeSampleClass(marker.sampleClass) || nullableText(marker.sampleClass),
+            siteName: nullableText(marker.siteName),
+            sourceType: nullableText(marker.sourceType),
+            pH: nullableNumber(marker.pH),
+            nitriteDisplay: nullableText(marker.nitriteDisplay) || 'Unavailable',
+            ...(nitriteStatus ? { nitriteStatus } : {}),
+          };
+        });
     },
   };
 }

@@ -39,6 +39,7 @@ const PUBLIC_MARKER_FIELDS = [
   'siteName',
   'sourceType',
   'nitriteDisplay',
+  'nitriteStatus',
 ];
 
 export function buildMapLibreMarkers(markers) {
@@ -95,6 +96,7 @@ export function mapMarkersFromHistory(scanHistory) {
     sourceType: scan?.sourceType,
     pH: scan?.pH,
     nitriteDisplay: scan?.nitrite?.displayValue || scan?.resultData?.Nitrite || null,
+    nitriteStatus: scan?.nitriteClassificationStatus || scan?.nitrite?.classificationStatus || scan?.resultData?.['Nitrite Status'] || null,
     nitrite: scan?.nitrite,
   })));
 }

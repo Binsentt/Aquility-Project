@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { classifyMeasurements } from '../services/measurementClassification.js';
+import { classifyMeasurements, classifyNitriteStatus } from '../services/measurementClassification.js';
 
 test('classification remains not classified when approved thresholds are absent', () => {
   assert.deepEqual(classifyMeasurements({ pH: 8, nitrite: 100, thresholds: null }), {
@@ -35,4 +35,23 @@ test('classification evaluates only an explicitly supplied approved threshold se
     status: 'Outside configured limits',
     reason: null,
   });
+});
+
+test('client-approved Nitrite boundaries classify exact 0, 0.5, and 1 ppm readings', () => {
+  assert.equal(classifyNitriteStatus(0), 'Safe');
+  assert.equal(classifyNitriteStatus(0.499), 'Safe');
+  assert.equal(classifyNitriteStatus(0.5), 'Warning');
+  assert.equal(classifyNitriteStatus(0.999), 'Warning');
+  assert.equal(classifyNitriteStatus(1), 'Dangerous');
+  assert.equal(classifyNitriteStatus(1.25), 'Dangerous');
+});
+
+test('qualified Nitrite above 1 ppm is Dangerous without inventing an exact concentration', () => {
+  assert.equal(classifyNitriteStatus({ value: null, qualifier: '>', lowerBound: 1 }), 'Dangerous');
+});
+
+test('Nitrite with no valid concentration or qualifier has no status classification', () => {
+  for (const result of [null, NaN, Infinity, -0.01, { value: null }, { value: null, qualifier: '>', lowerBound: 0.9 }]) {
+    assert.equal(classifyNitriteStatus(result), null);
+  }
 });

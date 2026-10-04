@@ -43,7 +43,12 @@ export function buildPdfHtml({ user = {}, test = {}, brandImageUri = null } = {}
   const stripImage = test.imageUri || test.image || test.uri || test.images?.[0] || null;
   const reactionTime = test.reactionTime ?? test.immersionTime ?? null;
   const pHStatus = test.phStatus || test.pHResult?.status || 'Unavailable';
-  const nitriteStatus = test.nitriteStatus || test.nitrite?.status || 'Unavailable';
+  const nitriteStatus = test.nitriteClassificationStatus
+    || results['Nitrite Status']
+    || test.nitrite?.classificationStatus
+    || test.nitriteStatus
+    || test.nitrite?.status
+    || 'Unavailable';
   const sampleClass = canonicalizeSampleClass(test.sampleClass) || test.sampleClass || 'Unknown';
   const sampleCode = canonicalizeSampleCode(test.sampleCode) || test.sampleCode || 'Unavailable';
   const roiColors = `pH ROI median RGB: ${formatRgb(test.pHResult?.measuredRGB)}; Nitrite ROI median RGB: ${formatRgb(test.nitrite?.measuredRGB)}`;

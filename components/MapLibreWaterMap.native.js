@@ -137,6 +137,7 @@ export default function MapLibreWaterMap({
           <Text style={styles.detailsText}>Tested: {formatTestDate(selectedMarker.createdAt)}</Text>
           <Text style={styles.detailsText}>pH: {formatPHMeasurement(selectedMarker.pH, selectedMarker.pHCategory)}</Text>
           <Text style={styles.detailsText}>Nitrite: {displayText(selectedMarker.nitriteDisplay)}</Text>
+          {selectedMarker.nitriteStatus ? <Text style={styles.detailsText}>Nitrite Status: {displayText(selectedMarker.nitriteStatus)}</Text> : null}
         </View>
       ) : null}
     </View>

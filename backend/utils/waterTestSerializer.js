@@ -1,4 +1,5 @@
 import { canonicalizeSampleClass, canonicalizeSampleCode } from '../services/sampleSites.js';
+import { classifyNitriteStatus } from '../services/measurementClassification.js';
 
 function formatMeasurement(value, unit, status) {
   return { value: value == null ? null : Number(value), unit, status };
@@ -52,10 +53,17 @@ export function serializeWaterTest(record, authTokenService = null) {
   const pH = groupedPHRange
     ? null
     : pHResult?.value ?? (record.estimatedPH == null ? null : Number(record.estimatedPH));
-  const nitrite = record.analysisData?.nitrite
-    ? { ...record.analysisData.nitrite, status: record.nitriteStatus }
-    : formatMeasurement(record.estimatedNitrite, 'ppm', record.nitriteStatus);
   const isLegacyNitrateRecord = !record.analysisData && record.estimatedNitrite == null;
+  const storedNitrite = record.analysisData?.nitrite || null;
+  const isAcceptedCurrentNitrite = storedNitrite?.quantitativeAvailable === true
+    || ['EXACT_OR_IN_RANGE', 'ABOVE_1_PPM', 'DISTANCE_MATCH'].includes(storedNitrite?.matchState);
+  const nitriteClassificationStatus = !isLegacyNitrateRecord && storedNitrite
+    ? storedNitrite.classificationStatus
+      || (isAcceptedCurrentNitrite ? classifyNitriteStatus(storedNitrite) : null)
+    : null;
+  const nitrite = storedNitrite
+    ? { ...storedNitrite, status: record.nitriteStatus, classificationStatus: nitriteClassificationStatus }
+    : formatMeasurement(record.estimatedNitrite, 'ppm', record.nitriteStatus);
   const overallStatus = isLegacyNitrateRecord || record.overallStatus === 'Unvalidated'
     ? 'NOT CLASSIFIED'
     : (record.overallStatus || 'NOT CLASSIFIED');
@@ -80,6 +88,7 @@ export function serializeWaterTest(record, authTokenService = null) {
     pHResult,
     phStatus: groupedPHRange ? 'PH_MEASUREMENT_UNRELIABLE' : record.phStatus,
     nitrite,
+    nitriteClassificationStatus,
     overallStatus,
     status: overallStatus,
     remarks,
@@ -114,6 +123,7 @@ export function serializeWaterTest(record, authTokenService = null) {
     resultData: {
       pH: displayMeasurement(pH, pHResult, (value) => value.toFixed(2)),
       Nitrite: displayMeasurement(nitrite.value, nitrite, (value) => `${value.toFixed(2)} ppm`),
+      ...(nitriteClassificationStatus ? { 'Nitrite Status': nitriteClassificationStatus } : {}),
       'Measured Parameters Status': record.measuredParametersStatus || 'Not classified',
     },
   };

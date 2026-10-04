@@ -9,6 +9,7 @@ const apiWaterTest = {
   pH: 6.8,
   phStatus: 'Normal',
   nitrite: { value: 0.5, unit: 'ppm', status: 'Unvalidated', hue: 340, matchState: 'EXACT_OR_IN_RANGE', matchingMethod: 'direct-client-rgb-range' },
+  nitriteClassificationStatus: 'Warning',
   overallStatus: 'Unvalidated',
   remarks: 'Client calibration output requires experimental validation.',
   gps: { latitude: 14.6, longitude: 120.98 },
@@ -34,6 +35,7 @@ test('toScanResult maps API values and canonicalizes a historical sample class/c
   assert.equal(scan.laboratoryComparisonStatus, undefined);
   assert.deepEqual(scan.detectedParameters, ['pH', 'Nitrite']);
   assert.equal(scan.nitrite.hue, 340);
+  assert.equal(scan.nitriteClassificationStatus, 'Warning');
   assert.deepEqual(scan.location, { latitude: 14.6, longitude: 120.98 });
   assert.equal(scan.actualLatitude, 14.6);
   assert.equal(scan.actualLongitude, 120.98);
@@ -45,6 +47,7 @@ test('toScanResult maps API values and canonicalizes a historical sample class/c
     pH: '6.80',
     'pH Category': 'Acidic',
     Nitrite: '0.50 ppm',
+    'Nitrite Status': 'Warning',
     'Measured Parameters Status': 'Awaiting approved limits',
   });
   assert.equal(scan.labComparison, undefined);
@@ -56,11 +59,13 @@ test('Result screen contract displays backend-returned pH and Nitrite values', (
     analysisId: 'backend-measured-values',
     pH: 7.25,
     nitrite: { value: 0.5, unit: 'ppm', status: 'Estimated' },
+    nitriteClassificationStatus: 'Warning',
     measuredParametersStatus: 'Not classified',
   }, 'https://aquality-api-production.up.railway.app/api');
 
   assert.equal(scan.resultData.pH, '7.25');
   assert.equal(scan.resultData.Nitrite, '0.50 ppm');
+  assert.equal(scan.resultData['Nitrite Status'], 'Warning');
   assert.equal(scan.resultData['Measured Parameters Status'], 'Awaiting approved limits');
   assert.doesNotMatch(JSON.stringify(scan.resultData), /undefined|NaN|null ppm/);
 });
@@ -78,6 +83,7 @@ test('Result and History preserve a qualified >1 ppm Nitrite display without inv
       qualifier: '>',
       lowerBound: 1,
     },
+    nitriteClassificationStatus: 'Dangerous',
     resultData: { pH: '2.00', Nitrite: '>1 ppm' },
   }, 'https://aquality-api-production.up.railway.app/api');
 
@@ -86,6 +92,7 @@ test('Result and History preserve a qualified >1 ppm Nitrite display without inv
   assert.equal(scan.nitrite.qualifier, '>');
   assert.equal(scan.nitrite.lowerBound, 1);
   assert.equal(scan.resultData.Nitrite, '>1 ppm');
+  assert.equal(scan.resultData['Nitrite Status'], 'Dangerous');
   assert.doesNotMatch(JSON.stringify(scan.resultData), /null ppm|NaN|undefined|1\.00 ppm/);
 });
 
@@ -252,12 +259,14 @@ test('map sanitizer handles zero, one, and many valid markers', () => {
 test('map marker includes persisted pH and qualified Nitrite display, but unavailable values stay explicit', () => {
   const qualified = toMapMarker({
     id: 'qualified', latitude: 14.6, longitude: 120.98, pH: 6.8, nitriteDisplay: '>1 ppm',
+    nitriteClassificationStatus: 'Dangerous',
   });
   const unavailable = toMapMarker({ id: 'unavailable', latitude: 14.6, longitude: 120.98 });
 
   assert.equal(qualified.pH, 6.8);
   assert.equal(qualified.pHCategory, 'Acidic');
   assert.equal(qualified.nitriteDisplay, '>1 ppm');
+  assert.equal(qualified.nitriteStatus, 'Dangerous');
   assert.equal(unavailable.pH, null);
   assert.equal(unavailable.pHCategory, null);
   assert.equal(unavailable.nitriteDisplay, 'Unavailable');
