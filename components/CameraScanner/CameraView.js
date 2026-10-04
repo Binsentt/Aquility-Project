@@ -26,6 +26,7 @@ import { createDocumentDetector } from './documentDetector';
 import { useAuth } from '../../context/AuthContext';
 import { analyzeDocument } from '../../services/waterAnalysisService';
 import { getApiBaseUrl } from '../../services/apiClient';
+import { officialReactionInstruction } from '../../services/officialReactionProtocol';
 import { nativeMultipartFetch, prepareNativeMultipartFile } from '../../services/nativeMultipartUpload';
 import { createUploadDiagnostics } from '../../services/uploadDiagnostics';
 
@@ -141,6 +142,7 @@ const CameraView = React.memo(function CameraView({
   const selectedSampleCode = selectedSampleClass && selectedSampleNumber
     ? `${selectedSampleClass}-${String(selectedSampleNumber).padStart(2, '0')}`
     : null;
+  const selectedReactionInstruction = officialReactionInstruction(selectedSampleClass);
 
   useEffect(() => {
     if (permission?.status === 'undetermined') {
@@ -562,6 +564,7 @@ const CameraView = React.memo(function CameraView({
         <TouchableOpacity style={styles.samplePickerButton} onPress={() => setSampleSelectionVisible(true)} activeOpacity={0.85}>
           <Text style={styles.samplePickerText}>{selectedSampleCode ? `Sample ${selectedSampleCode} · ${SAMPLE_CLASSES.find((entry) => entry.code === selectedSampleClass)?.siteName}` : 'Select sample class and number'}</Text>
         </TouchableOpacity>
+        {selectedReactionInstruction ? <Text style={styles.reactionInstruction}>{selectedReactionInstruction}</Text> : null}
       </View>
 
       <Modal
@@ -745,6 +748,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(19, 114, 164, 0.72)',
   },
   samplePickerText: { color: '#fff', fontSize: 12, fontWeight: '800' },
+  reactionInstruction: { marginTop: 5, color: '#D6EAF8', fontSize: 12, fontWeight: '700' },
   sampleModalBackdrop: {
     flex: 1,
     justifyContent: 'flex-end',

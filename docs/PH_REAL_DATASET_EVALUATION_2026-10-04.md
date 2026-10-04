@@ -1,4 +1,6 @@
-# Real-image pH evaluation — 2026-10-04
+# Historical real-image pH evaluation — 2026-10-04
+
+> **Superseded:** after this evaluation was written, the client confirmed the class-to-laboratory-pH mapping in the 2026-10-04 task message. See [the verified evaluation](PH_VERIFIED_REAL_CALIBRATION_EVALUATION_2026-10-04.md) and [the rebuilt dataset](PH_VERIFIED_REAL_DATASET_2026-10-04.csv). The provisional labels and random-image split below are historical and must not be used for a production decision.
 
 ## Decision
 

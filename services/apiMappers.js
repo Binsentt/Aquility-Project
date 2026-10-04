@@ -100,7 +100,7 @@ export function toScanResult(waterTest = {}, apiBaseUrl) {
   const hasMeasuredRgb = (value) => Array.isArray(value?.measuredRGB)
     && value.measuredRGB.length === 3
     && value.measuredRGB.every((channel) => Number.isFinite(Number(channel)));
-  const pHDisplay = typeof pH === 'number' ? pH.toFixed(2) : (hasMeasuredRgb(pHResult) ? 'No reference match' : 'Unavailable');
+  const pHDisplay = typeof pH === 'number' ? pH.toFixed(1) : (hasMeasuredRgb(pHResult) ? 'No reference match' : 'Unavailable');
   const nitriteHasDisplayValue = typeof waterTest.nitrite?.displayValue === 'string' && waterTest.nitrite.displayValue.trim().length > 0;
   const nitriteDisplay = nitriteHasDisplayValue
     ? waterTest.nitrite.displayValue

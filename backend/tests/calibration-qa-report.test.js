@@ -47,6 +47,9 @@ test('calibration QA report uses the production analysis engine and reports its 
   assert.equal(row.pHMargin, productionMatchDiagnostics.pH.margin);
   assert.equal(row.pHMatchAccepted, productionMatchDiagnostics.pH.accepted);
   assert.equal(row.pHMatchReason, productionMatchDiagnostics.pH.reason);
+  assert.equal(row.pHModelVersion, production.pH.calibrationModel.version);
+  assert.equal(row.pHModelStatus, productionMatchDiagnostics.pH.continuousModel.status);
+  assert.equal(row.pHModelRawValue, productionMatchDiagnostics.pH.continuousModel.rawValue);
   assert.equal(row.nitriteNearestReference.label, production.nitrite.closestReference.label);
   assert.equal(row.nitriteDistance.value, production.nitrite.distance);
   assert.equal(row.nitriteDistance.metric, 'CIEDE2000 ΔE00');
@@ -92,11 +95,13 @@ test('candidate calibration CSV is header-only and approval metadata is not acti
   assert.equal(JSON.parse(await readFile(calibrationPath, 'utf8')).thresholds, null);
 });
 
-test('unmatched real-image readings remain unavailable and no values are invented', async () => {
+test('supported real-image colors report the production model result without class-derived values', async () => {
   const { generateCalibrationQaReport } = await loadCalibrationQaModule();
   const [row] = await generateCalibrationQaReport([fixtureFile]);
 
-  assert.equal(row.pHAccepted, 'UNAVAILABLE');
+  assert.equal(row.pHAccepted, 'ACCEPTED');
+  assert.ok(row.pHModelVersion);
+  assert.ok(Number.isFinite(row.pHModelRawValue));
   assert.equal(row.nitriteAccepted, 'UNAVAILABLE');
   assert.equal(Object.hasOwn(row, 'pHValue'), false);
   assert.equal(Object.hasOwn(row, 'nitriteValue'), false);

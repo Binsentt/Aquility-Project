@@ -59,7 +59,38 @@
       { "label": "2", "value": 2, "rgbRange": { "r": [171, 175], "g": [134, 142], "b": [130, 137] }, "sourceRgbRange": { "r": [171, 175], "g": [134, 142], "b": [130, 137] }, "provenance": "CLIENT_PROVIDED_PROVISIONAL_CALIBRATION", "usage": "active provisional RGB interval; not analytically validated" },
       { "label": "3", "value": 3, "rgbRange": { "r": [169, 169], "g": [130, 131], "b": [113, 116] }, "sourceRgbRange": { "r": [169, 169], "g": [130, 131], "b": [116, 113] }, "normalizedSourceOrder": "min=113,max=116", "sourceNote": "PH3_BLUE_SOURCE_ORDER_REVERSED: client supplied B range was written as 116-113; normalized only for interval testing.", "provenance": "CLIENT_PROVIDED_PROVISIONAL_CALIBRATION", "usage": "active provisional RGB interval; not analytically validated" },
       { "label": "4", "value": 4, "rgbRange": { "r": [166, 167], "g": [124, 127], "b": [123, 127] }, "sourceRgbRange": { "r": [166, 167], "g": [124, 127], "b": [123, 127] }, "provenance": "CLIENT_PROVIDED_PROVISIONAL_CALIBRATION", "usage": "active provisional RGB interval; not analytically validated" }
-    ]
+    ],
+    "continuousModel": {
+      "version": "official-time-real-camera-lab-quadratic-ridge-2026-10-04-v1",
+      "source": "Client-confirmed official-time labels from 45 physical µPAD captures; fitted on the 43 registered, image-quality-eligible official-time ROI colors.",
+      "officialProtocol": { "SA": "1 minute", "SB": "20 minutes", "A": "20 minutes" },
+      "trainingSampleCount": 43,
+      "method": "sRGB median ROI -> CIE Lab D65 -> standardized degree-2 Lab features -> ridge regression (alpha 0.01)",
+      "featureOrder": ["L", "a", "b", "L^2", "L*a", "L*b", "a^2", "a*b", "b^2"],
+      "featureMeans": [67.14988561995689, 2.7863628510964786, 23.462921182098693, 4540.348192114809, 148.29516408818344, 1566.5434736128627, 70.43543564443782, 73.57203740159501, 561.3393495885948],
+      "featureScales": [5.589369673005503, 7.916540766424898, 3.2909997251928345, 734.2690437124909, 488.7806353256083, 196.59615114339405, 111.9305129667606, 193.8971328443612, 161.46766845489594],
+      "intercept": 7.8472093023255765,
+      "coefficients": [0.16502369157676622, -1.2065703639207495, -0.37892881723456195, -1.2600510532876503, 0.6552037013518391, 1.2489900866608004, -0.22784247232771637, 0.8442519569558644, -1.051043164304519],
+      "colorDomain": {
+        "colorSpace": "CIE Lab D65",
+        "labMin": [53.38800332064659, -11.871073732598045, 16.435037793129005],
+        "labMax": [77.87583713622593, 22.028027488733336, 33.313108419822576],
+        "margin": "2 Lab units beyond the minimum and maximum of the 43 eligible official-time training ROIs"
+      },
+      "supportedPH": { "minimum": 7.22, "maximum": 8.21 },
+      "outputPolicy": "Reject colors outside colorDomain; clamp accepted regression values to supportedPH because no verified real-camera labels exist beyond that interval.",
+      "displayPrecision": 1,
+      "validation": {
+        "method": "5-repeat nested stratified 5-fold grouped cross-validation; inner selection used 3 repeats of 4-fold sample-grouped CV; class used for fold stratification and reporting only, never as a model feature.",
+        "outOfFoldMAE": 0.208479966908367,
+        "outOfFoldRMSE": 0.2821329986819715,
+        "outOfFoldBias": -0.017374826403512737,
+        "outOfFoldMaximumAbsoluteError": 0.6844055909209192,
+        "trainingFoldMeanBaselineMAE": 0.43790267735001015,
+        "trainingFoldMeanBaselineRMSE": 0.45977009400971,
+        "note": "Three class-level laboratory labels are available; within-class individual-strip pH labels were not supplied. Validation does not establish 0.05-pH resolution or transfer to unrepresented water, camera, or pH conditions."
+      }
+    }
   },
   "nitrite": {
     "target": "Nitrite (NO2-)",

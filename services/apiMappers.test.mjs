@@ -44,7 +44,7 @@ test('toScanResult maps API values and canonicalizes a historical sample class/c
   assert.equal(scan.siteName, 'Pawikan');
   assert.equal(scan.sourceType, 'Coastal / Pawikan');
   assert.deepEqual(scan.resultData, {
-    pH: '6.80',
+    pH: '6.8',
     'pH Category': 'Acidic',
     Nitrite: '0.50 ppm',
     'Nitrite Status': 'Warning',
@@ -63,7 +63,7 @@ test('Result screen contract displays backend-returned pH and Nitrite values', (
     measuredParametersStatus: 'Not classified',
   }, 'https://aquality-api-production.up.railway.app/api');
 
-  assert.equal(scan.resultData.pH, '7.25');
+  assert.equal(scan.resultData.pH, '7.3');
   assert.equal(scan.resultData.Nitrite, '0.50 ppm');
   assert.equal(scan.resultData['Nitrite Status'], 'Warning');
   assert.equal(scan.resultData['Measured Parameters Status'], 'Awaiting approved limits');

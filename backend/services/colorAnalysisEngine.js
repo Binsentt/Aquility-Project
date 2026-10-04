@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 import { HttpError } from '../middleware/errorHandler.js';
 import { assessColorQuality, extractRoiStatistics, matchNitriteClientColor, matchPHClientColor, rgbToHsv, rgbToLab } from '../utils/colorAnalysis.js';
+import { estimatePHFromColor } from '../utils/phColorModel.js';
 import { classifyMeasurements, classifyNitriteStatus, MEASUREMENT_STATUS } from './measurementClassification.js';
 import { buildUPadDiagnosticOverlaySvg, createUPadDiagnosticOverlay, detectUPadRegistration } from './upadRegistration.js';
 
@@ -133,8 +134,7 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
         throw new HttpError(422, 'IMAGE_QUALITY_INSUFFICIENT', 'The sensing areas are too gray, dark, bright, or unclear for a reliable analysis. Please retake the image with the µPAD clearly visible.');
       }
       const measuredLab = rgbToLab(phStats.measuredRGB);
-      // Only the explicit client pH 1–4 RGB classes can produce a numeric pH.
-      // Legacy grouped Lab references remain descriptive and are not used here.
+      const continuousPH = estimatePHFromColor(phStats.measuredRGB, calibration.pH?.continuousModel);
       const clientColorMatch = matchPHClientColor(
         phStats.measuredRGB,
         calibration.pH?.clientRgbRanges,
@@ -153,17 +153,27 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
         },
         deltaE00: phDeltaE00,
       } : null;
-      const phReliable = Boolean(phQuality.reliable && clientColorMatch.accepted);
+      const continuousModelAccepted = Boolean(phQuality.reliable && continuousPH.accepted);
+      const phReliable = Boolean(phQuality.reliable && (continuousModelAccepted || clientColorMatch.accepted));
+      const phValue = !phReliable
+        ? null
+        : continuousModelAccepted
+          ? continuousPH.value
+          : phMatch.reference.value;
       const directClientRgbMatch = phReliable && clientColorMatch.matchMethod === 'RAW_RGB_INTERVAL';
       const phReliabilityStatus = !phQuality.reliable
         ? 'IMAGE_QUALITY_INSUFFICIENT'
-        : directClientRgbMatch
+        : continuousModelAccepted
+          ? 'OFFICIAL_TIME_CONTINUOUS_COLOR_MODEL'
+          : directClientRgbMatch
           ? 'CLIENT_RGB_RANGE_MATCH'
-          : phReliable
+          : clientColorMatch.accepted
             ? 'CLIENT_CIEDE2000_DISTANCE_MATCH'
-            : clientColorMatch.matchState === 'AMBIGUOUS'
-              ? 'AMBIGUOUS_REFERENCE_MATCH'
-              : 'COLOR_MATCH_OUTSIDE_THRESHOLD';
+            : continuousPH.status === 'OUTSIDE_CALIBRATED_COLOR_DOMAIN'
+              ? 'COLOR_OUTSIDE_CALIBRATED_DOMAIN'
+              : clientColorMatch.matchState === 'AMBIGUOUS'
+                ? 'AMBIGUOUS_REFERENCE_MATCH'
+                : 'COLOR_MATCH_OUTSIDE_THRESHOLD';
       const nitriteHsv = rgbToHsv(nitriteStats.measuredRGB);
       const nitriteEstimate = matchNitriteClientColor(
         nitriteStats.measuredRGB,
@@ -172,7 +182,17 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
       const nitriteReferenceMatched = nitriteEstimate.accepted;
       const nitriteColorReliable = nitriteQuality.reliable || nitriteReferenceMatched;
       debugLogger?.('parameter-match-diagnostics', {
-        pH: clientColorMatch.diagnostics,
+        pH: {
+          ...clientColorMatch.diagnostics,
+          continuousModel: {
+            status: continuousPH.status,
+            rawValue: continuousPH.rawValue,
+            value: continuousPH.value,
+            clamped: continuousPH.clamped,
+            lab: continuousPH.lab,
+            modelVersion: continuousPH.modelVersion,
+          },
+        },
         nitrite: nitriteEstimate.diagnostics,
       });
       debugLogger?.('nitrite-diagnostics', {
@@ -211,14 +231,11 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
       });
 
       const classification = classifyMeasurements({
-        pH: phReliable ? phMatch.reference.value : null,
+        pH: phValue,
         nitrite: nitriteColorReliable ? nitriteEstimate.value : null,
         thresholds: calibration.thresholds || null,
       });
       const roiLocalizationStatus = registration ? 'Registered µPAD template' : 'Configured pad ROIs';
-      const phValue = phReliable
-        ? phMatch.reference.value
-        : null;
       const phStatus = phReliable
         ? 'Estimated'
         : !phQuality.reliable ? 'IMAGE_QUALITY_INSUFFICIENT' : 'PH_MEASUREMENT_UNRELIABLE';
@@ -241,7 +258,7 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
           : 'NITRITE_OUTSIDE_CALIBRATION_RANGE');
       const pHRemarks = phReliable
         ? ''
-        : `pH ROI RGB ${formatRgb(phStats.measuredRGB)}: no reliable reference match (${phReliabilityStatus}).`;
+        : `pH ROI RGB ${formatRgb(phStats.measuredRGB)}: no reliable calibrated color estimate (${phReliabilityStatus}).`;
       const nitriteRemarks = nitriteQuantitativeAvailable
         ? ''
         : `Nitrite ROI RGB ${formatRgb(nitriteStats.measuredRGB)}: no configured reference match (${nitriteEstimate.matchState}).`;
@@ -249,22 +266,34 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
       return {
         pH: {
           value: phValue,
-          exactValue: phReliable ? phMatch.reference.value : null,
+          exactValue: phReliable && !continuousModelAccepted ? phMatch.reference.value : null,
           unit: 'pH',
           status: phStatus,
           measuredRGB: phStats.measuredRGB,
           measuredLab,
-          matchedReference: phReliable ? { label: phMatch.reference.label, lab: phMatch.reference.lab, source: phMatch.reference.source || 'client-lab-reference' } : null,
-          matchMethod: directClientRgbMatch ? 'direct-client-rgb-range' : 'ciede2000-centroid-distance',
-          deltaE00: phDeltaE00,
+          matchedReference: phReliable && !continuousModelAccepted
+            ? { label: phMatch.reference.label, lab: phMatch.reference.lab, source: phMatch.reference.source || 'client-lab-reference' }
+            : null,
+          matchMethod: continuousModelAccepted
+            ? 'official-time-continuous-lab-ridge-quadratic'
+            : directClientRgbMatch ? 'direct-client-rgb-range' : 'ciede2000-centroid-distance',
+          deltaE00: continuousModelAccepted ? null : phDeltaE00,
           reliabilityStatus: phReliabilityStatus,
-          rgbMatch: directClientRgbMatch ? {
+          calibrationModel: continuousModelAccepted ? {
+            version: continuousPH.modelVersion,
+            method: continuousPH.method,
+            source: calibration.pH.continuousModel.source,
+            supportedPH: calibration.pH.continuousModel.supportedPH,
+            rawValue: continuousPH.rawValue,
+            clamped: continuousPH.clamped,
+          } : null,
+          rgbMatch: directClientRgbMatch && !continuousModelAccepted ? {
             status: 'EXACT_IN_RANGE',
             confidence: 1,
             provisional: true,
             referenceRGBRange: clientColorMatch.reference.rgbRange,
           } : null,
-          labConsistency: phProfile ? {
+          labConsistency: phProfile && !continuousModelAccepted ? {
             method: 'CIEDE2000-against-client-RGB-range-midpoint',
             deltaE00: phDeltaE00,
             referenceRGB: phProfile.centroidRGB,

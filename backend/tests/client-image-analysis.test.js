@@ -147,22 +147,23 @@ test('real client image completes authenticated upload, analysis, persistence, a
     assert.equal(response.body.scanStatus, 'Completed');
     assert.equal(response.body.sampleCode, 'SA-03');
     assert.equal(response.body.sampleClass, 'SA');
-    assert.equal(response.body.pH, null);
-    assert.equal(response.body.resultData.pH, 'No reference match');
+    assert.ok(response.body.pH >= 7.22 && response.body.pH <= 8.21);
+    assert.equal(response.body.resultData.pH, '8.0');
+    assert.equal(response.body.pHResult.matchMethod, 'official-time-continuous-lab-ridge-quadratic');
+    assert.equal(response.body.pHResult.exactValue, null);
     assert.equal(response.body.nitrite.value, null);
     assert.equal(response.body.resultData.Nitrite, 'No reference match');
     assert.equal(response.body.roiLocalizationStatus, 'Registered µPAD template');
-    assert.equal(persisted.estimatedPH, null);
+    assert.equal(persisted.estimatedPH, response.body.pH);
     assert.equal(persisted.estimatedNitrite, null);
     assert.notDeepEqual(persisted.analysisData.pH.measuredRGB, persisted.analysisData.nitrite.measuredRGB);
     assert.notDeepEqual(persisted.analysisData.pH.roi.normalized, persisted.analysisData.nitrite.roi.normalized);
     assert.equal(response.body.pHResult.measuredRGB.length, 3);
     assert.equal(response.body.nitrite.measuredRGB.length, 3);
-    // These are fixture measurements from the registered inner ellipse, not
-    // calibration references; the previous rectangle included pad-edge pixels.
+    // These fixture measurements come from the registered inner ellipse. The
+    // selected class cannot supply or override the color-derived pH value.
     assert.deepEqual(response.body.pHResult.measuredRGB, [141, 152, 115]);
     assert.deepEqual(response.body.nitrite.measuredRGB, [162, 154, 145]);
-    assert.match(response.body.remarks, /RGB 141, 152, 115/);
     assert.match(response.body.remarks, /RGB 162, 154, 145/);
     assert.doesNotMatch(response.body.remarks, /laboratory|scientific validation|certified/i);
   }
@@ -315,9 +316,9 @@ test('qualified Nitrite value survives upload API, persistence, Result, History,
   assert.doesNotMatch(pdf, /1\.00 ppm|NaN|null ppm|undefined/);
 });
 
-test('nearby calibrated pH and Nitrite colors reach persisted Result, History, PDF, and Map values', async () => {
+test('official-time continuous pH and Nitrite colors reach persisted Result, History, PDF, and Map values', async () => {
   const { app, persistedRecords } = await createComputedResultTestApp();
-  const image = await createDeveloperRoiImage([168, 133, 121], [191, 172, 188]);
+  const image = await createDeveloperRoiImage([186, 178, 142], [191, 172, 188]);
   const response = await submitDeveloperImage(app, image, {
     sampleClass: 'A',
     sampleCode: 'A-05',
@@ -327,15 +328,17 @@ test('nearby calibrated pH and Nitrite colors reach persisted Result, History, P
   });
 
   assert.equal(response.status, 201, JSON.stringify(response.body));
-  assert.deepEqual(response.body.pHResult.measuredRGB, [168, 133, 121]);
+  assert.deepEqual(response.body.pHResult.measuredRGB, [186, 178, 142]);
   assert.deepEqual(response.body.nitrite.measuredRGB, [191, 172, 188]);
-  assert.equal(response.body.pH, 1);
+  assert.ok(Math.abs(response.body.pH - 7.390968644738416) < 1e-9);
+  assert.equal(response.body.pHResult.matchMethod, 'official-time-continuous-lab-ridge-quadratic');
+  assert.equal(response.body.pHResult.exactValue, null);
   assert.equal(response.body.nitrite.value, 0.5);
   assert.equal(response.body.nitriteClassificationStatus, 'Warning');
-  assert.equal(response.body.resultData.pH, '1.00');
+  assert.equal(response.body.resultData.pH, '7.4');
   assert.equal(response.body.resultData.Nitrite, '0.50 ppm');
   assert.equal(response.body.resultData['Nitrite Status'], 'Warning');
-  assert.equal(persistedRecords[0].estimatedPH, 1);
+  assert.equal(persistedRecords[0].estimatedPH, response.body.pH);
   assert.equal(persistedRecords[0].estimatedNitrite, 0.5);
   assert.equal(persistedRecords[0].analysisData.nitrite.classificationStatus, 'Warning');
 
@@ -345,14 +348,14 @@ test('nearby calibrated pH and Nitrite colors reach persisted Result, History, P
   assert.equal(resultView.resultData.pH, historyView.resultData.pH);
   assert.equal(resultView.resultData.Nitrite, historyView.resultData.Nitrite);
   assert.equal(resultView.resultData['Nitrite Status'], historyView.resultData['Nitrite Status']);
-  assert.equal(resultView.resultData.pH, '1.00');
+  assert.equal(resultView.resultData.pH, '7.4');
   assert.equal(resultView.resultData.Nitrite, '0.5 ppm');
   assert.equal(resultView.resultData['Nitrite Status'], 'Warning');
-  assert.equal(resultView.resultData['pH Category'], 'Acidic');
+  assert.equal(resultView.resultData['pH Category'], 'Alkaline');
   assert.equal(resultView.resultData['Measured Parameters Status'], 'Awaiting approved limits');
 
   const pdf = buildPdfHtml({ test: historyView });
-  assert.match(pdf, /pH:<\/strong> 1\.00/);
+  assert.match(pdf, /pH:<\/strong> 7\.4/);
   assert.match(pdf, /Nitrite:<\/strong> 0\.5 ppm/);
   assert.match(pdf, /Nitrite Status:<\/strong> Warning/);
   const marker = toMapMarker({
@@ -365,14 +368,14 @@ test('nearby calibrated pH and Nitrite colors reach persisted Result, History, P
     nitrite: historyRecord.nitrite,
     resultData: historyRecord.resultData,
   });
-  assert.equal(marker.pH, 1);
+  assert.equal(marker.pH, historyRecord.pH);
   assert.equal(marker.nitriteDisplay, '0.5 ppm');
   assert.equal(marker.nitriteStatus, 'Warning');
 });
 
 test('the same scanned image keeps its computed pH and Nitrite across sample classes and GPS coordinates', async () => {
   const { app, persistedRecords, engineCalls } = await createComputedResultTestApp();
-  const image = await createDeveloperRoiImage([168, 133, 122], [183, 172, 180]);
+  const image = await createDeveloperRoiImage([186, 178, 142], [183, 172, 180]);
   const capturedAt = '2026-10-04T00:00:00.000Z';
   const classCases = [
     { sampleClass: 'SA', sampleCode: 'SA-01', gpsLatitude: 14.6, gpsLongitude: 120.98 },
@@ -390,7 +393,8 @@ test('the same scanned image keeps its computed pH and Nitrite across sample cla
   assert.deepEqual(classResponses.map(({ body }) => body.siteName), ['Pawikan', 'Well', 'Fish Farm']);
   assert.deepEqual(chemistrySnapshot(classResponses[0]), chemistrySnapshot(classResponses[1]));
   assert.deepEqual(chemistrySnapshot(classResponses[1]), chemistrySnapshot(classResponses[2]));
-  assert.equal(classResponses[1].body.pH, 1);
+  assert.ok(classResponses[1].body.pH >= 7.22 && classResponses[1].body.pH <= 8.21);
+  assert.equal(classResponses[1].body.pHResult.matchMethod, 'official-time-continuous-lab-ridge-quadratic');
   assert.equal(classResponses[1].body.nitrite.value, 0);
   assert.equal(classResponses[1].body.nitriteClassificationStatus, 'Safe');
 
@@ -412,9 +416,9 @@ test('the same scanned image keeps its computed pH and Nitrite across sample cla
     assert.ok(call.imagePath);
   }
   for (const record of persistedRecords) {
-    assert.equal(record.estimatedPH, 1);
+    assert.equal(record.estimatedPH, classResponses[1].body.pH);
     assert.equal(record.estimatedNitrite, 0);
-    assert.deepEqual(record.analysisData.pH.measuredRGB, [168, 133, 122]);
+    assert.deepEqual(record.analysisData.pH.measuredRGB, [186, 178, 142]);
     assert.deepEqual(record.analysisData.nitrite.measuredRGB, [183, 172, 180]);
     assert.equal(record.analysisData.nitrite.classificationStatus, 'Safe');
   }
@@ -442,8 +446,8 @@ test('changing only sensing-zone RGB changes results under fixed metadata, and u
     capturedAt: '2026-10-04T00:00:00.000Z',
   };
   const imageCases = [
-    { pHRgb: [168, 133, 122], nitriteRgb: [183, 172, 180], expectedPH: 1, expectedNitrite: 0 },
-    { pHRgb: [173, 138, 133], nitriteRgb: [190, 172, 187], expectedPH: 2, expectedNitrite: 0.5 },
+    { pHRgb: [186, 178, 142], nitriteRgb: [183, 172, 180], expectedNitrite: 0 },
+    { pHRgb: [182, 163, 118], nitriteRgb: [190, 172, 187], expectedNitrite: 0.5 },
     { pHRgb: [150, 147, 123], nitriteRgb: [155, 144, 120], expectedPH: null, expectedNitrite: null },
   ];
   const responses = [];
@@ -454,15 +458,17 @@ test('changing only sensing-zone RGB changes results under fixed metadata, and u
     responses.push(response);
     assert.deepEqual(response.body.pHResult.measuredRGB, imageCase.pHRgb);
     assert.deepEqual(response.body.nitrite.measuredRGB, imageCase.nitriteRgb);
-    assert.equal(response.body.pH, imageCase.expectedPH);
+    if (imageCase.expectedPH === null) assert.equal(response.body.pH, null);
+    else assert.ok(response.body.pH >= 7.22 && response.body.pH <= 8.21);
     assert.equal(response.body.nitrite.value, imageCase.expectedNitrite);
   }
 
   assert.notDeepEqual(responses[0].body.pHResult.measuredRGB, responses[1].body.pHResult.measuredRGB);
+  assert.notEqual(responses[0].body.pH, responses[1].body.pH);
   assert.notDeepEqual(responses[0].body.nitrite.measuredRGB, responses[1].body.nitrite.measuredRGB);
-  assert.equal(responses[0].body.resultData.pH, '1.00');
+  assert.equal(responses[0].body.resultData.pH, '7.4');
   assert.equal(responses[0].body.resultData.Nitrite, '0.00 ppm');
-  assert.equal(responses[1].body.resultData.pH, '2.00');
+  assert.equal(responses[1].body.resultData.pH, '8.0');
   assert.equal(responses[1].body.resultData.Nitrite, '0.50 ppm');
   assert.equal(responses[2].body.resultData.pH, 'No reference match');
   assert.equal(responses[2].body.resultData.Nitrite, 'No reference match');
@@ -472,8 +478,8 @@ test('changing only sensing-zone RGB changes results under fixed metadata, and u
     ['A', 'A-05', { latitude: 14.71, longitude: 120.91 }],
   ]);
   assert.deepEqual(persistedRecords.map(({ estimatedPH, estimatedNitrite }) => [estimatedPH, estimatedNitrite]), [
-    [1, 0],
-    [2, 0.5],
+    [responses[0].body.pH, 0],
+    [responses[1].body.pH, 0.5],
     [null, null],
   ]);
 });

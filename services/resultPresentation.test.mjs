@@ -26,13 +26,14 @@ test('Result, History Detail, and PDF use the same persisted pH category and qua
   assert.match(mapDetails, /Nitrite Status: \{displayText\(selectedMarker\.nitriteStatus\)\}/);
   assert.match(resultScreen, /sampleCode/);
   assert.match(historyDetail, /sampleCode/);
-  assert.equal(record.resultData.pH, '7.00');
+  assert.match(mapDetails, /value\.toFixed\(1\)/);
+  assert.equal(record.resultData.pH, '7.0');
   assert.equal(record.resultData['pH Category'], 'Neutral');
   assert.equal(record.resultData.Nitrite, '>1 ppm');
   assert.equal(record.resultData['Nitrite Status'], 'Dangerous');
   assert.equal(record.sampleClass, 'SB');
   assert.equal(record.sampleCode, 'SB-01');
-  assert.match(pdf, /pH:<\/strong> 7\.00/);
+  assert.match(pdf, /pH:<\/strong> 7\.0/);
   assert.match(pdf, /pH Category:<\/strong> Neutral/);
   assert.match(pdf, /Nitrite:<\/strong> &gt;1 ppm/);
   assert.match(pdf, /Sample code:<\/strong> SB-01/);

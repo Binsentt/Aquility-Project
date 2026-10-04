@@ -285,6 +285,39 @@ test('an exact client pH 1-4 RGB match is independent of the unset Lab threshold
   }
 });
 
+test('official-time continuous pH colors bypass the narrow pH 1-4 RGB matcher', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'aquility-official-ph-color-'));
+  const imagePath = join(directory, 'official-time-color.png');
+  const pixels = Buffer.alloc(20 * 20 * 3);
+  for (let y = 0; y < 20; y += 1) {
+    for (let x = 0; x < 20; x += 1) {
+      pixels.set(x < 10 ? [186, 178, 142] : [190, 172, 187], (y * 20 + x) * 3);
+    }
+  }
+  await sharp(pixels, { raw: { width: 20, height: 20, channels: 3 } }).png().toFile(imagePath);
+  const calibration = configuredCalibration(await readBaseCalibration());
+  calibration.pH.clientRgbRanges = [];
+  calibration.pH.maxDeltaE00 = null;
+
+  try {
+    const result = await createColorAnalysisEngine({
+      readJson: async () => calibration,
+      allowDeveloperRoiFixture: true,
+    }).analyze({ imagePath });
+
+    assert.equal(result.pH.measuredRGB.join(','), '186,178,142');
+    assert.ok(result.pH.value >= 7.22 && result.pH.value <= 8.21);
+    assert.equal(result.pH.exactValue, null);
+    assert.equal(result.pH.matchedReference, null);
+    assert.equal(result.pH.matchMethod, 'official-time-continuous-lab-ridge-quadratic');
+    assert.equal(result.pH.reliabilityStatus, 'OFFICIAL_TIME_CONTINUOUS_COLOR_MODEL');
+    assert.equal(result.pH.calibrationModel.version, calibration.pH.continuousModel.version);
+    assert.equal(result.nitrite.value, 0.5);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test('analysis uses the registered Nitrite ROI and direct RGB classes', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'aquility-direct-nitrite-'));
   const imagePath = join(directory, 'nitrite-05.png');
@@ -674,7 +707,7 @@ test('gray/background sensing colors are rejected instead of becoming pH 8', asy
   }
 });
 
-test('valid ROIs reject unsupported pH colors with the derived threshold when the legacy threshold is unset', async () => {
+test('valid ROIs reject unsupported pH colors outside the official camera domain', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'aquility-pH-threshold-'));
   const imagePath = join(directory, 'threshold-missing.png');
   const pixels = Buffer.alloc(20 * 20 * 3);
@@ -702,7 +735,7 @@ test('valid ROIs reject unsupported pH colors with the derived threshold when th
     assert.equal(result.scanStatus, 'Completed');
     assert.equal(result.pH.value, null);
     assert.equal(result.phStatus, 'PH_MEASUREMENT_UNRELIABLE');
-    assert.equal(result.pH.reliabilityStatus, 'COLOR_MATCH_OUTSIDE_THRESHOLD');
+    assert.equal(result.pH.reliabilityStatus, 'COLOR_OUTSIDE_CALIBRATED_DOMAIN');
     assert.equal(result.nitrite.value, null);
     assert.equal(result.nitriteStatus, 'NITRITE_OUTSIDE_CALIBRATION_RANGE');
   } finally {

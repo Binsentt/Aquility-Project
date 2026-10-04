@@ -24,7 +24,7 @@ function displayText(value, fallback = 'Unavailable') {
 
 function formatPHMeasurement(value, category) {
   if (typeof value !== 'number' || !Number.isFinite(value)) return 'Unavailable';
-  return `${value.toFixed(2)}${category ? ` — ${category}` : ''}`;
+  return `${value.toFixed(1)}${category ? ` — ${category}` : ''}`;
 }
 
 export default function MapLibreWaterMap({

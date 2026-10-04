@@ -431,7 +431,7 @@ test('random objects and incomplete reference pairs are rejected before analysis
   }
 });
 
-test('real client µPAD reaches a completed result when pH reliability is not configured', async () => {
+test('real client µPAD uses the continuous color model independently of the legacy pH threshold', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'aquility-upad-engine-'));
   const imagePath = join(directory, 'client-real.jpg');
   const clientPhoto = await readFile(new URL('./fixtures/real-client-930-aw-1min.jpg', import.meta.url));
@@ -442,8 +442,9 @@ test('real client µPAD reaches a completed result when pH reliability is not co
 
     assert.equal(result.scanStatus, 'Completed');
     assert.equal(result.registration.status, 'REGISTERED');
-    assert.equal(result.pH.value, null);
-    assert.equal(result.phStatus, 'PH_MEASUREMENT_UNRELIABLE');
+    assert.ok(result.pH.value >= 7.22 && result.pH.value <= 8.21);
+    assert.equal(result.pH.matchMethod, 'official-time-continuous-lab-ridge-quadratic');
+    assert.equal(result.phStatus, 'Estimated');
     assert.ok(result.nitrite.roi);
     assert.ok(result.pH.roi);
     assert.notDeepEqual(result.nitrite.roi.normalized, result.pH.roi.normalized);

@@ -18,6 +18,10 @@ function unavailableRow(image, error) {
     pHMatchDiagnostics: null,
     pHAccepted: 'UNAVAILABLE',
     pHDiagnostic: registrationFailure ? 'Registration failed; no pH ROI was measured.' : 'Production analysis was unavailable.',
+    pHModelVersion: null,
+    pHModelStatus: null,
+    pHModelRawValue: null,
+    pHModelClamped: null,
     nitriteRgb: null,
     nitriteNearestReference: null,
     nitriteDistance: null,
@@ -59,6 +63,7 @@ export async function generateCalibrationQaReport(imagePaths, {
         },
       });
       const pHMatch = productionMatchDiagnostics?.pH || null;
+      const pHModel = pHMatch?.continuousModel || null;
       const nitriteMatch = productionMatchDiagnostics?.nitrite || null;
       const pHNearest = pHMatch?.bestReference
         ? { ...pHMatch.bestReference, source: 'CIEDE2000 client RGB centroid' }
@@ -86,6 +91,10 @@ export async function generateCalibrationQaReport(imagePaths, {
         pHMatchDiagnostics: pHMatch,
         pHAccepted: registered && result.pH?.value != null ? 'ACCEPTED' : 'UNAVAILABLE',
         pHDiagnostic: result.pH?.reliabilityStatus || result.pH?.status || null,
+        pHModelVersion: result.pH?.calibrationModel?.version || null,
+        pHModelStatus: pHModel?.status || null,
+        pHModelRawValue: Number.isFinite(pHModel?.rawValue) ? pHModel.rawValue : null,
+        pHModelClamped: typeof pHModel?.clamped === 'boolean' ? pHModel.clamped : null,
         nitriteRgb: result.nitrite?.measuredRGB || null,
         nitriteNearestReference: nitriteMatch?.bestReference || null,
         nitriteDistance: Number.isFinite(nitriteMatch?.bestDistance)
