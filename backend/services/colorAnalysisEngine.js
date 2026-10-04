@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 import { HttpError } from '../middleware/errorHandler.js';
-import { assessColorQuality, deltaE00, extractRoiStatistics, matchNitriteClientRgbRange, matchPHClientRgbRange, matchPHReference, rgbToHsv, rgbToLab } from '../utils/colorAnalysis.js';
+import { assessColorQuality, extractRoiStatistics, matchNitriteClientColor, matchPHClientColor, rgbToHsv, rgbToLab } from '../utils/colorAnalysis.js';
 import { classifyMeasurements, MEASUREMENT_STATUS } from './measurementClassification.js';
 import { buildUPadDiagnosticOverlaySvg, createUPadDiagnosticOverlay, detectUPadRegistration } from './upadRegistration.js';
 
@@ -133,73 +133,48 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
         throw new HttpError(422, 'IMAGE_QUALITY_INSUFFICIENT', 'The sensing areas are too gray, dark, bright, or unclear for a reliable analysis. Please retake the image with the µPAD clearly visible.');
       }
       const measuredLab = rgbToLab(phStats.measuredRGB);
-      const maxDeltaE00 = calibration.pH?.maxDeltaE00;
-      const phThresholdConfigured = Number.isFinite(maxDeltaE00) && maxDeltaE00 >= 0;
-      // A grouped 0-4/10-14 Lab reference is descriptive metadata, not an
-      // individual measured pH level. Exact pH 1-4 outputs come only from the
-      // separately supplied client RGB ranges; Lab matching accepts numeric
-      // exact references only.
-      const exactPHReferences = (Array.isArray(calibration.pH?.references) ? calibration.pH.references : [])
-        .filter((reference) => Number.isFinite(reference?.exactValue));
-      const legacyLabMatch = matchPHReference(measuredLab, exactPHReferences, { maxDeltaE00 });
-      const clientRgbMatch = matchPHClientRgbRange(
+      // Only the explicit client pH 1–4 RGB classes can produce a numeric pH.
+      // Legacy grouped Lab references remain descriptive and are not used here.
+      const clientColorMatch = matchPHClientColor(
         phStats.measuredRGB,
         calibration.pH?.clientRgbRanges,
       );
-      let phMatch = legacyLabMatch;
-      if (clientRgbMatch) {
-        const sourceRange = clientRgbMatch.reference.rgbRange;
-        const clientReferenceRgb = ['r', 'g', 'b'].map((channel) => {
-          const [minimum, maximum] = clientRgbMatch.normalizedRanges[['r', 'g', 'b'].indexOf(channel)];
-          return (minimum + maximum) / 2;
-        });
-        const clientReferenceLab = rgbToLab(clientReferenceRgb);
-        const clientDeltaE00 = deltaE00(measuredLab, clientReferenceLab);
-        phMatch = {
-          reference: {
-            label: clientRgbMatch.reference.label,
-            value: clientRgbMatch.reference.value,
-            exactValue: clientRgbMatch.reference.value,
-            lab: clientReferenceLab,
-            source: 'client-rgb-range',
-            rgbRange: sourceRange,
-          },
-          deltaE00: clientDeltaE00,
-          reliabilityStatus: Number.isFinite(maxDeltaE00)
-            ? 'RELIABLE_WITHIN_PROVISIONAL_THRESHOLD'
-            : 'THRESHOLD_NOT_CONFIGURED',
-          candidates: legacyLabMatch?.candidates || [],
-          rgbMatch: clientRgbMatch,
-          labConsistency: {
-            method: 'CIEDE2000-against-client-RGB-range-midpoint',
-            deltaE00: clientDeltaE00,
-            referenceRGB: clientReferenceRgb,
-          },
-        };
-      }
-      const directClientRgbMatch = Boolean(clientRgbMatch);
-      const phReferenceReliable = directClientRgbMatch
-        || (phThresholdConfigured && phMatch && phMatch.deltaE00 <= maxDeltaE00);
-      const phReliable = Boolean(phQuality.reliable && phReferenceReliable);
+      const phProfile = clientColorMatch.reference
+        ? clientColorMatch.candidates.find(({ reference }) => reference === clientColorMatch.reference)
+        : null;
+      const phReferenceLab = phProfile ? rgbToLab(phProfile.centroidRGB) : null;
+      const phDeltaE00 = phProfile?.deltaE00 ?? clientColorMatch.diagnostics.bestDistance;
+      const phMatch = clientColorMatch.accepted ? {
+        reference: {
+          ...clientColorMatch.reference,
+          exactValue: clientColorMatch.reference.value,
+          lab: phReferenceLab,
+          source: 'client-rgb-range',
+        },
+        deltaE00: phDeltaE00,
+      } : null;
+      const phReliable = Boolean(phQuality.reliable && clientColorMatch.accepted);
+      const directClientRgbMatch = phReliable && clientColorMatch.matchMethod === 'RAW_RGB_INTERVAL';
       const phReliabilityStatus = !phQuality.reliable
         ? 'IMAGE_QUALITY_INSUFFICIENT'
         : directClientRgbMatch
           ? 'CLIENT_RGB_RANGE_MATCH'
-        : !phThresholdConfigured
-          ? 'THRESHOLD_NOT_CONFIGURED'
-          : !phMatch
-            ? 'NO_VALID_REFERENCE_MATCH'
-            : phMatch.deltaE00 > maxDeltaE00
-              ? 'COLOR_MATCH_OUTSIDE_THRESHOLD'
-              : 'RELIABLE_WITHIN_PROVISIONAL_THRESHOLD';
+          : phReliable
+            ? 'CLIENT_CIEDE2000_DISTANCE_MATCH'
+            : clientColorMatch.matchState === 'AMBIGUOUS'
+              ? 'AMBIGUOUS_REFERENCE_MATCH'
+              : 'COLOR_MATCH_OUTSIDE_THRESHOLD';
       const nitriteHsv = rgbToHsv(nitriteStats.measuredRGB);
-      const nitriteEstimate = matchNitriteClientRgbRange(
+      const nitriteEstimate = matchNitriteClientColor(
         nitriteStats.measuredRGB,
         calibration.nitrite?.references,
       );
-      const nitriteReferenceMatched = nitriteEstimate.matchState === 'EXACT_OR_IN_RANGE'
-        || nitriteEstimate.matchState === 'ABOVE_1_PPM';
+      const nitriteReferenceMatched = nitriteEstimate.accepted;
       const nitriteColorReliable = nitriteQuality.reliable || nitriteReferenceMatched;
+      debugLogger?.('parameter-match-diagnostics', {
+        pH: clientColorMatch.diagnostics,
+        nitrite: nitriteEstimate.diagnostics,
+      });
       debugLogger?.('nitrite-diagnostics', {
         width: info.width,
         height: info.height,
@@ -236,16 +211,16 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
       });
 
       const classification = classifyMeasurements({
-        pH: phReliable ? phMatch.reference.exactValue : null,
+        pH: phReliable ? phMatch.reference.value : null,
         nitrite: nitriteColorReliable ? nitriteEstimate.value : null,
         thresholds: calibration.thresholds || null,
       });
       const roiLocalizationStatus = registration ? 'Registered µPAD template' : 'Configured pad ROIs';
       const phValue = phReliable
-        ? (phMatch.reference.exactValue == null ? phMatch.reference.value : phMatch.reference.exactValue)
+        ? phMatch.reference.value
         : null;
       const phStatus = phReliable
-        ? (phMatch.reference.exactValue == null ? 'EstimatedRange' : 'Estimated')
+        ? 'Estimated'
         : !phQuality.reliable ? 'IMAGE_QUALITY_INSUFFICIENT' : 'PH_MEASUREMENT_UNRELIABLE';
       const nitriteQuantitativeAvailable = nitriteColorReliable && nitriteReferenceMatched;
       const nitriteStatus = !nitriteColorReliable
@@ -267,22 +242,26 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
       return {
         pH: {
           value: phValue,
-          exactValue: phReliable ? phMatch.reference.exactValue : null,
+          exactValue: phReliable ? phMatch.reference.value : null,
           unit: 'pH',
           status: phStatus,
           measuredRGB: phStats.measuredRGB,
           measuredLab,
           matchedReference: phReliable ? { label: phMatch.reference.label, lab: phMatch.reference.lab, source: phMatch.reference.source || 'client-lab-reference' } : null,
-          matchMethod: phReliable && phMatch.rgbMatch ? 'direct-client-rgb-range' : 'ciede2000-lab-reference',
-          deltaE00: phMatch?.deltaE00 ?? null,
+          matchMethod: directClientRgbMatch ? 'direct-client-rgb-range' : 'ciede2000-centroid-distance',
+          deltaE00: phDeltaE00,
           reliabilityStatus: phReliabilityStatus,
-          rgbMatch: phReliable && phMatch.rgbMatch ? {
-            status: phMatch.rgbMatch.status,
-            confidence: phMatch.rgbMatch.confidence,
-            provisional: phMatch.rgbMatch.provisional,
-            referenceRGBRange: phMatch.rgbMatch.reference.rgbRange,
+          rgbMatch: directClientRgbMatch ? {
+            status: 'EXACT_IN_RANGE',
+            confidence: 1,
+            provisional: true,
+            referenceRGBRange: clientColorMatch.reference.rgbRange,
           } : null,
-          labConsistency: phMatch?.labConsistency || null,
+          labConsistency: phProfile ? {
+            method: 'CIEDE2000-against-client-RGB-range-midpoint',
+            deltaE00: phDeltaE00,
+            referenceRGB: phProfile.centroidRGB,
+          } : null,
           roi: roiMetadata(phRoi, phStats, 'pH'),
         },
         nitrite: {
@@ -292,7 +271,9 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
           saturation: nitriteHsv.saturation,
           valueChannel: nitriteHsv.value,
           matchState: nitriteEstimate.matchState,
-          matchingMethod: 'direct-client-rgb-range',
+          matchingMethod: nitriteEstimate.matchMethod === 'RAW_RGB_INTERVAL'
+            ? 'direct-client-rgb-range'
+            : 'ciede2000-centroid-distance',
           matchedReference: nitriteEstimate.reference ? {
             label: nitriteEstimate.reference.label,
             value: nitriteEstimate.reference.value,

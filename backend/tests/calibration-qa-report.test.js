@@ -23,7 +23,13 @@ test('calibration QA report uses the production analysis engine and reports its 
   const { generateCalibrationQaReport } = await loadCalibrationQaModule();
   const imagePath = fixtureFile;
   const engine = createColorAnalysisEngine();
-  const production = await engine.analyze({ imagePath });
+  let productionMatchDiagnostics = null;
+  const production = await engine.analyze({
+    imagePath,
+    debugLogger(stage, details) {
+      if (stage === 'parameter-match-diagnostics') productionMatchDiagnostics = details;
+    },
+  });
   const [row] = await generateCalibrationQaReport([imagePath], { engine });
 
   assert.equal(row.image, basename(imagePath));
@@ -34,10 +40,21 @@ test('calibration QA report uses the production analysis engine and reports its 
   assert.equal(row.nitriteAccepted, production.nitrite.quantitativeAvailable ? 'ACCEPTED' : 'UNAVAILABLE');
   assert.ok(row.pHNearestReference?.label);
   assert.ok(Number.isFinite(row.pHDistance?.value));
-  assert.ok(row.pHDistance?.metric);
+  assert.equal(row.pHDistance?.metric, 'CIEDE2000 ΔE00');
+  assert.equal(row.pHNearestReference?.label, productionMatchDiagnostics.pH.bestReference.label);
+  assert.equal(row.pHSecondNearestReference?.label, productionMatchDiagnostics.pH.secondBestReference.label);
+  assert.equal(row.pHSecondDistance?.value, productionMatchDiagnostics.pH.secondBestDistance);
+  assert.equal(row.pHMargin, productionMatchDiagnostics.pH.margin);
+  assert.equal(row.pHMatchAccepted, productionMatchDiagnostics.pH.accepted);
+  assert.equal(row.pHMatchReason, productionMatchDiagnostics.pH.reason);
   assert.equal(row.nitriteNearestReference.label, production.nitrite.closestReference.label);
   assert.equal(row.nitriteDistance.value, production.nitrite.distance);
-  assert.equal(row.nitriteDistance.diagnosticOnly, true);
+  assert.equal(row.nitriteDistance.metric, 'CIEDE2000 ΔE00');
+  assert.equal(row.nitriteSecondNearestReference.label, productionMatchDiagnostics.nitrite.secondBestReference.label);
+  assert.equal(row.nitriteSecondDistance.value, productionMatchDiagnostics.nitrite.secondBestDistance);
+  assert.equal(row.nitriteMargin, productionMatchDiagnostics.nitrite.margin);
+  assert.equal(row.nitriteMatchAccepted, productionMatchDiagnostics.nitrite.accepted);
+  assert.equal(row.nitriteMatchReason, productionMatchDiagnostics.nitrite.reason);
   assert.equal(Object.hasOwn(row, 'thresholds'), false);
 });
 

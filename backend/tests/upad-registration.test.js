@@ -142,6 +142,40 @@ test('registered production pipeline returns individual pH and Nitrite levels fr
   }
 });
 
+test('registered production matcher accepts nearby configured colors using calibrated distance', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'aquality-registered-distance-match-'));
+  const imagePath = join(directory, 'registered-near-reference.png');
+  await sharp(Buffer.from(templateSvg({
+    nitriteColor: toHexColor([191, 172, 188]),
+    pHColor: toHexColor([168, 133, 121]),
+  }))).png().toFile(imagePath);
+
+  try {
+    const diagnostics = [];
+    const result = await createColorAnalysisEngine().analyze({
+      imagePath,
+      debugLogger: (stage, details) => diagnostics.push({ stage, details }),
+    });
+    const matchDiagnostics = diagnostics.find(({ stage }) => stage === 'parameter-match-diagnostics');
+
+    assert.equal(result.registration.status, 'REGISTERED');
+    assert.equal(result.pH.roi.zone, 'pH');
+    assert.equal(result.nitrite.roi.zone, 'nitrite');
+    assert.deepEqual(result.pH.measuredRGB, [168, 133, 121]);
+    assert.deepEqual(result.nitrite.measuredRGB, [191, 172, 188]);
+    assert.equal(result.pH.value, 1);
+    assert.equal(result.nitrite.value, 0.5);
+    assert.equal(result.nitrite.displayValue, '0.5 ppm');
+    assert.equal(result.measuredParametersStatus, 'Not classified');
+    assert.equal(matchDiagnostics.details.pH.accepted, true);
+    assert.equal(matchDiagnostics.details.nitrite.accepted, true);
+    assert.equal(matchDiagnostics.details.pH.bestReference.value, 1);
+    assert.equal(matchDiagnostics.details.nitrite.bestReference.value, 0.5);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test('fiducials on a plain background do not register nonexistent sensing circles', async () => {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="500" height="100">
     <rect width="500" height="100" fill="#aaaaaa"/>

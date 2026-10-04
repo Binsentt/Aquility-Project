@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import request from 'supertest';
 import sharp from 'sharp';
 import { serializeWaterTest } from '../utils/waterTestSerializer.js';
-import { toScanResult } from '../../services/apiMappers.js';
+import { toMapMarker, toScanResult } from '../../services/apiMappers.js';
 import { buildPdfHtml } from '../../services/reportTemplate.js';
 
 const uploadDirectory = await mkdtemp(join(tmpdir(), 'aquality-client-image-api-'));
@@ -307,6 +307,54 @@ test('qualified Nitrite value survives upload API, persistence, Result, History,
   assert.match(pdf, /Nitrite:<\/strong> &gt;1 ppm/);
   assert.match(pdf, /197, 179, 195/);
   assert.doesNotMatch(pdf, /1\.00 ppm|NaN|null ppm|undefined/);
+});
+
+test('nearby calibrated pH and Nitrite colors reach persisted Result, History, PDF, and Map values', async () => {
+  const { app, persistedRecords } = await createComputedResultTestApp();
+  const image = await createDeveloperRoiImage([168, 133, 121], [191, 172, 188]);
+  const response = await submitDeveloperImage(app, image, {
+    sampleClass: 'A',
+    sampleCode: 'A-05',
+    gpsLatitude: 14.6,
+    gpsLongitude: 120.98,
+    capturedAt: '2026-10-04T00:00:00.000Z',
+  });
+
+  assert.equal(response.status, 201, JSON.stringify(response.body));
+  assert.deepEqual(response.body.pHResult.measuredRGB, [168, 133, 121]);
+  assert.deepEqual(response.body.nitrite.measuredRGB, [191, 172, 188]);
+  assert.equal(response.body.pH, 1);
+  assert.equal(response.body.nitrite.value, 0.5);
+  assert.equal(response.body.resultData.pH, '1.00');
+  assert.equal(response.body.resultData.Nitrite, '0.50 ppm');
+  assert.equal(persistedRecords[0].estimatedPH, 1);
+  assert.equal(persistedRecords[0].estimatedNitrite, 0.5);
+
+  const resultView = toScanResult(response.body, 'https://aquality-api.example.test/api');
+  const historyRecord = serializeWaterTest(persistedRecords[0]);
+  const historyView = toScanResult(historyRecord, 'https://aquality-api.example.test/api');
+  assert.equal(resultView.resultData.pH, historyView.resultData.pH);
+  assert.equal(resultView.resultData.Nitrite, historyView.resultData.Nitrite);
+  assert.equal(resultView.resultData.pH, '1.00');
+  assert.equal(resultView.resultData.Nitrite, '0.5 ppm');
+  assert.equal(resultView.resultData['pH Category'], 'Acidic');
+  assert.equal(resultView.resultData['Measured Parameters Status'], 'Awaiting approved limits');
+
+  const pdf = buildPdfHtml({ test: historyView });
+  assert.match(pdf, /pH:<\/strong> 1\.00/);
+  assert.match(pdf, /Nitrite:<\/strong> 0\.5 ppm/);
+  const marker = toMapMarker({
+    id: historyRecord.id,
+    latitude: 14.6,
+    longitude: 120.98,
+    sampleClass: 'A',
+    siteName: 'Well',
+    pH: historyRecord.pH,
+    nitrite: historyRecord.nitrite,
+    resultData: historyRecord.resultData,
+  });
+  assert.equal(marker.pH, 1);
+  assert.equal(marker.nitriteDisplay, '0.5 ppm');
 });
 
 test('the same scanned image keeps its computed pH and Nitrite across sample classes and GPS coordinates', async () => {

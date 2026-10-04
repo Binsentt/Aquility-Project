@@ -143,6 +143,63 @@ test('pH RGB range matching rejects unsupported pH 0 and ambiguous/unrelated col
   assert.equal(calibration.pH.references.find(({ label }) => label === '10-14').exactValue, null);
 });
 
+test('computed pH matching accepts configured centroids and nearby unambiguous colors only', async () => {
+  const calibration = await readBaseCalibration();
+  const { matchPHClientColor } = await import('../utils/colorAnalysis.js');
+  assert.equal(typeof matchPHClientColor, 'function');
+
+  const centroid = (reference) => ['r', 'g', 'b'].map((channel) => {
+    const [first, second] = reference.rgbRange[channel];
+    return (Math.min(first, second) + Math.max(first, second)) / 2;
+  });
+  const references = calibration.pH.clientRgbRanges;
+  const centers = references.map(centroid);
+  for (const [index, rgb] of centers.entries()) {
+    const result = matchPHClientColor(rgb, references);
+    assert.equal(result.accepted, true);
+    assert.equal(result.reference.value, index + 1);
+    assert.equal(result.diagnostics.reason, 'EXACT_RGB_RANGE_MATCH');
+  }
+
+  const perturbed = [
+    { value: 1, rgb: [168, 133, 121] },
+    { value: 2, rgb: [175.1, 138, 133.5] },
+    { value: 3, rgb: [168.9, 130.5, 114.5] },
+    { value: 4, rgb: [167.1, 125.5, 125] },
+  ];
+  for (const sample of perturbed) {
+    const result = matchPHClientColor(sample.rgb, references);
+    assert.equal(result.accepted, true, JSON.stringify(result.diagnostics));
+    assert.equal(result.reference.value, sample.value);
+    assert.equal(result.matchMethod, 'CIEDE2000_CENTROID_DISTANCE');
+    assert.equal(result.diagnostics.distanceMetric, 'CIEDE2000');
+    assert.ok(Number.isFinite(result.diagnostics.bestDistance));
+    assert.ok(Number.isFinite(result.diagnostics.secondBestDistance));
+    assert.ok(Number.isFinite(result.diagnostics.margin));
+    assert.ok(Number.isFinite(result.diagnostics.candidateDistances[0].rgbEuclideanDistance));
+    assert.ok(Number.isFinite(result.diagnostics.candidateDistances[0].normalizedChromaticDistance));
+  }
+
+  const midpoint = centers[0].map((value, index) => (value + centers[2][index]) / 2);
+  const ambiguous = matchPHClientColor(midpoint, references);
+  assert.equal(ambiguous.accepted, false);
+  assert.equal(ambiguous.value, null);
+  assert.ok(ambiguous.diagnostics.margin < ambiguous.diagnostics.minimumRequiredMargin);
+
+  const unrelated = matchPHClientColor([255, 0, 0], references);
+  assert.equal(unrelated.accepted, false);
+  assert.equal(unrelated.value, null);
+  assert.ok(unrelated.diagnostics.bestDistance > unrelated.diagnostics.acceptanceThreshold);
+
+  const latestScan = matchPHClientColor([150, 147, 123], references);
+  assert.equal(latestScan.accepted, false);
+  assert.equal(latestScan.reference, null);
+  assert.equal(latestScan.diagnostics.bestReference.label, '3');
+  assert.equal(latestScan.diagnostics.secondBestReference.label, '1');
+  assert.ok(latestScan.diagnostics.bestDistance > latestScan.diagnostics.acceptanceThreshold);
+  assert.ok(latestScan.diagnostics.margin < latestScan.diagnostics.minimumRequiredMargin);
+});
+
 test('latest unmatched ROI colors and unlabeled client RGB samples do not force a calibration result', async () => {
   const calibration = await readBaseCalibration();
   const currentScan = {
@@ -431,6 +488,67 @@ test('near, ambiguous, and outside Nitrite colors never invent a concentration',
   }
 });
 
+test('computed Nitrite matching accepts configured centroids and nearby unambiguous colors only', async () => {
+  const calibration = await readBaseCalibration();
+  const { matchNitriteClientColor } = await import('../utils/colorAnalysis.js');
+  assert.equal(typeof matchNitriteClientColor, 'function');
+
+  const centroid = (reference) => ['r', 'g', 'b'].map((channel) => {
+    const [first, second] = reference.rgbRange[channel];
+    return (Math.min(first, second) + Math.max(first, second)) / 2;
+  });
+  const references = calibration.nitrite.references;
+  for (const reference of references) {
+    const result = matchNitriteClientColor(centroid(reference), references);
+    assert.equal(result.accepted, true);
+    assert.equal(result.reference.label, reference.label);
+    if (reference.qualifier === '>') {
+      assert.equal(result.value, null);
+      assert.equal(result.displayValue, '>1 ppm');
+      assert.equal(result.matchState, 'ABOVE_1_PPM');
+    } else {
+      assert.equal(result.value, reference.value);
+    }
+  }
+
+  const perturbed = [
+    { label: '0', rgb: [183, 172, 178.99] },
+    { label: '0.5', rgb: [191, 172, 187.5] },
+    { label: '1', rgb: [203, 183, 183] },
+    { label: '>1', rgb: [197, 180, 195] },
+  ];
+  for (const sample of perturbed) {
+    const result = matchNitriteClientColor(sample.rgb, references);
+    assert.equal(result.accepted, true, JSON.stringify(result.diagnostics));
+    assert.equal(result.reference.label, sample.label);
+    assert.equal(result.matchMethod, result.diagnostics.reason === 'EXACT_RGB_RANGE_MATCH'
+      ? 'RAW_RGB_INTERVAL'
+      : 'CIEDE2000_CENTROID_DISTANCE');
+  }
+
+  const centers = references.map(centroid);
+  // This midpoint avoids the broad 1 ppm raw RGB interval, so the ambiguity
+  // guard—not the intentionally strongest exact-interval path—is exercised.
+  const lowerClassMidpoint = centers[0].map((value, index) => (value + centers[1][index]) / 2);
+  const ambiguous = matchNitriteClientColor(lowerClassMidpoint, references);
+  assert.equal(ambiguous.accepted, false);
+  assert.equal(ambiguous.value, null);
+  assert.ok(ambiguous.diagnostics.margin < ambiguous.diagnostics.minimumRequiredMargin);
+
+  const unrelated = matchNitriteClientColor([255, 0, 0], references);
+  assert.equal(unrelated.accepted, false);
+  assert.equal(unrelated.value, null);
+  assert.ok(unrelated.diagnostics.bestDistance > unrelated.diagnostics.acceptanceThreshold);
+
+  const latestScan = matchNitriteClientColor([155, 144, 120], references);
+  assert.equal(latestScan.accepted, false);
+  assert.equal(latestScan.reference, null);
+  assert.equal(latestScan.diagnostics.bestReference.label, '1');
+  assert.equal(latestScan.diagnostics.secondBestReference.label, '0');
+  assert.ok(latestScan.diagnostics.bestDistance > latestScan.diagnostics.acceptanceThreshold);
+  assert.ok(latestScan.diagnostics.margin < latestScan.diagnostics.minimumRequiredMargin);
+});
+
 test('analysis refuses numeric output when physical strip ROIs are not configured', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'aquility-color-analysis-'));
   const imagePath = join(directory, 'sample.png');
@@ -556,7 +674,7 @@ test('gray/background sensing colors are rejected instead of becoming pH 8', asy
   }
 });
 
-test('valid ROIs complete the scan with unavailable pH when no confidence threshold is configured', async () => {
+test('valid ROIs reject unsupported pH colors with the derived threshold when the legacy threshold is unset', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'aquility-pH-threshold-'));
   const imagePath = join(directory, 'threshold-missing.png');
   const pixels = Buffer.alloc(20 * 20 * 3);
@@ -584,7 +702,7 @@ test('valid ROIs complete the scan with unavailable pH when no confidence thresh
     assert.equal(result.scanStatus, 'Completed');
     assert.equal(result.pH.value, null);
     assert.equal(result.phStatus, 'PH_MEASUREMENT_UNRELIABLE');
-    assert.equal(result.pH.reliabilityStatus, 'THRESHOLD_NOT_CONFIGURED');
+    assert.equal(result.pH.reliabilityStatus, 'COLOR_MATCH_OUTSIDE_THRESHOLD');
     assert.equal(result.nitrite.value, null);
     assert.equal(result.nitriteStatus, 'NITRITE_OUTSIDE_CALIBRATION_RANGE');
   } finally {

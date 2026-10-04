@@ -1,14 +1,5 @@
-import { readFile } from 'node:fs/promises';
-import { basename, dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { basename } from 'node:path';
 import { createColorAnalysisEngine } from './colorAnalysisEngine.js';
-import { matchPHClientRgbRange, matchPHReference } from '../utils/colorAnalysis.js';
-
-const databaseDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'database');
-
-async function readActiveCalibration() {
-  return JSON.parse(await readFile(join(databaseDir, 'colorAnalysisCalibration.json'), 'utf8'));
-}
 
 function unavailableRow(image, error) {
   const registrationFailure = error?.code === 'STRIP_REGISTRATION_FAILED';
@@ -19,11 +10,23 @@ function unavailableRow(image, error) {
     pHRgb: null,
     pHNearestReference: null,
     pHDistance: null,
+    pHSecondNearestReference: null,
+    pHSecondDistance: null,
+    pHMargin: null,
+    pHMatchAccepted: false,
+    pHMatchReason: null,
+    pHMatchDiagnostics: null,
     pHAccepted: 'UNAVAILABLE',
     pHDiagnostic: registrationFailure ? 'Registration failed; no pH ROI was measured.' : 'Production analysis was unavailable.',
     nitriteRgb: null,
     nitriteNearestReference: null,
     nitriteDistance: null,
+    nitriteSecondNearestReference: null,
+    nitriteSecondDistance: null,
+    nitriteMargin: null,
+    nitriteMatchAccepted: false,
+    nitriteMatchReason: null,
+    nitriteMatchDiagnostics: null,
     nitriteAccepted: 'UNAVAILABLE',
     nitriteDiagnostic: registrationFailure ? 'Registration failed; no Nitrite ROI was measured.' : 'Production analysis was unavailable.',
   };
@@ -36,11 +39,8 @@ function unavailableRow(image, error) {
  */
 export async function generateCalibrationQaReport(imagePaths, {
   engine = createColorAnalysisEngine(),
-  calibration = null,
-  readCalibration = readActiveCalibration,
 } = {}) {
   if (!Array.isArray(imagePaths)) throw new TypeError('imagePaths must be an array.');
-  const activeCalibration = calibration || await readCalibration();
 
   const rows = [];
   for (const imagePath of imagePaths) {
@@ -51,28 +51,21 @@ export async function generateCalibrationQaReport(imagePaths, {
     }
 
     try {
-      const result = await engine.analyze({ imagePath });
-      const pHClientMatch = matchPHClientRgbRange(
-        result.pH?.measuredRGB,
-        activeCalibration.pH?.clientRgbRanges,
-      );
-      const pHLabMatch = matchPHReference(result.pH?.measuredLab, activeCalibration.pH?.references || []);
-      const pHNearest = pHClientMatch
-        ? { label: pHClientMatch.reference.label, source: 'client RGB interval' }
-        : pHLabMatch
-          ? { label: pHLabMatch.reference.label, source: 'CIEDE2000 Lab reference' }
-          : null;
-      const pHDistance = pHClientMatch
-        ? {
-          value: pHClientMatch.maxDistance,
-          metric: 'maximum per-channel distance to client RGB interval',
-          diagnosticOnly: true,
-        }
-        : Number.isFinite(result.pH?.deltaE00)
-          ? { value: result.pH.deltaE00, metric: 'CIEDE2000 ΔE00', diagnosticOnly: true }
-          : pHLabMatch
-            ? { value: pHLabMatch.deltaE00, metric: 'CIEDE2000 ΔE00', diagnosticOnly: true }
-            : null;
+      let productionMatchDiagnostics = null;
+      const result = await engine.analyze({
+        imagePath,
+        debugLogger(stage, details) {
+          if (stage === 'parameter-match-diagnostics') productionMatchDiagnostics = details;
+        },
+      });
+      const pHMatch = productionMatchDiagnostics?.pH || null;
+      const nitriteMatch = productionMatchDiagnostics?.nitrite || null;
+      const pHNearest = pHMatch?.bestReference
+        ? { ...pHMatch.bestReference, source: 'CIEDE2000 client RGB centroid' }
+        : null;
+      const pHDistance = Number.isFinite(pHMatch?.bestDistance)
+        ? { value: pHMatch.bestDistance, metric: 'CIEDE2000 ΔE00', diagnosticOnly: true }
+        : null;
       const registrationStatus = result.registration?.status || 'REGISTRATION_STATUS_UNAVAILABLE';
       const registered = registrationStatus === 'REGISTERED';
 
@@ -83,19 +76,33 @@ export async function generateCalibrationQaReport(imagePaths, {
         pHRgb: result.pH?.measuredRGB || null,
         pHNearestReference: pHNearest,
         pHDistance,
+        pHSecondNearestReference: pHMatch?.secondBestReference || null,
+        pHSecondDistance: Number.isFinite(pHMatch?.secondBestDistance)
+          ? { value: pHMatch.secondBestDistance, metric: 'CIEDE2000 ΔE00', diagnosticOnly: true }
+          : null,
+        pHMargin: pHMatch?.margin ?? null,
+        pHMatchAccepted: pHMatch?.accepted ?? false,
+        pHMatchReason: pHMatch?.reason || null,
+        pHMatchDiagnostics: pHMatch,
         pHAccepted: registered && result.pH?.value != null ? 'ACCEPTED' : 'UNAVAILABLE',
         pHDiagnostic: result.pH?.reliabilityStatus || result.pH?.status || null,
         nitriteRgb: result.nitrite?.measuredRGB || null,
-        nitriteNearestReference: result.nitrite?.closestReference?.label
-          ? { label: result.nitrite.closestReference.label }
-          : result.nitrite?.matchedReference?.label ? { label: result.nitrite.matchedReference.label } : null,
-        nitriteDistance: Number.isFinite(result.nitrite?.distance)
+        nitriteNearestReference: nitriteMatch?.bestReference || null,
+        nitriteDistance: Number.isFinite(nitriteMatch?.bestDistance)
           ? {
-            value: result.nitrite.distance,
-            metric: 'RGB Euclidean distance to interval midpoint',
+            value: nitriteMatch.bestDistance,
+            metric: 'CIEDE2000 ΔE00',
             diagnosticOnly: true,
           }
           : null,
+        nitriteSecondNearestReference: nitriteMatch?.secondBestReference || null,
+        nitriteSecondDistance: Number.isFinite(nitriteMatch?.secondBestDistance)
+          ? { value: nitriteMatch.secondBestDistance, metric: 'CIEDE2000 ΔE00', diagnosticOnly: true }
+          : null,
+        nitriteMargin: nitriteMatch?.margin ?? null,
+        nitriteMatchAccepted: nitriteMatch?.accepted ?? false,
+        nitriteMatchReason: nitriteMatch?.reason || null,
+        nitriteMatchDiagnostics: nitriteMatch,
         nitriteAccepted: registered && result.nitrite?.quantitativeAvailable ? 'ACCEPTED' : 'UNAVAILABLE',
         nitriteDiagnostic: result.nitrite?.matchState || result.nitrite?.status || null,
       });

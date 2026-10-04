@@ -186,6 +186,175 @@ export function deltaE00(firstLab, secondLab) {
   return Math.sqrt(lightnessTerm ** 2 + chromaTerm ** 2 + hueTerm ** 2 + rT * chromaTerm * hueTerm);
 }
 
+function clientReferenceProfile(reference) {
+  const ranges = ['r', 'g', 'b'].map((channel) => normalizedRange(reference?.rgbRange?.[channel]));
+  if (ranges.some((range) => !range)) return null;
+  const centroidRGB = ranges.map(([minimum, maximum]) => (minimum + maximum) / 2);
+  return {
+    reference,
+    ranges,
+    centroidRGB,
+    centroidLab: rgbToLab(centroidRGB),
+  };
+}
+
+function normalizedChromaticDistance(first, second) {
+  const totalFirst = first.reduce((sum, channel) => sum + channel, 0);
+  const totalSecond = second.reduce((sum, channel) => sum + channel, 0);
+  if (totalFirst === 0 || totalSecond === 0) return null;
+  const normalizedFirst = first.map((channel) => channel / totalFirst);
+  const normalizedSecond = second.map((channel) => channel / totalSecond);
+  return Math.hypot(...normalizedFirst.map((channel, index) => channel - normalizedSecond[index]));
+}
+
+function matchClientColorByCentroid(measuredRGB, references, { parameter }) {
+  if (!Array.isArray(measuredRGB) || measuredRGB.length !== 3
+    || measuredRGB.some((channel) => !Number.isFinite(channel))
+    || !Array.isArray(references)) {
+    return {
+      accepted: false,
+      reference: null,
+      value: null,
+      matchState: 'OUTSIDE_REFERENCE_SPACE',
+      diagnostics: {
+        parameter,
+        distanceMetric: 'CIEDE2000',
+        accepted: false,
+        reason: 'INVALID_MEASUREMENT_OR_REFERENCES',
+        candidateDistances: [],
+      },
+    };
+  }
+
+  const profiles = references.map(clientReferenceProfile).filter(Boolean);
+  const candidates = profiles.map((profile) => {
+    const intervalDistances = measuredRGB.map((value, index) => rangeDistance(value, profile.ranges[index]));
+    return {
+      reference: profile.reference,
+      centroidRGB: profile.centroidRGB,
+      ranges: profile.ranges,
+      rawRgbIntervalMatch: intervalDistances.every((distance) => distance === 0),
+      rgbEuclideanDistance: Math.hypot(...measuredRGB.map((value, index) => value - profile.centroidRGB[index])),
+      deltaE00: deltaE00(rgbToLab(measuredRGB), profile.centroidLab),
+      normalizedChromaticDistance: normalizedChromaticDistance(measuredRGB, profile.centroidRGB),
+    };
+  }).sort((left, right) => left.deltaE00 - right.deltaE00);
+
+  const exactMatches = candidates.filter(({ rawRgbIntervalMatch }) => rawRgbIntervalMatch);
+  const pairwiseSeparations = [];
+  for (let first = 0; first < profiles.length; first += 1) {
+    for (let second = first + 1; second < profiles.length; second += 1) {
+      pairwiseSeparations.push(deltaE00(profiles[first].centroidLab, profiles[second].centroidLab));
+    }
+  }
+  const minimumReferenceSeparation = pairwiseSeparations.length
+    ? Math.min(...pairwiseSeparations)
+    : null;
+  // Derive both guards from the active references. Keeping each at one third
+  // of the closest pairwise centroid gap leaves a reject band between classes.
+  const acceptanceThreshold = Number.isFinite(minimumReferenceSeparation)
+    ? minimumReferenceSeparation / 3
+    : null;
+  const minimumRequiredMargin = acceptanceThreshold;
+  const best = candidates[0] || null;
+  const second = candidates[1] || null;
+  const margin = best && second ? second.deltaE00 - best.deltaE00 : null;
+  const withinAcceptanceThreshold = Boolean(best
+    && Number.isFinite(acceptanceThreshold)
+    && best.deltaE00 <= acceptanceThreshold);
+  const meetsMinimumMargin = Boolean(Number.isFinite(margin)
+    && Number.isFinite(minimumRequiredMargin)
+    && margin >= minimumRequiredMargin);
+  const acceptedExactly = exactMatches.length === 1;
+  const acceptedByDistance = exactMatches.length === 0
+    && withinAcceptanceThreshold
+    && meetsMinimumMargin;
+  const ambiguousExact = exactMatches.length > 1;
+  const accepted = acceptedExactly || acceptedByDistance;
+  const reason = acceptedExactly
+    ? 'EXACT_RGB_RANGE_MATCH'
+    : ambiguousExact
+      ? 'AMBIGUOUS_RGB_INTERVAL_MATCH'
+      : acceptedByDistance
+        ? 'ACCEPTED_WITHIN_CIEDE2000_THRESHOLD_AND_MARGIN'
+        : !best
+          ? 'NO_VALID_REFERENCE_CLASSES'
+          : withinAcceptanceThreshold && !meetsMinimumMargin
+            ? 'AMBIGUOUS_RUNNER_UP_MARGIN'
+            : !withinAcceptanceThreshold && !meetsMinimumMargin
+              ? 'OUTSIDE_THRESHOLD_AND_AMBIGUOUS_MARGIN'
+              : 'OUTSIDE_CIEDE2000_ACCEPTANCE_THRESHOLD';
+  const matchMethod = acceptedExactly ? 'RAW_RGB_INTERVAL' : 'CIEDE2000_CENTROID_DISTANCE';
+  const matchedCandidate = accepted ? (acceptedExactly ? exactMatches[0] : best) : null;
+  const value = matchedCandidate?.reference?.qualifier === '>'
+    ? null
+    : matchedCandidate?.reference?.value ?? null;
+  const matchState = !accepted
+    ? (ambiguousExact || (best && Number.isFinite(acceptanceThreshold)
+      && best.deltaE00 <= acceptanceThreshold && !acceptedByDistance) ? 'AMBIGUOUS' : 'OUTSIDE_REFERENCE_SPACE')
+    : matchedCandidate.reference.qualifier === '>'
+      ? 'ABOVE_1_PPM'
+      : acceptedExactly ? 'EXACT_OR_IN_RANGE' : 'DISTANCE_MATCH';
+  const candidateDistances = candidates.map((candidate) => ({
+    label: candidate.reference.label,
+    value: candidate.reference.value,
+    deltaE00: candidate.deltaE00,
+    rgbEuclideanDistance: candidate.rgbEuclideanDistance,
+    normalizedChromaticDistance: candidate.normalizedChromaticDistance,
+    rawRgbIntervalMatch: candidate.rawRgbIntervalMatch,
+    centroidRGB: candidate.centroidRGB,
+  }));
+  const diagnostics = {
+    parameter,
+    distanceMetric: 'CIEDE2000',
+    bestReference: best ? { label: best.reference.label, value: best.reference.value } : null,
+    secondBestReference: second ? { label: second.reference.label, value: second.reference.value } : null,
+    bestDistance: best?.deltaE00 ?? null,
+    secondBestDistance: second?.deltaE00 ?? null,
+    margin,
+    minimumReferenceSeparation,
+    acceptanceThreshold,
+    minimumRequiredMargin,
+    accepted,
+    withinAcceptanceThreshold,
+    meetsMinimumMargin,
+    reason,
+    candidateDistances,
+  };
+
+  return {
+    accepted,
+    reference: matchedCandidate?.reference || null,
+    value,
+    displayValue: matchedCandidate?.reference?.displayValue
+      || (matchedCandidate?.reference?.qualifier === '>' ? `>${matchedCandidate.reference.lowerBound} ppm`
+        : matchedCandidate ? `${matchedCandidate.reference.value}${parameter === 'nitrite' ? ' ppm' : ''}` : null),
+    qualifier: matchedCandidate?.reference?.qualifier ?? null,
+    lowerBound: matchedCandidate?.reference?.lowerBound ?? null,
+    matchMethod,
+    matchState,
+    closestReference: best?.reference || null,
+    distance: best?.deltaE00 ?? null,
+    rgbEuclideanDistance: best?.rgbEuclideanDistance ?? null,
+    normalizedChromaticDistance: best?.normalizedChromaticDistance ?? null,
+    diagnostics,
+    candidates,
+  };
+}
+
+/**
+ * Match only the client-provided pH 1–4 references. The grouped legacy pH
+ * labels and pH 5–14 Lab examples are intentionally outside this classifier.
+ */
+export function matchPHClientColor(measuredRGB, clientRgbRanges) {
+  return matchClientColorByCentroid(measuredRGB, clientRgbRanges, { parameter: 'pH' });
+}
+
+/** Match discrete client Nitrite classes without interpolation or clamping. */
+export function matchNitriteClientColor(measuredRGB, references) {
+  return matchClientColorByCentroid(measuredRGB, references, { parameter: 'nitrite' });
+}
+
 function normalizedRange(value) {
   if (!Array.isArray(value) || value.length !== 2) return null;
   const [first, second] = value;
