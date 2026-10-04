@@ -19,6 +19,92 @@ after(async () => {
   await rm(uploadDirectory, { recursive: true, force: true });
 });
 
+async function createDeveloperRoiImage(pHRgb, nitriteRgb) {
+  const width = 20;
+  const height = 20;
+  const pixels = Buffer.alloc(width * height * 3);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      pixels.set(x < width / 2 ? pHRgb : nitriteRgb, (y * width + x) * 3);
+    }
+  }
+  return sharp(pixels, { raw: { width, height, channels: 3 } }).png().toBuffer();
+}
+
+async function createComputedResultTestApp() {
+  const [{ createApp }, { createColorAnalysisEngine }, { createWaterAnalysisService }] = await Promise.all([
+    import('../app.js'),
+    import('../services/colorAnalysisEngine.js'),
+    import('../services/waterAnalysisService.js'),
+  ]);
+  const userId = '6e705ada-7c06-42b4-a9f2-5b12b9a17721';
+  const calibration = JSON.parse(await readFile(new URL('../database/colorAnalysisCalibration.json', import.meta.url), 'utf8'));
+  const developerCalibration = {
+    ...calibration,
+    roi: {
+      ...calibration.roi,
+      productionAllowed: false,
+      registration: { ...calibration.roi.registration, enabled: false },
+      regions: {
+        pH: { x: 0, y: 0, width: 0.5, height: 1 },
+        nitrite: { x: 0.5, y: 0, width: 0.5, height: 1 },
+      },
+    },
+  };
+  const persistedRecords = [];
+  const engineCalls = [];
+  const imageAnalyzer = createColorAnalysisEngine({
+    readJson: async () => developerCalibration,
+    allowDeveloperRoiFixture: true,
+  });
+  const waterAnalysisService = createWaterAnalysisService({
+    colorAnalysisEngine: {
+      async analyze(input) {
+        engineCalls.push({ keys: Object.keys(input).sort(), imagePath: input.imagePath });
+        return imageAnalyzer.analyze(input);
+      },
+    },
+    userModel: { async findById(id) { return id === userId ? { id, accountType: 'registered' } : null; } },
+    waterTestModel: {
+      async create(record) {
+        const saved = {
+          id: `computed-result-guard-${persistedRecords.length + 1}`,
+          createdAt: '2026-10-04T00:00:00.000Z',
+          ...record,
+        };
+        persistedRecords.push(saved);
+        return saved;
+      },
+    },
+  });
+  const app = createApp({
+    authTokenService: { verifyAccessToken: () => ({ userId }) },
+    waterAnalysisService,
+  });
+  return { app, persistedRecords, engineCalls };
+}
+
+function submitDeveloperImage(app, image, metadata) {
+  const form = request(app)
+    .post('/api/analyze-water')
+    .set('Authorization', 'Bearer test-token');
+  for (const [key, value] of Object.entries(metadata)) form.field(key, String(value));
+  return form.attach('image', image, { filename: 'same-uploaded-name.png', contentType: 'image/png' });
+}
+
+function chemistrySnapshot(response) {
+  return {
+    pH: response.body.pH,
+    pHValue: response.body.pHResult.value,
+    pHRgb: response.body.pHResult.measuredRGB,
+    pHMatch: response.body.pHResult.matchedReference?.value ?? null,
+    nitriteValue: response.body.nitrite.value,
+    nitriteDisplayValue: response.body.nitrite.displayValue ?? null,
+    nitriteRgb: response.body.nitrite.measuredRGB,
+    nitriteMatch: response.body.nitrite.matchState,
+  };
+}
+
 test('real client image completes authenticated upload, analysis, persistence, and API serialization', async () => {
   {
     const [{ createApp }, { createColorAnalysisEngine }, { createWaterAnalysisService }] = await Promise.all([
@@ -221,4 +307,98 @@ test('qualified Nitrite value survives upload API, persistence, Result, History,
   assert.match(pdf, /Nitrite:<\/strong> &gt;1 ppm/);
   assert.match(pdf, /197, 179, 195/);
   assert.doesNotMatch(pdf, /1\.00 ppm|NaN|null ppm|undefined/);
+});
+
+test('the same scanned image keeps its computed pH and Nitrite across sample classes and GPS coordinates', async () => {
+  const { app, persistedRecords, engineCalls } = await createComputedResultTestApp();
+  const image = await createDeveloperRoiImage([168, 133, 122], [183, 172, 180]);
+  const capturedAt = '2026-10-04T00:00:00.000Z';
+  const classCases = [
+    { sampleClass: 'SA', sampleCode: 'SA-01', gpsLatitude: 14.6, gpsLongitude: 120.98 },
+    { sampleClass: 'A', sampleCode: 'A-01', gpsLatitude: 14.6, gpsLongitude: 120.98 },
+    { sampleClass: 'SB', sampleCode: 'SB-01', gpsLatitude: 14.6, gpsLongitude: 120.98 },
+  ];
+  const classResponses = [];
+  for (const metadata of classCases) {
+    const response = await submitDeveloperImage(app, image, { ...metadata, capturedAt });
+    assert.equal(response.status, 201, JSON.stringify(response.body));
+    classResponses.push(response);
+  }
+
+  assert.deepEqual(classResponses.map(({ body }) => body.sampleClass), ['SA', 'A', 'SB']);
+  assert.deepEqual(classResponses.map(({ body }) => body.siteName), ['Pawikan', 'Well', 'Fish Farm']);
+  assert.deepEqual(chemistrySnapshot(classResponses[0]), chemistrySnapshot(classResponses[1]));
+  assert.deepEqual(chemistrySnapshot(classResponses[1]), chemistrySnapshot(classResponses[2]));
+  assert.equal(classResponses[1].body.pH, 1);
+  assert.equal(classResponses[1].body.nitrite.value, 0);
+
+  const gpsChanged = await submitDeveloperImage(app, image, {
+    ...classCases[1],
+    gpsLatitude: -33.8688,
+    gpsLongitude: 151.2093,
+    capturedAt,
+  });
+  assert.equal(gpsChanged.status, 201, JSON.stringify(gpsChanged.body));
+  assert.notDeepEqual(gpsChanged.body.gps, classResponses[1].body.gps);
+  assert.deepEqual(chemistrySnapshot(gpsChanged), chemistrySnapshot(classResponses[1]));
+  assert.deepEqual(gpsChanged.body.resultData, classResponses[1].body.resultData);
+
+  assert.equal(persistedRecords.length, 4);
+  assert.equal(engineCalls.length, 4);
+  for (const call of engineCalls) {
+    assert.deepEqual(call.keys, ['debugLogger', 'imagePath']);
+    assert.ok(call.imagePath);
+  }
+  for (const record of persistedRecords) {
+    assert.equal(record.estimatedPH, 1);
+    assert.equal(record.estimatedNitrite, 0);
+    assert.deepEqual(record.analysisData.pH.measuredRGB, [168, 133, 122]);
+    assert.deepEqual(record.analysisData.nitrite.measuredRGB, [183, 172, 180]);
+  }
+});
+
+test('changing only sensing-zone RGB changes results under fixed metadata, and unsupported colors stay unavailable', async () => {
+  const { app, persistedRecords } = await createComputedResultTestApp();
+  const metadata = {
+    sampleClass: 'A',
+    sampleCode: 'A-05',
+    gpsLatitude: 14.71,
+    gpsLongitude: 120.91,
+    capturedAt: '2026-10-04T00:00:00.000Z',
+  };
+  const imageCases = [
+    { pHRgb: [168, 133, 122], nitriteRgb: [183, 172, 180], expectedPH: 1, expectedNitrite: 0 },
+    { pHRgb: [173, 138, 133], nitriteRgb: [190, 172, 187], expectedPH: 2, expectedNitrite: 0.5 },
+    { pHRgb: [150, 147, 123], nitriteRgb: [155, 144, 120], expectedPH: null, expectedNitrite: null },
+  ];
+  const responses = [];
+  for (const imageCase of imageCases) {
+    const image = await createDeveloperRoiImage(imageCase.pHRgb, imageCase.nitriteRgb);
+    const response = await submitDeveloperImage(app, image, metadata);
+    assert.equal(response.status, 201, JSON.stringify(response.body));
+    responses.push(response);
+    assert.deepEqual(response.body.pHResult.measuredRGB, imageCase.pHRgb);
+    assert.deepEqual(response.body.nitrite.measuredRGB, imageCase.nitriteRgb);
+    assert.equal(response.body.pH, imageCase.expectedPH);
+    assert.equal(response.body.nitrite.value, imageCase.expectedNitrite);
+  }
+
+  assert.notDeepEqual(responses[0].body.pHResult.measuredRGB, responses[1].body.pHResult.measuredRGB);
+  assert.notDeepEqual(responses[0].body.nitrite.measuredRGB, responses[1].body.nitrite.measuredRGB);
+  assert.equal(responses[0].body.resultData.pH, '1.00');
+  assert.equal(responses[0].body.resultData.Nitrite, '0.00 ppm');
+  assert.equal(responses[1].body.resultData.pH, '2.00');
+  assert.equal(responses[1].body.resultData.Nitrite, '0.50 ppm');
+  assert.equal(responses[2].body.resultData.pH, 'No reference match');
+  assert.equal(responses[2].body.resultData.Nitrite, 'No reference match');
+  assert.deepEqual(responses.map(({ body }) => [body.sampleClass, body.sampleCode, body.gps]), [
+    ['A', 'A-05', { latitude: 14.71, longitude: 120.91 }],
+    ['A', 'A-05', { latitude: 14.71, longitude: 120.91 }],
+    ['A', 'A-05', { latitude: 14.71, longitude: 120.91 }],
+  ]);
+  assert.deepEqual(persistedRecords.map(({ estimatedPH, estimatedNitrite }) => [estimatedPH, estimatedNitrite]), [
+    [1, 0],
+    [2, 0.5],
+    [null, null],
+  ]);
 });
