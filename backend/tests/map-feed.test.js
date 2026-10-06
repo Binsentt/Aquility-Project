@@ -21,6 +21,11 @@ test('map query reads saved pH and Nitrite analysis display without loading full
             nitriteDisplay: null, nitriteValue: '0.5', nitriteClassificationStatus: 'Warning',
           },
           {
+            id: 'low-confidence', latitude: 2, longitude: 3, pH: null,
+            nitriteDisplay: null, nitriteLowConfidenceDisplay: 'Closest reference: 0 ppm (low confidence)',
+            nitriteValue: null, nitriteClassificationStatus: null,
+          },
+          {
             id: 'unavailable', latitude: 3, longitude: 4, pH: null,
             nitriteDisplay: null, nitriteValue: null, nitriteClassificationStatus: null,
           },
@@ -32,6 +37,7 @@ test('map query reads saved pH and Nitrite analysis display without loading full
 
   assert.match(executedSql, /estimated_ph AS "pH"/i);
   assert.match(executedSql, /analysis_data\s*#>>\s*'{nitrite,displayValue}'\s+AS "nitriteDisplay"/i);
+  assert.match(executedSql, /analysis_data\s*#>>\s*'{nitrite,lowConfidenceDisplay}'\s+AS "nitriteLowConfidenceDisplay"/i);
   assert.match(executedSql, /analysis_data\s*#>>\s*'{nitrite,value}'\s+AS "nitriteValue"/i);
   assert.match(executedSql, /analysis_data\s*#>>\s*'{nitrite,classificationStatus}'\s+AS "nitriteClassificationStatus"/i);
   assert.doesNotMatch(executedSql, /analysis_data\s+AS/i);
@@ -40,7 +46,9 @@ test('map query reads saved pH and Nitrite analysis display without loading full
   assert.equal(markers[0].nitriteStatus, 'Dangerous');
   assert.equal(markers[1].nitriteDisplay, '0.50 ppm');
   assert.equal(markers[1].nitriteStatus, 'Warning');
-  assert.equal(markers[2].nitriteDisplay, 'Unavailable');
+  assert.equal(markers[2].nitriteDisplay, 'Closest reference: 0 ppm (low confidence)');
+  assert.equal(markers[2].nitriteStatus, null);
+  assert.equal(markers[3].nitriteDisplay, 'Unavailable');
 });
 
 test('public map service returns only safe marker details and canonical study classes', async () => {

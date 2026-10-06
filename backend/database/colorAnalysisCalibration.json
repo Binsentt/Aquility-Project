@@ -96,7 +96,10 @@
     "target": "Nitrite (NO2-)",
     "analyte": "Nitrite (NO2-)",
     "unit": "ppm",
-    "source": "CLIENT_DIRECT_NITRITE_RGB",
+    "source": "CLIENT_CONFIRMED_TESTED_REFERENCE_SAMPLE_COLOR_TEST",
+    "sourceNote": "Real-phone µPAD Nitrite accuracy has not been established with labeled phone-camera samples. Non-accepted nearest-reference outputs are shown only as low-confidence reference estimates.",
+    "referenceOrderDirection": "left-to-right",
+    "referenceOrder": ["0", "0.5", "1", ">1"],
     "reaction": "Griess method, client-provided direct Nitrite reference colors",
     "method": "Registered left Nitrite ROI median RGB -> discrete client-reference matching using exact RGB intervals and a guarded three-metric centroid score",
     "provisional": true,
@@ -114,21 +117,21 @@
         "value": 0,
         "sourceRgbRange": { "r": [184, 182], "g": [173, 171], "b": [181, 179] },
         "rgbRange": { "r": [182, 184], "g": [171, 173], "b": [179, 181] },
-        "provenance": "CLIENT_DIRECT_NITRITE_RGB"
+        "provenance": "CLIENT_CONFIRMED_TESTED_REFERENCE_SAMPLE_COLOR_TEST"
       },
       {
         "label": "0.5",
         "value": 0.5,
         "sourceRgbRange": { "r": [190, 190], "g": [172, 172], "b": [187, 188] },
         "rgbRange": { "r": [190, 190], "g": [172, 172], "b": [187, 188] },
-        "provenance": "CLIENT_DIRECT_NITRITE_RGB"
+        "provenance": "CLIENT_CONFIRMED_TESTED_REFERENCE_SAMPLE_COLOR_TEST"
       },
       {
         "label": "1",
         "value": 1,
         "sourceRgbRange": { "r": [193, 212], "g": [172, 194], "b": [173, 192] },
         "rgbRange": { "r": [193, 212], "g": [172, 194], "b": [173, 192] },
-        "provenance": "CLIENT_DIRECT_NITRITE_RGB"
+        "provenance": "CLIENT_CONFIRMED_TESTED_REFERENCE_SAMPLE_COLOR_TEST"
       },
       {
         "label": ">1",
@@ -138,7 +141,7 @@
         "lowerBound": 1,
         "sourceRgbRange": { "r": [196, 198], "g": [178, 180], "b": [194, 196] },
         "rgbRange": { "r": [196, 198], "g": [178, 180], "b": [194, 196] },
-        "provenance": "CLIENT_DIRECT_NITRITE_RGB"
+        "provenance": "CLIENT_CONFIRMED_TESTED_REFERENCE_SAMPLE_COLOR_TEST"
       }
     ],
     "outOfRange": "Return null with NITRITE_OUTSIDE_CALIBRATION_RANGE or NITRITE_MEASUREMENT_UNRELIABLE; never interpolate or clamp.",

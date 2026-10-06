@@ -613,7 +613,7 @@ function rangeDistance(value, range) {
 }
 
 /**
- * Match a registered Nitrite ROI against the three client-provided direct
+ * Match a registered Nitrite ROI against the four client-provided direct
  * RGB classes. This is deliberately a discrete classifier: there is no
  * interpolation, extrapolation, or endpoint clamping without validated
  * calibration data.
@@ -645,7 +645,7 @@ export function matchNitriteClientRgbRange(measuredRGB, references) {
     value: null,
     unit: 'ppm',
     provisional: true,
-    source: 'CLIENT_DIRECT_NITRITE_RGB',
+    source: 'CLIENT_CONFIRMED_TESTED_REFERENCE_SAMPLE_COLOR_TEST',
     candidates,
     closestReference: candidates[0]?.reference || null,
     distance: candidates[0]?.distance ?? null,

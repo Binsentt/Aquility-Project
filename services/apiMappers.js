@@ -29,15 +29,16 @@ export function pHCategoryFor(value) {
 export function cleanClientRemarks(value) {
   const remarks = typeof value === 'string' ? value : '';
   if (/client-provided provisional references|provisional client reference colors|analytically validated method|HSV H\/S\/V|scientific (?:validation|comparison)|laboratory (?:comparison|validation)|certified water-safety|\b(?:pH|Nitrite) ROI RGB|THRESHOLD_NOT_CONFIGURED|OUTSIDE_REFERENCE_SPACE|PH_MEASUREMENT_UNRELIABLE|NITRITE_OUTSIDE_CALIBRATION_RANGE/i.test(remarks)) {
-    return 'Separate µPAD sensing areas were localized. Results are shown only when a configured reference matches.';
+    return 'Separate µPAD sensing areas were localized. Accepted parameter values require a configured reference match.';
   }
   return remarks;
 }
 
-function clientResultSummary(remarks, pHDisplay, nitriteDisplay) {
+function clientResultSummary(remarks, pHDisplay, nitriteDisplay, lowConfidenceNote) {
   const noMatchMessages = [];
   if (pHDisplay === 'No reference match') noMatchMessages.push('pH color did not match the configured reference levels.');
   if (nitriteDisplay === 'No reference match') noMatchMessages.push('Nitrite color did not match the configured reference levels.');
+  if (lowConfidenceNote) noMatchMessages.push(lowConfidenceNote);
   if (noMatchMessages.length) return noMatchMessages.join(' ');
 
   return cleanClientRemarks(remarks) || 'Water test result received from the AQUALITY backend.';
@@ -92,10 +93,21 @@ export function toScanResult(waterTest = {}, apiBaseUrl) {
     && value.measuredRGB.every((channel) => Number.isFinite(Number(channel)));
   const pHDisplay = typeof pH === 'number' ? pH.toFixed(1) : (hasMeasuredRgb(pHResult) ? 'No reference match' : 'Unavailable');
   const nitriteHasDisplayValue = typeof waterTest.nitrite?.displayValue === 'string' && waterTest.nitrite.displayValue.trim().length > 0;
+  const nitriteHasLowConfidenceDisplay = typeof waterTest.nitrite?.lowConfidenceDisplay === 'string'
+    && waterTest.nitrite.lowConfidenceDisplay.trim().length > 0;
   const nitriteDisplay = nitriteHasDisplayValue
     ? waterTest.nitrite.displayValue
-    : (Number.isFinite(nitriteValue) ? `${nitriteValue.toFixed(2)} ${waterTest.nitrite?.unit || 'ppm'}` : (hasMeasuredRgb(waterTest.nitrite) ? 'No reference match' : 'Unavailable'));
-  const summary = clientResultSummary(waterTest.remarks || waterTest.summary, pHDisplay, nitriteDisplay);
+    : (Number.isFinite(nitriteValue)
+      ? `${nitriteValue.toFixed(2)} ${waterTest.nitrite?.unit || 'ppm'}`
+      : nitriteHasLowConfidenceDisplay
+        ? waterTest.nitrite.lowConfidenceDisplay
+        : (hasMeasuredRgb(waterTest.nitrite) ? 'No reference match' : 'Unavailable'));
+  const summary = clientResultSummary(
+    waterTest.remarks || waterTest.summary,
+    pHDisplay,
+    nitriteDisplay,
+    waterTest.nitrite?.referenceConfidence === 'LOW' ? waterTest.nitrite.lowConfidenceNote : null,
+  );
 
   return {
     id: waterTest.analysisId || waterTest.id,
@@ -189,7 +201,13 @@ export function toMapMarker(payload = {}) {
   const sampleClass = canonicalizeSampleClass(sampleClassInput) || sampleClassInput;
   const siteName = payload.siteName || 'Unknown sampling site';
   const pH = finiteMeasurement(payload.pH);
-  const nitriteDisplayInput = [payload.nitriteDisplay, payload.nitrite?.displayValue, payload.resultData?.Nitrite]
+  const nitriteDisplayInput = [
+    payload.nitriteDisplay,
+    payload.nitrite?.displayValue,
+    payload.nitriteLowConfidenceDisplay,
+    payload.nitrite?.lowConfidenceDisplay,
+    payload.resultData?.Nitrite,
+  ]
     .find((value) => typeof value === 'string' && value.trim());
   const nitriteValue = finiteMeasurement(payload.nitrite?.value);
   const nitriteDisplay = nitriteDisplayInput?.trim()

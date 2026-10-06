@@ -16,6 +16,12 @@ function formatRgb(rgb) {
     : 'unavailable';
 }
 
+function formatNitriteReference(reference) {
+  if (!reference) return null;
+  return reference.displayValue
+    || (reference.qualifier === '>' ? `>${reference.lowerBound} ppm` : `${reference.value} ppm`);
+}
+
 async function readFixture(name) {
   return JSON.parse(await readFile(join(databaseDir, name), 'utf8'));
 }
@@ -182,6 +188,17 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
       );
       const nitriteReferenceMatched = nitriteEstimate.accepted;
       const nitriteColorReliable = nitriteQuality.reliable || nitriteReferenceMatched;
+      const hasClosestNitriteReference = nitriteColorReliable && Boolean(nitriteEstimate.closestReference);
+      const closestReferenceDisplay = hasClosestNitriteReference
+        ? formatNitriteReference(nitriteEstimate.closestReference)
+        : null;
+      const closestReferenceEstimate = hasClosestNitriteReference ? {
+        label: nitriteEstimate.closestReference.label,
+        value: nitriteEstimate.closestReference.value,
+        displayValue: closestReferenceDisplay,
+        qualifier: nitriteEstimate.closestReference.qualifier ?? null,
+        lowerBound: nitriteEstimate.closestReference.lowerBound ?? null,
+      } : null;
       debugLogger?.('parameter-match-diagnostics', {
         pH: {
           ...clientColorMatch.diagnostics,
@@ -241,6 +258,15 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
         ? 'Estimated'
         : !phQuality.reliable ? 'IMAGE_QUALITY_INSUFFICIENT' : 'PH_MEASUREMENT_UNRELIABLE';
       const nitriteQuantitativeAvailable = nitriteColorReliable && nitriteReferenceMatched;
+      const nitriteReferenceConfidence = nitriteQuantitativeAvailable
+        ? 'ACCEPTED'
+        : hasClosestNitriteReference ? 'LOW' : 'UNAVAILABLE';
+      const lowConfidenceDisplay = nitriteReferenceConfidence === 'LOW'
+        ? `Closest reference: ${closestReferenceDisplay} (low confidence)`
+        : null;
+      const lowConfidenceNote = nitriteReferenceConfidence === 'LOW'
+        ? `Nitrite is closest to the ${closestReferenceDisplay} reference, but the color was outside the confirmed reference-match range.`
+        : null;
       const nitriteClassificationStatus = nitriteQuantitativeAvailable
         ? classifyNitriteStatus({
           value: nitriteEstimate.value,
@@ -248,21 +274,24 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
           lowerBound: nitriteEstimate.lowerBound,
         })
         : null;
-      const nitriteStatus = !nitriteColorReliable
-        ? 'NITRITE_IMAGE_QUALITY_INSUFFICIENT'
-        : nitriteEstimate.matchState === 'ABOVE_1_PPM'
-          ? 'ABOVE_1_PPM'
-        : nitriteQuantitativeAvailable
-        ? 'Estimated'
-        : (nitriteEstimate.matchState === 'AMBIGUOUS'
-          ? 'NITRITE_MEASUREMENT_UNRELIABLE'
-          : 'NITRITE_OUTSIDE_CALIBRATION_RANGE');
+      const nitriteStatus = nitriteReferenceConfidence === 'LOW'
+        ? 'Unavailable'
+        : !nitriteColorReliable
+          ? 'NITRITE_IMAGE_QUALITY_INSUFFICIENT'
+          : nitriteEstimate.matchState === 'ABOVE_1_PPM'
+            ? 'ABOVE_1_PPM'
+            : nitriteQuantitativeAvailable
+              ? 'Estimated'
+              : (nitriteEstimate.matchState === 'AMBIGUOUS'
+                ? 'NITRITE_MEASUREMENT_UNRELIABLE'
+                : 'NITRITE_OUTSIDE_CALIBRATION_RANGE');
       const pHRemarks = phReliable
         ? ''
         : `pH ROI RGB ${formatRgb(phStats.measuredRGB)}: no reliable calibrated color estimate (${phReliabilityStatus}).`;
       const nitriteRemarks = nitriteQuantitativeAvailable
         ? ''
-        : `Nitrite ROI RGB ${formatRgb(nitriteStats.measuredRGB)}: no configured reference match (${nitriteEstimate.matchState}).`;
+        : lowConfidenceNote
+          || `Nitrite ROI RGB ${formatRgb(nitriteStats.measuredRGB)}: no configured reference match (${nitriteEstimate.matchState}).`;
 
       return {
         pH: {
@@ -321,6 +350,13 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
             value: nitriteEstimate.closestReference.value,
             rgbRange: nitriteEstimate.closestReference.rgbRange,
           } : null,
+          closestReferenceEstimate,
+          closestReferenceDisplay,
+          referenceConfidence: nitriteReferenceConfidence,
+          referenceMatchAccepted: nitriteQuantitativeAvailable,
+          referenceMatchReason: nitriteEstimate.diagnostics?.reason ?? nitriteEstimate.matchState,
+          lowConfidenceDisplay,
+          lowConfidenceNote,
           distance: nitriteEstimate.distance ?? null,
           channelDistances: nitriteEstimate.channelDistances ?? null,
           calibrationInterval: null,
@@ -365,7 +401,7 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
           phZoneDetected: true,
           overlay: { ...createUPadDiagnosticOverlay(registration), svg: buildUPadDiagnosticOverlaySvg(registration) },
         } : null,
-        remarks: `Separate µPAD sensing areas were localized. Values are shown only when a configured reference matches. ${pHRemarks} ${nitriteRemarks}`.trim(),
+        remarks: `Separate µPAD sensing areas were localized. Accepted parameter values require a configured reference match. ${pHRemarks} ${nitriteRemarks}`.trim(),
       };
     },
   };

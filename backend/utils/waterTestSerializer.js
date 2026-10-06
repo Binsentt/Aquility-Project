@@ -6,8 +6,9 @@ function formatMeasurement(value, unit, status) {
 }
 
 function displayMeasurement(value, result, format) {
-  if (typeof value === 'number') return format(value);
   if (typeof result?.displayValue === 'string' && result.displayValue.trim()) return result.displayValue;
+  if (typeof value === 'number') return format(value);
+  if (typeof result?.lowConfidenceDisplay === 'string' && result.lowConfidenceDisplay.trim()) return result.lowConfidenceDisplay;
   if (Array.isArray(result?.measuredRGB) && result.measuredRGB.length === 3
     && result.measuredRGB.every((channel) => Number.isFinite(Number(channel)))) return 'No reference match';
   return 'Unavailable';
@@ -26,10 +27,12 @@ function clientRemarks(record, pHResult, nitrite) {
       : 'no reliable pH reference match was found';
     reasons.push(`pH ROI RGB ${pHResult.measuredRGB.join(', ')}: ${reason}.`);
   }
-  if (nitrite?.value == null && !nitrite?.displayValue && Array.isArray(nitrite?.measuredRGB)) {
+  if (nitrite?.lowConfidenceNote && !remarks.includes(nitrite.lowConfidenceNote)) {
+    reasons.push(nitrite.lowConfidenceNote);
+  } else if (nitrite?.value == null && !nitrite?.displayValue && !nitrite?.lowConfidenceDisplay && Array.isArray(nitrite?.measuredRGB)) {
     reasons.push(`Nitrite ROI RGB ${nitrite.measuredRGB.join(', ')}: no configured reference match was found.`);
   }
-  return ['Separate µPAD sensing areas were localized. Results are shown only when a configured reference matches.', ...reasons].join(' ');
+  return ['Separate µPAD sensing areas were localized. Accepted parameter values require a configured reference match.', ...reasons].join(' ');
 }
 
 export function serializeWaterTest(record, authTokenService = null) {

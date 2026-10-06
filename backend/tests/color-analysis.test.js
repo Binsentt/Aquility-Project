@@ -339,7 +339,7 @@ test('analysis uses the registered Nitrite ROI and direct RGB classes', async ()
     assert.equal(result.nitrite.value, 0.5);
     assert.equal(result.nitrite.matchState, 'EXACT_OR_IN_RANGE');
     assert.equal(result.nitrite.matchingMethod, 'direct-client-rgb-range');
-    assert.equal(result.nitrite.calibrationMetadata.source, 'CLIENT_DIRECT_NITRITE_RGB');
+    assert.equal(result.nitrite.calibrationMetadata.source, 'CLIENT_CONFIRMED_TESTED_REFERENCE_SAMPLE_COLOR_TEST');
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
@@ -390,7 +390,19 @@ test('RGB to HSV extracts pink hue for the Griess nitrite response', () => {
 
 test('direct Nitrite RGB calibration includes client 0, 0.5, 1, and qualified >1 ppm classes', async () => {
   const calibration = await readBaseCalibration();
-  assert.equal(calibration.nitrite.source, 'CLIENT_DIRECT_NITRITE_RGB');
+  assert.equal(calibration.nitrite.source, 'CLIENT_CONFIRMED_TESTED_REFERENCE_SAMPLE_COLOR_TEST');
+  assert.equal(calibration.nitrite.sourceNote, 'Real-phone µPAD Nitrite accuracy has not been established with labeled phone-camera samples. Non-accepted nearest-reference outputs are shown only as low-confidence reference estimates.');
+  assert.equal(calibration.nitrite.referenceOrderDirection, 'left-to-right');
+  assert.deepEqual(calibration.nitrite.referenceOrder, ['0', '0.5', '1', '>1']);
+  assert.ok(calibration.nitrite.references.every((reference) => (
+    reference.provenance === 'CLIENT_CONFIRMED_TESTED_REFERENCE_SAMPLE_COLOR_TEST'
+  )));
+  assert.deepEqual(calibration.nitrite.references.map(({ label, rgbRange }) => ({ label, rgbRange })), [
+    { label: '0', rgbRange: { r: [182, 184], g: [171, 173], b: [179, 181] } },
+    { label: '0.5', rgbRange: { r: [190, 190], g: [172, 172], b: [187, 188] } },
+    { label: '1', rgbRange: { r: [193, 212], g: [172, 194], b: [173, 192] } },
+    { label: '>1', rgbRange: { r: [196, 198], g: [178, 180], b: [194, 196] } },
+  ]);
   assert.equal(calibration.nitrite.unit, 'ppm');
   assert.equal(calibration.nitrite.provisional, true);
   assert.equal(calibration.nitrite.huePoints, undefined);
@@ -409,6 +421,7 @@ test('direct Nitrite RGB calibration includes client 0, 0.5, 1, and qualified >1
     assert.equal(match.displayValue, displayValue);
     assert.equal(match.provisional, true);
     assert.equal(match.unit, 'ppm');
+    assert.equal(match.source, 'CLIENT_CONFIRMED_TESTED_REFERENCE_SAMPLE_COLOR_TEST');
   });
 });
 
@@ -796,7 +809,7 @@ test('valid ROIs reject unsupported pH colors outside the official camera domain
     assert.equal(result.phStatus, 'PH_MEASUREMENT_UNRELIABLE');
     assert.equal(result.pH.reliabilityStatus, 'COLOR_OUTSIDE_CALIBRATED_DOMAIN');
     assert.equal(result.nitrite.value, null);
-    assert.equal(result.nitriteStatus, 'NITRITE_OUTSIDE_CALIBRATION_RANGE');
+    assert.equal(result.nitriteStatus, 'Unavailable');
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
@@ -853,8 +866,8 @@ test('nitrite out-of-range colors do not become exact 100 ppm', async () => {
 
     assert.equal(result.nitrite.value, null);
     assert.equal(result.nitrite.value, null);
-    assert.equal(result.nitrite.status, 'NITRITE_OUTSIDE_CALIBRATION_RANGE');
-    assert.equal(result.nitriteStatus, 'NITRITE_OUTSIDE_CALIBRATION_RANGE');
+    assert.equal(result.nitrite.status, 'Unavailable');
+    assert.equal(result.nitriteStatus, 'Unavailable');
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

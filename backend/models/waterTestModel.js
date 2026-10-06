@@ -185,6 +185,7 @@ export function createWaterTestModel(pool) {
                 overall_status AS "overallStatus", captured_at AS "capturedAt", barangay, municipality,
                 estimated_ph AS "pH",
                 analysis_data #>> '{nitrite,displayValue}' AS "nitriteDisplay",
+                analysis_data #>> '{nitrite,lowConfidenceDisplay}' AS "nitriteLowConfidenceDisplay",
                 analysis_data #>> '{nitrite,value}' AS "nitriteValue",
                 analysis_data #>> '{nitrite,classificationStatus}' AS "nitriteClassificationStatus"
          FROM water_tests
@@ -198,7 +199,9 @@ export function createWaterTestModel(pool) {
           : Number(row.nitriteValue);
         const nitriteDisplay = typeof row.nitriteDisplay === 'string' && row.nitriteDisplay.trim()
           ? row.nitriteDisplay.trim()
-          : (Number.isFinite(nitriteValue) ? `${nitriteValue.toFixed(2)} ppm` : 'Unavailable');
+          : typeof row.nitriteLowConfidenceDisplay === 'string' && row.nitriteLowConfidenceDisplay.trim()
+            ? row.nitriteLowConfidenceDisplay.trim()
+            : (Number.isFinite(nitriteValue) ? `${nitriteValue.toFixed(2)} ppm` : 'Unavailable');
         const nitriteStatus = typeof row.nitriteClassificationStatus === 'string' && row.nitriteClassificationStatus.trim()
           ? row.nitriteClassificationStatus.trim()
           : null;

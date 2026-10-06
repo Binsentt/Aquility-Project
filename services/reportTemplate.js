@@ -29,7 +29,7 @@ function formatRgb(value) {
 function cleanClientRemarks(value) {
   const remarks = typeof value === 'string' ? value : '';
   if (/client-provided provisional references|provisional client reference colors|analytically validated method|HSV H\/S\/V|scientific (?:validation|comparison)|laboratory (?:comparison|validation)|certified water-safety/i.test(remarks)) {
-    return 'Separate µPAD sensing areas were localized. Results are shown only when a configured reference matches.';
+    return 'Separate µPAD sensing areas were localized. Accepted parameter values require a configured reference match.';
   }
   return remarks || 'Unavailable';
 }

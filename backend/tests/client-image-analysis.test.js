@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import request from 'supertest';
 import sharp from 'sharp';
+import { matchNitriteClientColor } from '../utils/colorAnalysis.js';
 import { serializeWaterTest } from '../utils/waterTestSerializer.js';
 import { toMapMarker, toScanResult } from '../../services/apiMappers.js';
 import { buildPdfHtml } from '../../services/reportTemplate.js';
@@ -152,7 +153,20 @@ test('real client image completes authenticated upload, analysis, persistence, a
     assert.equal(response.body.pHResult.matchMethod, 'official-time-continuous-lab-ridge-quadratic');
     assert.equal(response.body.pHResult.exactValue, null);
     assert.equal(response.body.nitrite.value, null);
-    assert.equal(response.body.resultData.Nitrite, 'No reference match');
+    assert.equal(response.body.nitrite.displayValue, null);
+    assert.deepEqual(response.body.nitrite.closestReferenceEstimate, {
+      label: '0', value: 0, displayValue: '0 ppm', qualifier: null, lowerBound: null,
+    });
+    assert.equal(response.body.nitrite.closestReferenceDisplay, '0 ppm');
+    assert.equal(response.body.nitrite.lowConfidenceDisplay, 'Closest reference: 0 ppm (low confidence)');
+    assert.equal(response.body.nitrite.referenceConfidence, 'LOW');
+    assert.equal(response.body.nitrite.referenceMatchAccepted, false);
+    assert.equal(response.body.nitrite.quantitativeAvailable, false);
+    assert.equal(response.body.nitrite.status, 'Unavailable');
+    assert.equal(response.body.nitriteClassificationStatus, null);
+    assert.equal(response.body.resultData.Nitrite, 'Closest reference: 0 ppm (low confidence)');
+    assert.equal(response.body.resultData['Nitrite Status'], 'Unavailable');
+    assert.match(response.body.remarks, /Nitrite is closest to the 0 ppm reference, but the color was outside the confirmed reference-match range\./);
     assert.equal(response.body.roiLocalizationStatus, 'Registered µPAD template');
     assert.equal(persisted.estimatedPH, response.body.pH);
     assert.equal(persisted.estimatedNitrite, null);
@@ -164,7 +178,33 @@ test('real client image completes authenticated upload, analysis, persistence, a
     // selected class cannot supply or override the color-derived pH value.
     assert.deepEqual(response.body.pHResult.measuredRGB, [141, 152, 115]);
     assert.deepEqual(response.body.nitrite.measuredRGB, [162, 154, 145]);
-    assert.match(response.body.remarks, /RGB 162, 154, 145/);
+    assert.doesNotMatch(response.body.remarks, /RGB 162, 154, 145/);
+    assert.match(response.body.remarks, /Nitrite is closest to the 0 ppm reference, but the color was outside the confirmed reference-match range\./);
+    assert.equal(persisted.analysisData.nitrite.referenceConfidence, 'LOW');
+    assert.equal(persisted.analysisData.nitrite.lowConfidenceDisplay, 'Closest reference: 0 ppm (low confidence)');
+    assert.equal(persisted.analysisData.nitrite.value, null);
+    const resultView = toScanResult(response.body, 'https://aquality-api.example.test/api');
+    const historyRecord = serializeWaterTest({ ...persisted, id: 'real-client-image-test', createdAt: '2026-10-03T00:00:00.000Z' });
+    const historyView = toScanResult(historyRecord, 'https://aquality-api.example.test/api');
+    const pdf = buildPdfHtml({ test: historyView });
+    const marker = toMapMarker({
+      id: 'real-client-image-test', latitude: 14.6, longitude: 120.98,
+      nitriteDisplay: persisted.analysisData.nitrite.displayValue,
+      nitriteLowConfidenceDisplay: persisted.analysisData.nitrite.lowConfidenceDisplay,
+      nitriteClassificationStatus: persisted.analysisData.nitrite.classificationStatus,
+      nitrite: persisted.analysisData.nitrite,
+      resultData: historyRecord.resultData,
+    });
+    assert.equal(resultView.resultData.Nitrite, 'Closest reference: 0 ppm (low confidence)');
+    assert.equal(historyView.resultData.Nitrite, resultView.resultData.Nitrite);
+    assert.equal(historyView.resultData['Nitrite Status'], 'Unavailable');
+    assert.match(resultView.summary, /Nitrite is closest to the 0 ppm reference/);
+    assert.match(historyView.summary, /Nitrite is closest to the 0 ppm reference/);
+    assert.equal(marker.nitriteDisplay, resultView.resultData.Nitrite);
+    assert.equal(marker.nitriteStatus, 'Unavailable');
+    assert.match(pdf, /Nitrite:<\/strong> Closest reference: 0 ppm \(low confidence\)/);
+    assert.match(pdf, /Nitrite is closest to the 0 ppm reference, but the color was outside the confirmed reference-match range\./);
+    assert.doesNotMatch(pdf, /Nitrite:<\/strong> 0\.00 ppm/);
     assert.doesNotMatch(response.body.remarks, /laboratory|scientific validation|certified/i);
   }
 });
@@ -211,7 +251,10 @@ test('real portrait client color is not falsely assigned to pH after fiducial ro
     assert.ok(response.body.pHResult.measuredRGB.every(Number.isFinite));
     assert.equal(response.body.resultData.pH, 'No reference match');
     assert.equal(response.body.nitrite.value, null);
-    assert.equal(response.body.resultData.Nitrite, 'No reference match');
+    assert.equal(response.body.resultData.Nitrite, 'Closest reference: 1 ppm (low confidence)');
+    assert.equal(response.body.nitrite.closestReferenceEstimate.label, '1');
+    assert.equal(response.body.nitrite.referenceConfidence, 'LOW');
+    assert.equal(response.body.nitriteClassificationStatus, null);
     // Inner-ellipse fixture RGB is a geometry regression assertion only.
     assert.equal(response.body.pHResult.measuredRGB.join(','), '135,148,123');
     assert.equal(persisted.estimatedPH, null);
@@ -231,7 +274,9 @@ test('real portrait client color is not falsely assigned to pH after fiducial ro
 
     const pdf = buildPdfHtml({ test: historyView });
     assert.match(pdf, /pH:<\/strong> No reference match/);
-    assert.match(pdf, /Nitrite:<\/strong> No reference match/);
+    assert.match(pdf, /Nitrite:<\/strong> Closest reference: 1 ppm \(low confidence\)/);
+    assert.match(pdf, /Nitrite Status:<\/strong> Unavailable/);
+    assert.match(resultView.summary, /Nitrite is closest to the 1 ppm reference/);
     assert.deepEqual(historyView.pHResult.measuredRGB, response.body.pHResult.measuredRGB);
     assert.deepEqual(historyView.nitrite.measuredRGB, response.body.nitrite.measuredRGB);
     assert.doesNotMatch(pdf, /pH:<\/strong> 2\.00|NaN|null ppm|undefined/);
@@ -338,7 +383,7 @@ test('official-time continuous pH and Nitrite colors reach persisted Result, His
   assert.equal(response.body.nitrite.value, 0.5);
   assert.equal(response.body.nitriteClassificationStatus, 'Warning');
   assert.equal(response.body.resultData.pH, '7.4');
-  assert.equal(response.body.resultData.Nitrite, '0.50 ppm');
+  assert.equal(response.body.resultData.Nitrite, '0.5 ppm');
   assert.equal(response.body.resultData['Nitrite Status'], 'Warning');
   assert.equal(persistedRecords[0].estimatedPH, response.body.pH);
   assert.equal(persistedRecords[0].estimatedNitrite, 0.5);
@@ -439,9 +484,44 @@ test('the exact 1 ppm Nitrite reference receives Dangerous status and persists i
   assert.equal(persistedRecords[0].analysisData.nitrite.classificationStatus, 'Dangerous');
 });
 
-test('a scan with successful pH and unavailable Nitrite reports only the Nitrite limitation', async () => {
+test('all six saved SB-01 Nitrite ROI RGB values replay with nearest reference and safe status separation', async () => {
   const { app } = await createComputedResultTestApp();
-  const image = await createDeveloperRoiImage([186, 178, 142], [155, 144, 120]);
+  const calibration = JSON.parse(await readFile(new URL('../database/colorAnalysisCalibration.json', import.meta.url), 'utf8'));
+  const cases = [
+    { rgb: [168, 154, 154], closest: '0', runner: '1', score: 1.5020156642266709, margin: 0.25888046215440874, accepted: false, display: 'Closest reference: 0 ppm (low confidence)', status: 'Unavailable' },
+    { rgb: [170, 158, 138], closest: '1', runner: '0', score: 2.793794664067742, margin: 0.1464947419326914, accepted: false, display: 'Closest reference: 1 ppm (low confidence)', status: 'Unavailable' },
+    { rgb: [176, 164, 155], closest: '1', runner: '0', score: 1.6828656106974462, margin: 0.055419759585196626, accepted: false, display: 'Closest reference: 1 ppm (low confidence)', status: 'Unavailable' },
+    { rgb: [168, 154, 154], closest: '0', runner: '1', score: 1.5020156642266709, margin: 0.25888046215440874, accepted: false, display: 'Closest reference: 0 ppm (low confidence)', status: 'Unavailable' },
+    { rgb: [180, 169, 169], closest: '0', runner: '1', score: 0.7605584453596829, margin: 0.43808480470825806, accepted: true, display: '0 ppm', status: 'Safe' },
+    { rgb: [176, 168, 161], closest: '0', runner: '1', score: 1.4167685032826123, margin: 0.170875345211984, accepted: false, display: 'Closest reference: 0 ppm (low confidence)', status: 'Unavailable' },
+  ];
+
+  const results = [];
+  for (const [index, expected] of cases.entries()) {
+    const image = await createDeveloperRoiImage([186, 178, 142], expected.rgb);
+    const response = await submitDeveloperImage(app, image, { capturedAt: '2026-10-04T00:00:00.000Z' });
+    assert.equal(response.status, 201, JSON.stringify(response.body));
+    const match = matchNitriteClientColor(expected.rgb, calibration.nitrite.references, calibration.nitrite.matching);
+    assert.equal(match.closestReference.label, expected.closest, `scan ${index + 1} nearest`);
+    assert.equal(match.candidates[1].reference.label, expected.runner, `scan ${index + 1} runner-up`);
+    assert.ok(Math.abs(match.diagnostics.bestCompositeDistance - expected.score) < 1e-9, `scan ${index + 1} score`);
+    assert.ok(Math.abs(match.diagnostics.margin - expected.margin) < 1e-9, `scan ${index + 1} margin`);
+    assert.equal(response.body.nitrite.referenceMatchAccepted, expected.accepted, `scan ${index + 1} accepted`);
+    assert.equal(response.body.resultData.Nitrite, expected.display, `scan ${index + 1} display`);
+    assert.equal(response.body.resultData['Nitrite Status'], expected.status, `scan ${index + 1} status`);
+    assert.equal(response.body.nitrite.value, expected.accepted ? 0 : null, `scan ${index + 1} value`);
+    assert.deepEqual(response.body.nitrite.measuredRGB, expected.rgb, `scan ${index + 1} RGB`);
+    results.push(response.body);
+  }
+
+  assert.equal(results.filter(({ nitrite }) => nitrite.referenceMatchAccepted).length, 1);
+  assert.equal(results.filter(({ nitrite }) => nitrite.referenceConfidence === 'LOW').length, 5);
+  assert.equal(results.filter(({ nitrite }) => nitrite.closestReferenceEstimate != null).length, 6);
+});
+
+test('a scan with successful pH and low-confidence Nitrite reports the closest supported reference', async () => {
+  const { app } = await createComputedResultTestApp();
+  const image = await createDeveloperRoiImage([186, 178, 142], [170, 158, 138]);
   const response = await submitDeveloperImage(app, image, {
     sampleClass: 'SB',
     sampleCode: 'SB-09',
@@ -453,13 +533,44 @@ test('a scan with successful pH and unavailable Nitrite reports only the Nitrite
   assert.equal(response.status, 201, JSON.stringify(response.body));
   const resultView = toScanResult(response.body, 'https://aquality-api.example.test/api');
   assert.equal(resultView.resultData['pH Category'], 'Alkaline');
-  assert.equal(resultView.resultData.Nitrite, 'No reference match');
+  assert.equal(resultView.resultData.Nitrite, 'Closest reference: 1 ppm (low confidence)');
   assert.equal(resultView.resultData['Nitrite Status'], 'Unavailable');
   assert.deepEqual(Object.keys(resultView.resultData), ['pH', 'pH Category', 'Nitrite', 'Nitrite Status']);
-  assert.equal(resultView.summary, 'Nitrite color did not match the configured reference levels.');
+  assert.equal(response.body.nitrite.referenceConfidence, 'LOW');
+  assert.equal(response.body.nitrite.closestReferenceEstimate.label, '1');
+  assert.equal(response.body.nitrite.value, null);
+  assert.equal(response.body.nitrite.status, 'Unavailable');
+  assert.equal(response.body.nitriteClassificationStatus, null);
+  assert.match(resultView.summary, /Nitrite is closest to the 1 ppm reference/);
 });
 
-test('changing only sensing-zone RGB changes results under fixed metadata, and unsupported colors stay unavailable', async () => {
+test('ambiguous and unrelated valid ROIs stay low confidence, while an invalid color ROI remains unmatched', async () => {
+  const { app } = await createComputedResultTestApp();
+  const phRgb = [186, 178, 142];
+  const cases = [
+    { name: 'ambiguous', rgb: [176, 168, 161], confidence: 'LOW', closest: '0', display: 'Closest reference: 0 ppm (low confidence)' },
+    { name: 'unrelated', rgb: [255, 0, 0], confidence: 'LOW', closest: '1' },
+    { name: 'invalid', rgb: [128, 128, 128], confidence: 'UNAVAILABLE', closest: null, display: 'No reference match' },
+  ];
+
+  for (const sample of cases) {
+    const response = await submitDeveloperImage(app, await createDeveloperRoiImage(phRgb, sample.rgb), {
+      capturedAt: '2026-10-04T00:00:00.000Z',
+    });
+    assert.equal(response.status, 201, `${sample.name}: ${JSON.stringify(response.body)}`);
+    assert.equal(response.body.nitrite.referenceConfidence, sample.confidence, sample.name);
+    assert.equal(response.body.nitrite.referenceMatchAccepted, false, sample.name);
+    assert.equal(response.body.nitrite.value, null, sample.name);
+    assert.equal(response.body.nitrite.quantitativeAvailable, false, sample.name);
+    assert.equal(response.body.nitriteClassificationStatus, null, sample.name);
+    assert.equal(response.body.resultData['Nitrite Status'], 'Unavailable', sample.name);
+    assert.equal(response.body.nitrite.closestReferenceEstimate?.label ?? null, sample.closest, sample.name);
+    if (sample.display) assert.equal(response.body.resultData.Nitrite, sample.display, sample.name);
+    if (sample.name === 'unrelated') assert.equal(response.body.nitrite.matchState, 'OUTSIDE_REFERENCE_SPACE');
+  }
+});
+
+test('changing only sensing-zone RGB changes results under fixed metadata, and valid unmatched colors retain a low-confidence reference', async () => {
   const { app, persistedRecords } = await createComputedResultTestApp();
   const metadata = {
     sampleClass: 'A',
@@ -471,7 +582,7 @@ test('changing only sensing-zone RGB changes results under fixed metadata, and u
   const imageCases = [
     { pHRgb: [186, 178, 142], nitriteRgb: [183, 172, 180], expectedNitrite: 0 },
     { pHRgb: [182, 163, 118], nitriteRgb: [190, 172, 187], expectedNitrite: 0.5 },
-    { pHRgb: [150, 147, 123], nitriteRgb: [155, 144, 120], expectedPH: null, expectedNitrite: null },
+    { pHRgb: [150, 147, 123], nitriteRgb: [155, 144, 120], expectedPH: null, expectedNitrite: null, expectedNitriteDisplay: 'Closest reference: 1 ppm (low confidence)' },
   ];
   const responses = [];
   for (const imageCase of imageCases) {
@@ -484,17 +595,21 @@ test('changing only sensing-zone RGB changes results under fixed metadata, and u
     if (imageCase.expectedPH === null) assert.equal(response.body.pH, null);
     else assert.ok(response.body.pH >= 7.22 && response.body.pH <= 8.21);
     assert.equal(response.body.nitrite.value, imageCase.expectedNitrite);
+    if (imageCase.expectedNitriteDisplay) assert.equal(response.body.resultData.Nitrite, imageCase.expectedNitriteDisplay);
   }
 
   assert.notDeepEqual(responses[0].body.pHResult.measuredRGB, responses[1].body.pHResult.measuredRGB);
   assert.notEqual(responses[0].body.pH, responses[1].body.pH);
   assert.notDeepEqual(responses[0].body.nitrite.measuredRGB, responses[1].body.nitrite.measuredRGB);
   assert.equal(responses[0].body.resultData.pH, '7.4');
-  assert.equal(responses[0].body.resultData.Nitrite, '0.00 ppm');
+  assert.equal(responses[0].body.resultData.Nitrite, '0 ppm');
   assert.equal(responses[1].body.resultData.pH, '8.0');
-  assert.equal(responses[1].body.resultData.Nitrite, '0.50 ppm');
+  assert.equal(responses[1].body.resultData.Nitrite, '0.5 ppm');
   assert.equal(responses[2].body.resultData.pH, 'No reference match');
-  assert.equal(responses[2].body.resultData.Nitrite, 'No reference match');
+  assert.equal(responses[2].body.resultData.Nitrite, 'Closest reference: 1 ppm (low confidence)');
+  assert.equal(responses[2].body.nitrite.referenceConfidence, 'LOW');
+  assert.equal(responses[2].body.nitrite.referenceMatchAccepted, false);
+  assert.equal(responses[2].body.resultData['Nitrite Status'], 'Unavailable');
   assert.deepEqual(responses.map(({ body }) => [body.sampleClass, body.sampleCode, body.gps]), [
     ['A', 'A-05', { latitude: 14.71, longitude: 120.91 }],
     ['A', 'A-05', { latitude: 14.71, longitude: 120.91 }],
