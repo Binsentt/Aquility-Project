@@ -41,3 +41,13 @@ test('result and history omit client-facing laboratory comparison and scientific
     assert.doesNotMatch(source, /Laboratory Comparison|Scientific Validation|Pending laboratory/i);
   }
 });
+
+test('scanner reports GPS failures and offers an explicit retry or continue choice', () => {
+  assert.match(cameraSource, /Location permission denied/);
+  assert.match(cameraSource, /Enable location permission in device settings/);
+  assert.match(cameraSource, /GPS location unavailable/);
+  assert.match(cameraSource, /Try Again/);
+  assert.match(cameraSource, /Continue Without GPS/);
+  assert.match(cameraSource, /Location\.getCurrentPositionAsync\(\{ accuracy: Location\.Accuracy\.Balanced \}\)/);
+  assert.match(cameraSource, /location,\s*barangay: currentUser\.barangay/);
+});

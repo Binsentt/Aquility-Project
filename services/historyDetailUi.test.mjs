@@ -20,3 +20,10 @@ test('History detail prefers a freshly mapped signed image URL over route cache'
   assert.match(historyDetail, /loadBackendWaterTest\(routeItem\.id\)/);
   assert.match(historyDetail, /imageUriExists/);
 });
+
+test('History detail displays saved pH and Nitrite measured RGB only when valid', () => {
+  assert.match(historyDetail, /formatMeasuredRgb\(item\.pHResult\?\.measuredRGB\)/);
+  assert.match(historyDetail, /formatMeasuredRgb\(item\.nitrite\?\.measuredRGB\)/);
+  assert.match(historyDetail, /value\.length !== 3/);
+  assert.match(historyDetail, /Number\.isFinite\(channel\)/);
+});

@@ -338,15 +338,38 @@ const CameraView = React.memo(function CameraView({
     try {
       let location = null;
 
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status === 'granted') {
-          const currentLocation = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-          location = currentLocation?.coords
-            ? { ...currentLocation.coords, timestamp: currentLocation.timestamp || Date.now() }
-            : null;
+      while (!location) {
+        let locationFailure = 'unavailable';
+        try {
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          if (status !== 'granted') {
+            locationFailure = 'permission';
+          } else {
+            const currentLocation = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+            location = currentLocation?.coords
+              ? { ...currentLocation.coords, timestamp: currentLocation.timestamp || Date.now() }
+              : null;
+          }
+        } catch {}
+
+        if (!location) {
+          const retryLocation = await new Promise((resolve) => {
+            const permissionDenied = locationFailure === 'permission';
+            Alert.alert(
+              permissionDenied ? 'Location permission denied' : 'GPS location unavailable',
+              permissionDenied
+                ? 'AQUALITY could not access device location. Enable location permission in device settings, then try again, or continue without GPS coordinates.'
+                : 'AQUALITY could not get a device GPS fix. Check that location services are enabled, then try again or continue without GPS coordinates.',
+              [
+                { text: 'Try Again', onPress: () => resolve(true) },
+                { text: 'Continue Without GPS', style: 'cancel', onPress: () => resolve(false) },
+              ],
+              { cancelable: false }
+            );
+          });
+          if (!retryLocation) break;
         }
-      } catch {}
+      }
 
       const imageUri = capturedImages[0];
       const imageAsset = imageAssetsRef.current.get(imageUri) || { source: 'unknown', uri: imageUri };

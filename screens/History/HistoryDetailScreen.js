@@ -30,6 +30,11 @@ function logHistoryImage(event, recordId, imageUri) {
   });
 }
 
+function formatMeasuredRgb(value) {
+  if (!Array.isArray(value) || value.length !== 3 || value.some((channel) => !Number.isFinite(channel))) return null;
+  return value.join(', ');
+}
+
 export default function HistoryDetailScreen({ route, navigation }) {
   const { currentUser, deleteScanResult } = useAuth();
   const routeItem = route.params?.item || {};
@@ -189,6 +194,16 @@ export default function HistoryDetailScreen({ route, navigation }) {
           <View key={field.label} style={styles.fieldRow}>
             <Text style={styles.fieldLabel}>{field.label}</Text>
             <Text style={styles.fieldValue}>{field.value || 'Not available'}</Text>
+          </View>
+        ))}
+
+        {[
+          { label: 'pH measured RGB', value: formatMeasuredRgb(item.pHResult?.measuredRGB) },
+          { label: 'Nitrite measured RGB', value: formatMeasuredRgb(item.nitrite?.measuredRGB) },
+        ].filter((field) => field.value !== null).map((field) => (
+          <View key={field.label} style={styles.fieldRow}>
+            <Text style={styles.fieldLabel}>{field.label}</Text>
+            <Text style={styles.fieldValue}>{field.value}</Text>
           </View>
         ))}
 
