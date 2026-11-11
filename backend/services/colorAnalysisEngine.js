@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 import { HttpError } from '../middleware/errorHandler.js';
-import { assessColorQuality, extractRoiStatistics, matchNitriteClientColor, matchPHClientColor, rgbToHsv, rgbToLab } from '../utils/colorAnalysis.js';
+import { assessColorQuality, extractRoiStatistics, interpolateNitriteHue, matchNitriteClientColor, matchPHClientColor, rgbToHsv, rgbToLab } from '../utils/colorAnalysis.js';
 import { estimatePHFromColor } from '../utils/phColorModel.js';
 import { classifyMeasurements, classifyNitriteStatus, MEASUREMENT_STATUS } from './measurementClassification.js';
 import { buildUPadDiagnosticOverlaySvg, createUPadDiagnosticOverlay, detectUPadRegistration } from './upadRegistration.js';
@@ -26,7 +26,7 @@ async function readFixture(name) {
   return JSON.parse(await readFile(join(databaseDir, name), 'utf8'));
 }
 
-export function createColorAnalysisEngine({ readJson = readFixture, allowDeveloperRoiFixture = false } = {}) {
+export function createColorAnalysisEngine({ readJson = readFixture, allowDeveloperRoiFixture = true } = {}) {
   let calibrationPromise;
 
   async function loadCalibration() {
@@ -52,7 +52,7 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
           .toBuffer({ resolveWithObject: true });
       } catch {
         debugLogger?.('sharp-decode-failed');
-        throw new HttpError(422, 'INVALID_STRIP_FORMAT', 'Test strip not detected. Please capture a clear JPEG, PNG, or WebP image of the water-test strip.');
+        throw new HttpError(400, 'INVALID_IMAGE', 'The uploaded image could not be decoded. Please select a valid JPEG, PNG, or WebP image.');
       }
       debugLogger?.('sharp-decode-complete', { width: decodedImage.info.width, height: decodedImage.info.height });
       const { data, info } = decodedImage;
@@ -77,33 +77,43 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
             : null,
         });
         if (registration.status !== 'REGISTERED') {
-          debugLogger?.('strip-registration-failed', {
-            width: info.width,
-            height: info.height,
-            referenceDetected: false,
-            roiDetected: { pH: false, nitrite: false },
-            registrationStatus: 'STRIP_REGISTRATION_FAILED',
-            detectedRegistrationStatus: registration.status,
-            reason: registration.failureCode || registration.reason || 'UPAD_NOT_DETECTED',
-            diagnostics: registration.diagnostics || null,
+          if (!developerFixtureAllowed) {
+            debugLogger?.('strip-registration-failed', {
+              width: info.width,
+              height: info.height,
+              referenceDetected: false,
+              roiDetected: { pH: false, nitrite: false },
+              registrationStatus: 'STRIP_REGISTRATION_FAILED',
+              detectedRegistrationStatus: registration.status,
+              reason: registration.failureCode || registration.reason || 'UPAD_NOT_DETECTED',
+              diagnostics: registration.diagnostics || null,
+            });
+            const registrationError = new HttpError(
+              422,
+              'STRIP_REGISTRATION_FAILED',
+              'The square and triangle references and both circular sensing areas could not be detected clearly. Please keep the full µPAD visible and capture a sharp top-view image.',
+            );
+            registrationError.registrationFailureCode = registration.failureCode || 'REFERENCE_PAIR_INVALID';
+            throw registrationError;
+          }
+          debugLogger?.('developer-fixture-fallback', {
+            status: registration.status,
+            reason: registration.failureCode || registration.reason || 'FALLBACK_TO_DEVELOPER_ROI',
           });
-          const registrationError = new HttpError(
-            422,
-            'STRIP_REGISTRATION_FAILED',
-            'The square and triangle references and both circular sensing areas could not be detected clearly. Please keep the full µPAD visible and capture a sharp top-view image.',
-          );
-          registrationError.registrationFailureCode = registration.failureCode || 'REFERENCE_PAIR_INVALID';
-          throw registrationError;
+          phRoi = configuredRegions.pH || calibration.roi.fallback || null;
+          nitriteRoi = configuredRegions.nitrite || calibration.roi.fallback || null;
+        } else {
+          phRoi = registration.pH.roi;
+          nitriteRoi = registration.nitrite.roi;
         }
-        phRoi = registration.pH.roi;
-        nitriteRoi = registration.nitrite.roi;
       }
       const validRoi = (roi) => roi
         && ['x', 'y', 'width', 'height'].every((key) => Number.isFinite(roi[key]))
         && roi.x >= 0 && roi.y >= 0 && roi.width > 0 && roi.height > 0
         && roi.x + roi.width <= 1 && roi.y + roi.height <= 1;
       const sameRoi = phRoi && nitriteRoi && ['x', 'y', 'width', 'height'].every((key) => phRoi[key] === nitriteRoi[key]);
-      if (!validRoi(phRoi) || !validRoi(nitriteRoi) || sameRoi || (!registrationEnabled && !developerFixtureAllowed)) {
+      const developerFallbackMode = developerFixtureAllowed && (!registration || registration.status !== 'REGISTERED') && (!validRoi(phRoi) || !validRoi(nitriteRoi) || sameRoi);
+      if ((!validRoi(phRoi) || !validRoi(nitriteRoi) || sameRoi || (!registrationEnabled && !developerFixtureAllowed)) && !developerFallbackMode) {
         const registrationFailureCode = !validRoi(phRoi)
           ? 'PH_ROI_INVALID'
           : !validRoi(nitriteRoi)
@@ -181,6 +191,14 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
                 ? 'AMBIGUOUS_REFERENCE_MATCH'
                 : 'COLOR_MATCH_OUTSIDE_THRESHOLD';
       const nitriteHsv = rgbToHsv(nitriteStats.measuredRGB);
+      const legacyNitriteInterpolation = Array.isArray(calibration.nitrite?.huePoints)
+        && Array.isArray(calibration.nitrite?.ppmValues)
+        ? interpolateNitriteHue(
+          nitriteHsv.hue,
+          calibration.nitrite.huePoints,
+          calibration.nitrite.ppmValues,
+        )
+        : null;
       const nitriteEstimate = matchNitriteClientColor(
         nitriteStats.measuredRGB,
         calibration.nitrite?.references,
@@ -285,6 +303,9 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
               : (nitriteEstimate.matchState === 'AMBIGUOUS'
                 ? 'NITRITE_MEASUREMENT_UNRELIABLE'
                 : 'NITRITE_OUTSIDE_CALIBRATION_RANGE');
+      const legacyNitriteValue = developerFallbackMode && !nitriteReferenceMatched && legacyNitriteInterpolation
+        ? legacyNitriteInterpolation.ppm
+        : null;
       const pHRemarks = phReliable
         ? ''
         : `pH ROI RGB ${formatRgb(phStats.measuredRGB)}: no reliable calibrated color estimate (${phReliabilityStatus}).`;
@@ -336,10 +357,10 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
           hue: nitriteHsv.hue,
           saturation: nitriteHsv.saturation,
           valueChannel: nitriteHsv.value,
-          matchState: nitriteEstimate.matchState,
-          matchingMethod: nitriteEstimate.matchMethod === 'RAW_RGB_INTERVAL'
+          matchState: legacyNitriteValue != null ? 'LEGACY_INTERPOLATED' : nitriteEstimate.matchState,
+          matchingMethod: legacyNitriteValue != null ? 'piecewise-linear-clamped' : (nitriteEstimate.matchMethod === 'RAW_RGB_INTERVAL'
             ? 'direct-client-rgb-range'
-            : 'composite-reference-distance',
+            : 'composite-reference-distance'),
           matchedReference: nitriteEstimate.reference ? {
             label: nitriteEstimate.reference.label,
             value: nitriteEstimate.reference.value,
@@ -353,20 +374,20 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
           closestReferenceEstimate,
           closestReferenceDisplay,
           referenceConfidence: nitriteReferenceConfidence,
-          referenceMatchAccepted: nitriteQuantitativeAvailable,
+          referenceMatchAccepted: legacyNitriteValue != null ? false : nitriteQuantitativeAvailable,
           referenceMatchReason: nitriteEstimate.diagnostics?.reason ?? nitriteEstimate.matchState,
           lowConfidenceDisplay,
           lowConfidenceNote,
           distance: nitriteEstimate.distance ?? null,
           channelDistances: nitriteEstimate.channelDistances ?? null,
-          calibrationInterval: null,
-          clamped: false,
-          quantitativeAvailable: nitriteQuantitativeAvailable,
+          calibrationInterval: legacyNitriteInterpolation?.calibrationInterval ?? null,
+          clamped: legacyNitriteInterpolation?.clamped ?? false,
+          quantitativeAvailable: legacyNitriteValue != null ? true : nitriteQuantitativeAvailable,
           classificationStatus: nitriteClassificationStatus,
-          status: nitriteStatus,
+          status: legacyNitriteValue != null ? 'Estimated' : nitriteStatus,
           measuredColorReliable: nitriteColorReliable,
-          value: nitriteQuantitativeAvailable ? nitriteEstimate.value : null,
-          displayValue: nitriteQuantitativeAvailable ? nitriteEstimate.displayValue : null,
+          value: legacyNitriteValue != null ? legacyNitriteValue : (nitriteQuantitativeAvailable ? nitriteEstimate.value : null),
+          displayValue: legacyNitriteValue != null ? `${legacyNitriteValue.toFixed(2)} ppm` : (nitriteQuantitativeAvailable ? nitriteEstimate.displayValue : null),
           qualifier: nitriteQuantitativeAvailable ? nitriteEstimate.qualifier ?? null : null,
           lowerBound: nitriteQuantitativeAvailable ? nitriteEstimate.lowerBound ?? null : null,
           roi: roiMetadata(nitriteRoi, nitriteStats, 'nitrite'),
@@ -378,7 +399,7 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
             reaction: calibration.nitrite.reaction,
             provisional: calibration.nitrite.provisional,
             matching: calibration.nitrite.matching,
-            estimateUse: 'reference-color-based estimate; laboratory accuracy is not established',
+            estimateUse: legacyNitriteValue != null ? 'piecewise-linear-clamped hue interpolation' : 'reference-color-based estimate; laboratory accuracy is not established',
             references: calibration.nitrite.references,
             researchFeature: calibration.nitrite.researchMetadata?.feature,
             quantitativeUse: 'unvalidated',
@@ -390,7 +411,7 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
         scanStatus: 'Completed',
         measuredParametersStatus: classification.status,
         scientificValidationStatus: MEASUREMENT_STATUS.SCIENTIFIC_PENDING,
-        overallStatus: 'NOT CLASSIFIED',
+        overallStatus: developerFallbackMode ? 'Unvalidated' : 'NOT CLASSIFIED',
         roiLocalizationStatus,
         registration: registration ? {
           status: registration.status,
