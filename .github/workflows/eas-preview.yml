@@ -1,0 +1,37 @@
+name: AQUALITY Preview APK
+
+on:
+  push:
+    branches:
+      - review/final-aquality-bugfixes
+  workflow_dispatch:
+
+jobs:
+  build-preview:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install app dependencies
+        run: npm ci
+
+      - name: Install EAS CLI
+        run: npm install -g eas-cli
+
+      - name: Build Android preview APK
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          EAS_PROJECT_ID: ${{ secrets.EAS_PROJECT_ID || 'a2918d6a-9410-4a81-9a63-0320fae44fe6' }}
+          EXPO_PUBLIC_API_BASE_URL: ${{ vars.EXPO_PUBLIC_API_BASE_URL || 'https://aquality-api-production.up.railway.app/api' }}
+          EXPO_PUBLIC_AQUALITY_DEBUG: 'true'
+        run: npx eas-cli build --platform android --profile preview --non-interactive --wait

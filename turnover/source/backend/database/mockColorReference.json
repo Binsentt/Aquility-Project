@@ -1,0 +1,6 @@
+{
+  "version": "client-provided-provisional-v1",
+  "purpose": "Legacy fixture retained for compatibility; active pH and Nitrite references are in colorAnalysisCalibration.json.",
+  "pH": { "calibrationFile": "colorAnalysisCalibration.json" },
+  "nitrite": { "calibrationFile": "colorAnalysisCalibration.json" }
+}

@@ -1,0 +1,10 @@
+{
+  "version": "client-provided-provisional-v1",
+  "purpose": "Legacy fixture retained for compatibility; active analysis reads colorAnalysisCalibration.json.",
+  "markers": {
+    "start": { "expectedPosition": "top", "tolerancePixels": 24 },
+    "end": { "expectedPosition": "bottom", "tolerancePixels": 24 }
+  },
+  "colourSpaces": ["RGB", "HSV", "LAB"],
+  "pads": ["pH", "nitrite"]
+}

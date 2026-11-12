@@ -1,0 +1,178 @@
+{
+  "version": "client-provided-provisional-v1",
+  "source": "Client-provided color references and provisional calibration values.",
+  "thresholds": null,
+  "roi": {
+    "strategy": "client-schematic-fiducial-registration",
+    "fallback": { "x": 0.4, "y": 0.4, "width": 0.2, "height": 0.2 },
+    "regions": { "pH": null, "nitrite": null },
+    "fallbackUsage": "development-tests-only",
+    "productionAllowed": true,
+    "registration": {
+      "enabled": true,
+      "source": "client-schematic-image",
+      "lengthMm": 50,
+      "bodyHeightMm": 10,
+      "sensingCircleDiameterMm": 5,
+      "sensingCircleDimensionMeaning": "diameter of the sensing circle shown by the 5 mm extension lines",
+      "squareSideMm": 2.5,
+      "triangleSideMm": 2.5,
+      "outerReferenceSpacingMm": 2.625,
+      "circleSpacingMm": 5,
+      "spacingInterpretation": "ambiguous-edge-versus-center; use normalized schematic relationships until client confirms dimension-line convention",
+      "physicalMeasurementProvenance": "CLIENT_PHYSICAL_MEASUREMENT",
+      "schematicCoordinateProvenance": "CLIENT_SCHEMATIC_DERIVED",
+      "orientation": "square-side -> Nitrite circle -> pH circle -> triangle -> handle",
+      "referencePoint1": "square",
+      "referencePoint2": "triangle",
+      "normalizedTemplate": {
+        "square": { "x": 0.079, "y": 0.5, "width": 0.04, "height": 0.2 },
+        "nitrite": { "x": 0.201, "y": 0.5, "radius": 0.05 },
+        "pH": { "x": 0.401, "y": 0.5, "radius": 0.05 },
+        "triangle": { "x": 0.522, "y": 0.5, "width": 0.04, "height": 0.2 }
+      }
+    },
+    "note": "Production analysis registers the square and triangle reference marks and locates separate Nitrite (left) and pH (right) circles using the client schematic. Template-relative coordinates are not independent millimetre measurements. The legacy fallback is ignored in production and retained only for isolated developer fixtures."
+  },
+  "pH": {
+    "method": "RGB median -> CIE Lab D65 -> nearest reference by CIEDE2000",
+    "maxDeltaE00": null,
+    "reliabilityNote": "No client-approved pH acceptance threshold is available. Production analysis must remain unreliable until a provisional threshold is explicitly configured and validated against paired standards.",
+    "references": [
+      { "label": "0-4", "value": "0-4", "exactValue": null, "lab": [50.9, 66.5, 54.0] },
+      { "label": "5", "value": 5, "exactValue": 5, "lab": [65.4, 36.1, 68.7] },
+      { "label": "6", "value": 6, "exactValue": 6, "lab": [86.5, -12.3, 80.4] },
+      { "label": "7", "value": 7, "exactValue": 7, "lab": [58.3, -50.0, 37.6] },
+      { "label": "8", "value": 8, "exactValue": 8, "lab": [49.7, -23.8, -13.4] },
+      { "label": "9", "value": 9, "exactValue": 9, "lab": [36.6, 21.7, -57.6] },
+      { "label": "10-14", "value": "10-14", "exactValue": null, "lab": [33.4, 51.3, -44.4] }
+    ],
+    "rgbExamples": [
+      { "label": "6.0", "value": 6.0, "rgb": [230, 180, 50] },
+      { "label": "6.8", "value": 6.8, "rgb": [210, 200, 40] },
+      { "label": "7.2", "value": 7.2, "rgb": [120, 190, 80] },
+      { "label": "7.6", "value": 7.6, "rgb": [60, 150, 140] },
+      { "label": "8.2", "value": 8.2, "rgb": [80, 100, 180] }
+    ],
+    "clientRgbRanges": [
+      { "label": "1", "value": 1, "rgbRange": { "r": [167, 169], "g": [132, 134], "b": [122, 123] }, "sourceRgbRange": { "r": [167, 169], "g": [132, 134], "b": [122, 123] }, "provenance": "CLIENT_PROVIDED_PROVISIONAL_CALIBRATION", "usage": "active provisional RGB interval; not analytically validated" },
+      { "label": "2", "value": 2, "rgbRange": { "r": [171, 175], "g": [134, 142], "b": [130, 137] }, "sourceRgbRange": { "r": [171, 175], "g": [134, 142], "b": [130, 137] }, "provenance": "CLIENT_PROVIDED_PROVISIONAL_CALIBRATION", "usage": "active provisional RGB interval; not analytically validated" },
+      { "label": "3", "value": 3, "rgbRange": { "r": [169, 169], "g": [130, 131], "b": [113, 116] }, "sourceRgbRange": { "r": [169, 169], "g": [130, 131], "b": [116, 113] }, "normalizedSourceOrder": "min=113,max=116", "sourceNote": "PH3_BLUE_SOURCE_ORDER_REVERSED: client supplied B range was written as 116-113; normalized only for interval testing.", "provenance": "CLIENT_PROVIDED_PROVISIONAL_CALIBRATION", "usage": "active provisional RGB interval; not analytically validated" },
+      { "label": "4", "value": 4, "rgbRange": { "r": [166, 167], "g": [124, 127], "b": [123, 127] }, "sourceRgbRange": { "r": [166, 167], "g": [124, 127], "b": [123, 127] }, "provenance": "CLIENT_PROVIDED_PROVISIONAL_CALIBRATION", "usage": "active provisional RGB interval; not analytically validated" }
+    ],
+    "continuousModel": {
+      "version": "official-time-real-camera-lab-quadratic-ridge-2026-10-04-v1",
+      "source": "Client-confirmed official-time labels from 45 physical µPAD captures; fitted on the 43 registered, image-quality-eligible official-time ROI colors.",
+      "officialProtocol": { "SA": "1 minute", "SB": "20 minutes", "A": "20 minutes" },
+      "trainingSampleCount": 43,
+      "method": "sRGB median ROI -> CIE Lab D65 -> standardized degree-2 Lab features -> ridge regression (alpha 0.01)",
+      "featureOrder": ["L", "a", "b", "L^2", "L*a", "L*b", "a^2", "a*b", "b^2"],
+      "featureMeans": [67.14988561995689, 2.7863628510964786, 23.462921182098693, 4540.348192114809, 148.29516408818344, 1566.5434736128627, 70.43543564443782, 73.57203740159501, 561.3393495885948],
+      "featureScales": [5.589369673005503, 7.916540766424898, 3.2909997251928345, 734.2690437124909, 488.7806353256083, 196.59615114339405, 111.9305129667606, 193.8971328443612, 161.46766845489594],
+      "intercept": 7.8472093023255765,
+      "coefficients": [0.16502369157676622, -1.2065703639207495, -0.37892881723456195, -1.2600510532876503, 0.6552037013518391, 1.2489900866608004, -0.22784247232771637, 0.8442519569558644, -1.051043164304519],
+      "colorDomain": {
+        "colorSpace": "CIE Lab D65",
+        "labMin": [53.38800332064659, -11.871073732598045, 16.435037793129005],
+        "labMax": [77.87583713622593, 22.028027488733336, 33.313108419822576],
+        "margin": "2 Lab units beyond the minimum and maximum of the 43 eligible official-time training ROIs"
+      },
+      "supportedPH": { "minimum": 7.22, "maximum": 8.21 },
+      "outputPolicy": "Reject colors outside colorDomain; clamp accepted regression values to supportedPH because no verified real-camera labels exist beyond that interval.",
+      "displayPrecision": 1,
+      "validation": {
+        "method": "5-repeat nested stratified 5-fold grouped cross-validation; inner selection used 3 repeats of 4-fold sample-grouped CV; class used for fold stratification and reporting only, never as a model feature.",
+        "outOfFoldMAE": 0.208479966908367,
+        "outOfFoldRMSE": 0.2821329986819715,
+        "outOfFoldBias": -0.017374826403512737,
+        "outOfFoldMaximumAbsoluteError": 0.6844055909209192,
+        "trainingFoldMeanBaselineMAE": 0.43790267735001015,
+        "trainingFoldMeanBaselineRMSE": 0.45977009400971,
+        "note": "Three class-level laboratory labels are available; within-class individual-strip pH labels were not supplied. Validation does not establish 0.05-pH resolution or transfer to unrepresented water, camera, or pH conditions."
+      }
+    }
+  },
+  "nitrite": {
+    "target": "Nitrite (NO2-)",
+    "analyte": "Nitrite (NO2-)",
+    "unit": "ppm",
+    "source": "CLIENT_CONFIRMED_TESTED_REFERENCE_SAMPLE_COLOR_TEST",
+    "sourceNote": "Real-phone µPAD Nitrite accuracy has not been established with labeled phone-camera samples. Non-accepted nearest-reference outputs are shown only as low-confidence reference estimates.",
+    "referenceOrderDirection": "left-to-right",
+    "referenceOrder": ["0", "0.5", "1", ">1"],
+    "reaction": "Griess method, client-provided direct Nitrite reference colors",
+    "method": "Registered left Nitrite ROI median RGB -> discrete client-reference matching using exact RGB intervals and a guarded three-metric centroid score",
+    "provisional": true,
+    "matching": {
+      "acceptance": "A unique inclusive client RGB interval match is strongest. Otherwise, a discrete class is accepted only when a three-metric centroid score is within the configured limit, has the required runner-up margin, and stays within the reference color family.",
+      "distanceMetric": "Equal-weight mean of CIEDE2000, RGB Euclidean distance, and normalized chromatic RGB distance, each divided by its median pairwise centroid separation",
+      "maximumNormalizedCompositeDistance": 1.5,
+      "minimumNormalizedCompositeMargin": 0.2,
+      "maximumReferenceFamilyScale": 2,
+      "estimateUse": "reference-color-based estimate; laboratory accuracy is not established"
+    },
+    "huePoints": [15, 30, 50, 90],
+    "ppmValues": [0, 10, 25, 100],
+    "references": [
+      {
+        "label": "0",
+        "value": 0,
+        "sourceRgbRange": { "r": [184, 182], "g": [173, 171], "b": [181, 179] },
+        "rgbRange": { "r": [182, 184], "g": [171, 173], "b": [179, 181] },
+        "provenance": "CLIENT_CONFIRMED_TESTED_REFERENCE_SAMPLE_COLOR_TEST"
+      },
+      {
+        "label": "0.5",
+        "value": 0.5,
+        "sourceRgbRange": { "r": [190, 190], "g": [172, 172], "b": [187, 188] },
+        "rgbRange": { "r": [190, 190], "g": [172, 172], "b": [187, 188] },
+        "provenance": "CLIENT_CONFIRMED_TESTED_REFERENCE_SAMPLE_COLOR_TEST"
+      },
+      {
+        "label": "1",
+        "value": 1,
+        "sourceRgbRange": { "r": [193, 212], "g": [172, 194], "b": [173, 192] },
+        "rgbRange": { "r": [193, 212], "g": [172, 194], "b": [173, 192] },
+        "provenance": "CLIENT_CONFIRMED_TESTED_REFERENCE_SAMPLE_COLOR_TEST"
+      },
+      {
+        "label": ">1",
+        "value": null,
+        "displayValue": ">1 ppm",
+        "qualifier": ">",
+        "lowerBound": 1,
+        "sourceRgbRange": { "r": [196, 198], "g": [178, 180], "b": [194, 196] },
+        "rgbRange": { "r": [196, 198], "g": [178, 180], "b": [194, 196] },
+        "provenance": "CLIENT_CONFIRMED_TESTED_REFERENCE_SAMPLE_COLOR_TEST"
+      }
+    ],
+    "outOfRange": "Return null with NITRITE_OUTSIDE_CALIBRATION_RANGE or NITRITE_MEASUREMENT_UNRELIABLE; never interpolate or clamp.",
+    "researchMetadata": {
+      "feature": "HSV saturation",
+      "source": "cited secondary paper",
+      "productionUse": false,
+      "note": "HSV H/S/V remain diagnostics only until client-specific calibration validates a production model."
+    }
+  },
+  "legacyNitrateNitriteEquivalentReference": {
+    "active": false,
+    "storageUse": "LEGACY_STORAGE_ONLY",
+    "source": "Historical client-provided reference table; not used for current Nitrite output.",
+    "quantitativeUse": false,
+    "requiresConfirmation": true,
+    "rows": [
+      { "totalNitrateViaReduction_uM": "0", "nitriteEquivalent_uM": "0 (undetectable)", "labApprox": [92, -1, 4] },
+      { "totalNitrateViaReduction_uM": "10-60", "nitriteEquivalent_uM": "10-60", "labApprox": [85, 15, 3] },
+      { "totalNitrateViaReduction_uM": "50-100+", "nitriteEquivalent_uM": "50-100+", "labApprox": [55, 55, -5] }
+    ]
+  },
+  "validation": {
+    "accuracy": "not established",
+    "linearity": "not independently validated",
+    "lod": "not established",
+    "loq": "not established",
+    "precision": "not established",
+    "selectivity": "not established",
+    "linearRegression": "not established"
+  }
+}
