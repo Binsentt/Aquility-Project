@@ -42,7 +42,7 @@ function unavailableRow(image, error) {
  * database, or image data. Candidate CSV files are intentionally not read.
  */
 export async function generateCalibrationQaReport(imagePaths, {
-  engine = createColorAnalysisEngine(),
+  engine = createColorAnalysisEngine({ allowDeveloperRoiFixture: false }),
 } = {}) {
   if (!Array.isArray(imagePaths)) throw new TypeError('imagePaths must be an array.');
 

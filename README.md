@@ -1,6 +1,6 @@
 # 💧 AQUALITY
 
-AQUALITY is a smartphone application that works with Microfluidic Paper-based Analytical Devices (µPADs). Registered pH and Nitrite sensing regions are measured separately and compared with the current client-provided color references. Nitrite uses direct RGB reference classes; HSV values remain diagnostic only. A parameter is shown only when its configured reference match is supported. The image, analysis metadata, and optional GPS location are stored with each test. These provisional references are not a certified water-safety method.
+AQUALITY is a smartphone application that works with Microfluidic Paper-based Analytical Devices (µPADs). The camera analysis estimates pH by matching ROI Lab color to client-provided references with CIEDE2000 and estimates Nitrite using a provisional hue-to-ppm calibration. The image, analysis metadata, and optional GPS location are stored with each test. These calibration outputs have not been experimentally validated and are not certified water-safety measurements.
 
 It is designed as a simple, portable, and low-cost monitoring tool for students, researchers, and communities.
 
@@ -65,23 +65,16 @@ npx expo start
 
 ### Physical-device development with Expo Go
 
-Expo Go and EAS builds default to the deployed Railway API:
-`https://aquality-api-production.up.railway.app/api`. A local or LAN backend is
-opt-in only. To intentionally use one, create the ignored root `.env` file and
-set both the explicit allow flag and the laptop's Wi-Fi IPv4 address:
+For laptop web development, the default API URL is `http://localhost:4000/api`.
+For a physical Android or iOS device, create the ignored root `.env` file and
+replace the placeholder with the laptop's Wi-Fi IPv4 address:
 
 ```powershell
 cd <project-folder>
 Copy-Item .env.example .env
 ipconfig
-# Edit .env:
-EXPO_PUBLIC_ALLOW_LOCAL_API=true
-EXPO_PUBLIC_API_BASE_URL=http://<COMPUTER_LAN_IPV4>:4000/api
+# Edit .env and set EXPO_PUBLIC_API_BASE_URL to the computer's current LAN IPv4 address.
 ```
-
-Without `EXPO_PUBLIC_ALLOW_LOCAL_API=true`, localhost and private LAN URLs are
-ignored and the client uses the Railway API. In development, the selected
-endpoint is printed once as `[AQUALITY API BASE] ...`.
 
 The `EXPO_PUBLIC_*` value is included in the client bundle, so it must contain
 only the non-secret API URL. Never put PostgreSQL or JWT credentials in the

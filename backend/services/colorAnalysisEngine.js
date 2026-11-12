@@ -112,7 +112,15 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
         && roi.x >= 0 && roi.y >= 0 && roi.width > 0 && roi.height > 0
         && roi.x + roi.width <= 1 && roi.y + roi.height <= 1;
       const sameRoi = phRoi && nitriteRoi && ['x', 'y', 'width', 'height'].every((key) => phRoi[key] === nitriteRoi[key]);
-      const developerFallbackMode = developerFixtureAllowed && (!registration || registration.status !== 'REGISTERED') && (!validRoi(phRoi) || !validRoi(nitriteRoi) || sameRoi);
+      const detectedFeatureCount = registration && registration.diagnostics
+        ? (registration.diagnostics.squareCandidateCount ?? 0)
+          + (registration.diagnostics.triangleCandidateCount ?? 0)
+          + (registration.diagnostics.circleCandidateCount ?? 0)
+        : 0;
+      const developerFallbackMode = developerFixtureAllowed
+        && (!registration || registration.status !== 'REGISTERED')
+        && detectedFeatureCount === 0
+        && (!validRoi(phRoi) || !validRoi(nitriteRoi) || sameRoi);
       if ((!validRoi(phRoi) || !validRoi(nitriteRoi) || sameRoi || (!registrationEnabled && !developerFixtureAllowed)) && !developerFallbackMode) {
         const registrationFailureCode = !validRoi(phRoi)
           ? 'PH_ROI_INVALID'
@@ -358,6 +366,7 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
           saturation: nitriteHsv.saturation,
           valueChannel: nitriteHsv.value,
           matchState: legacyNitriteValue != null ? 'LEGACY_INTERPOLATED' : nitriteEstimate.matchState,
+          interpolationMethod: legacyNitriteValue != null ? 'piecewise-linear-clamped' : null,
           matchingMethod: legacyNitriteValue != null ? 'piecewise-linear-clamped' : (nitriteEstimate.matchMethod === 'RAW_RGB_INTERVAL'
             ? 'direct-client-rgb-range'
             : 'composite-reference-distance'),

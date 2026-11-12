@@ -111,6 +111,8 @@
       "maximumReferenceFamilyScale": 2,
       "estimateUse": "reference-color-based estimate; laboratory accuracy is not established"
     },
+    "huePoints": [15, 30, 50, 90],
+    "ppmValues": [0, 10, 25, 100],
     "references": [
       {
         "label": "0",

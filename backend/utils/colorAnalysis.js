@@ -350,6 +350,45 @@ export function matchPHClientColor(measuredRGB, clientRgbRanges) {
   return matchClientColorByCentroid(measuredRGB, clientRgbRanges, { parameter: 'pH' });
 }
 
+export function interpolateNitriteHue(hue, huePoints, ppmValues) {
+  if (!Array.isArray(huePoints) || !Array.isArray(ppmValues) || huePoints.length !== ppmValues.length || huePoints.length === 0) {
+    throw new TypeError('Nitrite hue interpolation requires matching hue and ppm arrays with at least one entry.');
+  }
+
+  const points = huePoints.map((point, index) => ({ hue: Number(point), ppm: Number(ppmValues[index]) }));
+  if (points.some(({ hue, ppm }) => !Number.isFinite(hue) || !Number.isFinite(ppm))) {
+    throw new TypeError('Nitrite hue interpolation requires finite numeric hue and ppm values.');
+  }
+
+  const sorted = [...points].sort((left, right) => left.hue - right.hue);
+  const minimum = sorted[0];
+  const maximum = sorted[sorted.length - 1];
+
+  if (hue <= minimum.hue) {
+    return { ppm: minimum.ppm, calibrationInterval: [minimum.hue, minimum.hue], clamped: true };
+  }
+
+  if (hue >= maximum.hue) {
+    return { ppm: maximum.ppm, calibrationInterval: [maximum.hue, maximum.hue], clamped: true };
+  }
+
+  for (let index = 0; index < sorted.length - 1; index += 1) {
+    const left = sorted[index];
+    const right = sorted[index + 1];
+    if (hue >= left.hue && hue <= right.hue) {
+      const ratio = (hue - left.hue) / (right.hue - left.hue || 1);
+      const ppm = left.ppm + (right.ppm - left.ppm) * ratio;
+      return {
+        ppm,
+        calibrationInterval: [left.hue, right.hue],
+        clamped: false,
+      };
+    }
+  }
+
+  return { ppm: maximum.ppm, calibrationInterval: [maximum.hue, maximum.hue], clamped: true };
+}
+
 const DEFAULT_NITRITE_MATCHING_POLICY = Object.freeze({
   maximumNormalizedCompositeDistance: 1.5,
   minimumNormalizedCompositeMargin: 0.2,
