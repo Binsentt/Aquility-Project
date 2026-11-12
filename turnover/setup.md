@@ -46,6 +46,8 @@ npm run db:seed
 
 The seed script validates the checked-in calibration JSON but should not be used to load production records.
 
+Manual sample pins use the additive migration `008_add_manual_sample_location.sql`, stored separately from actual GPS fields. After applying migrations, `/api/health` reports `features.manualSampleLocation: true` when both manual coordinate columns are available. The client will not upload a manually pinned scan when this capability is absent; no production deployment or private database export is part of this package.
+
 ## 6. Start the app
 
 Terminal 1:
@@ -65,7 +67,7 @@ For Expo Go on a phone, use the root `.env` example and point `EXPO_PUBLIC_API_B
 
 ## 7. Validate
 
-- confirm `/api/health` returns a database-connected status
+- confirm `/api/health` returns a database-connected status and `features.manualSampleLocation: true` after migration 008
 - log in or register an authorized test account
 - run an image analysis and check results/history export
 - verify PDF and image export still work

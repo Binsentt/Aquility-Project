@@ -35,10 +35,14 @@ function cleanClientRemarks(value) {
 }
 
 export function buildPdfHtml({ user = {}, test = {}, brandImageUri = null } = {}) {
-  const location = test.location || test.gps || null;
+  const location = test.location || test.manualLocation || test.gps || null;
   const latitude = formatCoordinate(location?.latitude);
   const longitude = formatCoordinate(location?.longitude);
   const mapUrl = location ? `https://www.google.com/maps?q=${encodeURIComponent(`${location.latitude},${location.longitude}`)}` : null;
+  const gps = test.gps || (!test.manualLocation ? test.location : null) || null;
+  const gpsCoordinates = gps
+    ? `${formatCoordinate(gps.latitude)}, ${formatCoordinate(gps.longitude)}`
+    : 'Unavailable';
   const results = test.resultData || {};
   const stripImage = test.imageUri || test.image || test.uri || test.images?.[0] || null;
   const reactionTime = test.reactionTime ?? test.immersionTime ?? null;
@@ -72,7 +76,8 @@ export function buildPdfHtml({ user = {}, test = {}, brandImageUri = null } = {}
         <strong>Municipality:</strong> ${escapeHtml(user.municipality || test.municipality || 'Unavailable')}</p>
         <h2 style="font-size: 18px; border-bottom: 1px solid #D8E6EE; padding-bottom: 6px;">Test Information</h2>
         <p><strong>Date and time:</strong> ${escapeHtml(formatDate(test.capturedAt || test.generatedAt || test.createdAt))}<br>
-        <strong>GPS coordinates:</strong> ${escapeHtml(`${latitude}, ${longitude}`)}<br>
+        <strong>Sample location:</strong> ${escapeHtml(`${latitude}, ${longitude}`)}<br>
+        <strong>Device GPS coordinates:</strong> ${escapeHtml(gpsCoordinates)}<br>
         <strong>Sample code:</strong> ${escapeHtml(sampleCode)}<br>
         <strong>Sample number:</strong> ${escapeHtml(test.sampleNumber == null ? 'Unavailable' : test.sampleNumber)}<br>
         <strong>Sample class:</strong> ${escapeHtml(sampleClass)}<br>

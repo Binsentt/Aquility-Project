@@ -1,11 +1,23 @@
-import { api, getApiBaseUrl } from './apiClient';
-import { toScanResult } from './apiMappers';
-import { matchSampleSite, sampleSiteForClass } from './sampleSites';
+import { ApiError, api, getApiBaseUrl } from './apiClient.js';
+import { toScanResult } from './apiMappers.js';
+import { matchSampleSite, sampleSiteForClass } from './sampleSites.js';
 
 export async function analyzeWaterTest(imageUri, metadata = {}) {
+  if (metadata.manualLocation) {
+    const health = await api.getHealth();
+    if (health?.features?.manualSampleLocation !== true) {
+      throw new ApiError(
+        409,
+        'This AQUALITY server does not yet support saving manual sample locations. Clear the pin or contact the server administrator before analyzing.',
+        'MANUAL_LOCATION_UNSUPPORTED',
+      );
+    }
+  }
+
+  const sampleLocation = metadata.manualLocation || metadata.location;
   const sampleSite = metadata.sampleSite
     || sampleSiteForClass(metadata.sampleClass)
-    || matchSampleSite(metadata.location?.latitude, metadata.location?.longitude);
+    || matchSampleSite(sampleLocation?.latitude, sampleLocation?.longitude);
   const waterTest = await api.analyzeWater({
     imageUri,
     imageAsset: metadata.imageAsset,
@@ -16,7 +28,9 @@ export async function analyzeWaterTest(imageUri, metadata = {}) {
     gpsLatitude: metadata.location?.latitude,
     gpsLongitude: metadata.location?.longitude,
     gpsAccuracyMeters: metadata.location?.accuracy,
-    gpsCapturedAt: metadata.location?.timestamp ? new Date(metadata.location.timestamp).toISOString() : metadata.capturedAt,
+    gpsCapturedAt: metadata.location?.timestamp ? new Date(metadata.location.timestamp).toISOString() : null,
+    manualLatitude: metadata.manualLocation?.latitude,
+    manualLongitude: metadata.manualLocation?.longitude,
     barangay: metadata.barangay,
     municipality: metadata.municipality,
     sampleClass: metadata.sampleClass || sampleSite?.classCode,
@@ -34,6 +48,7 @@ export async function analyzeDocument(input = {}) {
   return analyzeWaterTest(input.imageUri || input.image || input.images?.[0], {
     userId: input.userId,
     location: input.location || null,
+    manualLocation: input.manualLocation || null,
     barangay: input.barangay,
     municipality: input.municipality,
     sampleClass: input.sampleClass,

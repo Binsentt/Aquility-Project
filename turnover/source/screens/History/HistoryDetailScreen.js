@@ -209,8 +209,14 @@ export default function HistoryDetailScreen({ route, navigation }) {
 
         {item.location && Number.isFinite(Number(item.location.latitude)) && Number.isFinite(Number(item.location.longitude)) ? (
           <View style={styles.fieldRow}>
-            <Text style={styles.fieldLabel}>Location</Text>
+            <Text style={styles.fieldLabel}>Sample location</Text>
             <Text style={styles.fieldValue}>{Number(item.location.latitude).toFixed(4)}, {Number(item.location.longitude).toFixed(4)}</Text>
+          </View>
+        ) : null}
+        {item.gps && Number.isFinite(Number(item.gps.latitude)) && Number.isFinite(Number(item.gps.longitude)) ? (
+          <View style={styles.fieldRow}>
+            <Text style={styles.fieldLabel}>Device GPS</Text>
+            <Text style={styles.fieldValue}>{Number(item.gps.latitude).toFixed(4)}, {Number(item.gps.longitude).toFixed(4)}</Text>
           </View>
         ) : null}
 

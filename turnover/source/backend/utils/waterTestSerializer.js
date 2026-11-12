@@ -36,9 +36,13 @@ function clientRemarks(record, pHResult, nitrite) {
 }
 
 export function serializeWaterTest(record, authTokenService = null) {
-  const location = record.latitude == null || record.longitude == null
+  const gps = record.latitude == null || record.longitude == null
     ? null
     : { latitude: Number(record.latitude), longitude: Number(record.longitude) };
+  const manualLocation = record.manualLatitude == null || record.manualLongitude == null
+    ? null
+    : { latitude: Number(record.manualLatitude), longitude: Number(record.manualLongitude) };
+  const location = manualLocation || gps;
   const storedPHResult = record.analysisData?.pH || null;
   const groupedPHRange = typeof storedPHResult?.value === 'string'
     && /^\s*\d+(?:\.\d+)?\s*[-–]\s*\d+(?:\.\d+)?\s*$/.test(storedPHResult.value);
@@ -98,10 +102,11 @@ export function serializeWaterTest(record, authTokenService = null) {
     summary: remarks,
     scanStatus: 'Completed',
     roiLocalizationStatus: record.analysisData?.roiLocalizationStatus || 'STRIP REGISTRATION REQUIRED',
-    gps: location,
+    gps,
     location,
-    actualLatitude: location?.latitude ?? null,
-    actualLongitude: location?.longitude ?? null,
+    manualLocation,
+    actualLatitude: gps?.latitude ?? null,
+    actualLongitude: gps?.longitude ?? null,
     sampleClass,
     sampleCode,
     sampleNumber: record.sampleNumber == null ? null : Number(record.sampleNumber),

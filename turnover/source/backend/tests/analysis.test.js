@@ -88,6 +88,77 @@ test('analysis service stores actual GPS alongside server-matched sampling-site 
   assert.equal(result.siteName, 'Pawikan');
 });
 
+test('analysis service stores manual sample coordinates separately from actual GPS', async () => {
+  let createdRecord;
+  const service = createWaterAnalysisService({
+    colorAnalysisEngine: { async analyze() { return sampleMeasurements; } },
+    waterTestModel: {
+      async create(record) {
+        createdRecord = record;
+        return { id: 'manual-location-record', createdAt: '2026-08-04T00:00:00.000Z', ...record };
+      },
+    },
+  });
+
+  const result = await service.analyze({
+    file: { filename: 'strip.jpg' },
+    metadata: {
+      gpsLatitude: '14.6',
+      gpsLongitude: '120.98',
+      gpsAccuracyMeters: '7.5',
+      gpsCapturedAt: '2026-08-04T00:00:00.000Z',
+      manualLatitude: '14.7',
+      manualLongitude: '121.1',
+      capturedAt: '2026-08-04T00:01:00.000Z',
+    },
+    authenticatedUserId: '8ed82724-1db6-452a-a872-f6e5c81d8b5a',
+  });
+
+  assert.equal(createdRecord.latitude, 14.6);
+  assert.equal(createdRecord.longitude, 120.98);
+  assert.equal(createdRecord.manualLatitude, 14.7);
+  assert.equal(createdRecord.manualLongitude, 121.1);
+  assert.equal(result.gps.latitude, 14.6);
+  assert.equal(result.gps.longitude, 120.98);
+  assert.equal(result.location.latitude, 14.7);
+  assert.equal(result.location.longitude, 121.1);
+  assert.deepEqual(result.manualLocation, { latitude: 14.7, longitude: 121.1 });
+  assert.equal(result.gpsAccuracyMeters, 7.5);
+  assert.equal(result.gpsCapturedAt, '2026-08-04T00:00:00.000Z');
+});
+
+test('manual-only analysis does not manufacture GPS coordinates, accuracy, or timestamp', async () => {
+  let createdRecord;
+  const service = createWaterAnalysisService({
+    colorAnalysisEngine: { async analyze() { return sampleMeasurements; } },
+    waterTestModel: {
+      async create(record) {
+        createdRecord = record;
+        return { id: 'manual-only-location-record', createdAt: '2026-08-04T00:00:00.000Z', ...record };
+      },
+    },
+  });
+
+  const result = await service.analyze({
+    file: { filename: 'strip.jpg' },
+    metadata: {
+      manualLatitude: '14.7',
+      manualLongitude: '121.1',
+      capturedAt: '2026-08-04T00:01:00.000Z',
+    },
+    authenticatedUserId: '8ed82724-1db6-452a-a872-f6e5c81d8b5a',
+  });
+
+  assert.equal(createdRecord.latitude, null);
+  assert.equal(createdRecord.longitude, null);
+  assert.equal(createdRecord.gpsAccuracyMeters, null);
+  assert.equal(createdRecord.gpsCapturedAt, null);
+  assert.deepEqual(result.gps, null);
+  assert.deepEqual(result.location, { latitude: 14.7, longitude: 121.1 });
+  assert.equal(result.gpsAccuracyMeters, null);
+  assert.equal(result.gpsCapturedAt, null);
+});
+
 test('analysis service preserves an explicitly selected sample code when canonical coordinates are not configured', async () => {
   let createdRecord;
   const service = createWaterAnalysisService({

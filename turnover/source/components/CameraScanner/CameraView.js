@@ -16,7 +16,6 @@ import * as Location from 'expo-location';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as Linking from 'expo-linking';
-import { Camera, Map, Marker } from '@maplibre/maplibre-react-native';
 import { PinchGestureHandler, State } from 'react-native-gesture-handler';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import ScannerOverlay from './ScannerOverlay';
@@ -27,7 +26,12 @@ import { createDocumentDetector } from './documentDetector';
 import { useAuth } from '../../context/AuthContext';
 import { analyzeDocument } from '../../services/waterAnalysisService';
 import { getApiBaseUrl } from '../../services/apiClient';
-import { OPENFREEMAP_LIBERTY_STYLE, toMapLibreLngLat } from '../../services/mapLibreMap';
+import ManualLocationMap from './ManualLocationMap';
+import {
+  confirmManualLocation,
+  createManualLocationDraft,
+  selectManualLocation,
+} from '../../services/manualLocationSelection';
 import { officialReactionInstruction } from '../../services/officialReactionProtocol';
 import { nativeMultipartFetch, prepareNativeMultipartFile } from '../../services/nativeMultipartUpload';
 import { createUploadDiagnostics } from '../../services/uploadDiagnostics';
@@ -40,7 +44,7 @@ const SAMPLE_CLASSES = [
   { code: 'SB', siteName: 'Fish Farm', sourceType: 'Fish Farm / Aquaculture' },
 ];
 const SAMPLE_NUMBERS = Array.from({ length: 15 }, (_, index) => index + 1);
-const DEFAULT_PIN_LOCATION = { latitude: 14.5995, longitude: 120.9842, accuracy: 0, timestamp: Date.now() };
+const DEFAULT_PIN_LOCATION = { latitude: 14.5995, longitude: 120.9842 };
 
 function uriScheme(uri) {
   return typeof uri === 'string' && uri.includes(':') ? uri.split(':', 1)[0].toLowerCase() : 'unknown';
@@ -92,6 +96,8 @@ function analysisErrorPresentation(error) {
       return { title: 'Session expired', message: 'Please sign in again before analysing a water-test strip.' };
     case 'DATABASE_UNAVAILABLE':
       return { title: 'Server unavailable', message: 'The AQUALITY server is temporarily unable to save this analysis. Please try again.' };
+    case 'MANUAL_LOCATION_UNSUPPORTED':
+      return { title: 'Manual pin unavailable', message: error.message };
     default:
       return { title: 'Analysis failed', message: error?.message || 'Unable to process this water-test strip right now.' };
   }
@@ -133,7 +139,7 @@ const CameraView = React.memo(function CameraView({
   const [manualLocation, setManualLocation] = useState(null);
   const [deviceLocation, setDeviceLocation] = useState(null);
   const [locationPickerVisible, setLocationPickerVisible] = useState(false);
-  const [mapSelection, setMapSelection] = useState(DEFAULT_PIN_LOCATION);
+  const [mapSelectionDraft, setMapSelectionDraft] = useState(null);
   const [showReview, setShowReview] = useState(false);
   const [submitCommitted, setSubmitCommitted] = useState(false);
   const detectorRef = useRef(createDocumentDetector());
@@ -318,41 +324,25 @@ const CameraView = React.memo(function CameraView({
     }, 420);
   }, [autoScan, handleManualCapture]);
 
-  const extractMapSelectionCoordinate = useCallback((event) => {
-    const payload = event?.nativeEvent || event || {};
-    const candidate = payload.geometry?.coordinates || payload.coordinate || payload.coordinates || payload.latlng || payload.location || null;
-    if (Array.isArray(candidate) && candidate.length >= 2) {
-      const [longitude, latitude] = candidate;
-      if (Number.isFinite(Number(latitude)) && Number.isFinite(Number(longitude))) {
-        return { latitude: Number(latitude), longitude: Number(longitude) };
-      }
-    }
-    if (candidate && Number.isFinite(Number(candidate.latitude)) && Number.isFinite(Number(candidate.longitude))) {
-      return { latitude: Number(candidate.latitude), longitude: Number(candidate.longitude) };
-    }
-    return null;
-  }, []);
-
   const handleLocationPickerOpen = useCallback(() => {
     const currentSelection = manualLocation || deviceLocation || DEFAULT_PIN_LOCATION;
-    setMapSelection(currentSelection);
+    setMapSelectionDraft(createManualLocationDraft(currentSelection));
     setLocationPickerVisible(true);
   }, [deviceLocation, manualLocation]);
 
   const handleMapSelection = useCallback((event) => {
-    const coordinate = extractMapSelectionCoordinate(event);
-    if (!coordinate) return;
-    setMapSelection({ ...coordinate, accuracy: 0, timestamp: Date.now() });
-  }, [extractMapSelectionCoordinate]);
+    setMapSelectionDraft((draft) => draft ? selectManualLocation(draft, event) : draft);
+  }, []);
 
   const handleManualLocationConfirm = useCallback(() => {
-    if (!mapSelection || !Number.isFinite(Number(mapSelection.latitude)) || !Number.isFinite(Number(mapSelection.longitude))) {
+    const coordinate = confirmManualLocation(mapSelectionDraft);
+    if (!coordinate) {
       Alert.alert('Location not selected', 'Tap the map to choose the sample location before confirming.');
       return;
     }
-    setManualLocation({ ...mapSelection, accuracy: 0, timestamp: Date.now(), source: 'manual' });
+    setManualLocation(coordinate);
     setLocationPickerVisible(false);
-  }, [mapSelection]);
+  }, [mapSelectionDraft]);
 
   const handleGenerate = useCallback(async () => {
     if (submitLockRef.current || processing || submitCommitted || !isMountedRef.current) {
@@ -379,41 +369,39 @@ const CameraView = React.memo(function CameraView({
     setSubmitCommitted(true);
 
     try {
-      let location = manualLocation || null;
+      let location = null;
 
-      if (!location) {
-        while (!location) {
-          let locationFailure = 'unavailable';
-          try {
-            const { status } = await Location.requestForegroundPermissionsAsync();
-            if (status !== 'granted') {
-              locationFailure = 'permission';
-            } else {
-              const currentLocation = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-              location = currentLocation?.coords
-                ? { ...currentLocation.coords, timestamp: currentLocation.timestamp || Date.now() }
-                : null;
-              if (location) setDeviceLocation(location);
-            }
-          } catch {}
-
-          if (!location) {
-            const retryLocation = await new Promise((resolve) => {
-              const permissionDenied = locationFailure === 'permission';
-              Alert.alert(
-                permissionDenied ? 'Location permission denied' : 'GPS location unavailable',
-                permissionDenied
-                  ? 'AQUALITY could not access device location. Enable location permission in device settings, then try again, or continue without GPS coordinates.'
-                  : 'AQUALITY could not get a device GPS fix. Check that location services are enabled, then try again or continue without GPS coordinates.',
-                [
-                  { text: 'Try Again', onPress: () => resolve(true) },
-                  { text: 'Continue Without GPS', style: 'cancel', onPress: () => resolve(false) },
-                ],
-                { cancelable: false }
-              );
-            });
-            if (!retryLocation) break;
+      while (!location) {
+        let locationFailure = 'unavailable';
+        try {
+          const { status } = await Location.requestForegroundPermissionsAsync();
+          if (status !== 'granted') {
+            locationFailure = 'permission';
+          } else {
+            const currentLocation = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+            location = currentLocation?.coords
+              ? { ...currentLocation.coords, timestamp: currentLocation.timestamp || null }
+              : null;
+            if (location) setDeviceLocation(location);
           }
+        } catch {}
+
+        if (!location) {
+          const retryLocation = await new Promise((resolve) => {
+            const permissionDenied = locationFailure === 'permission';
+            Alert.alert(
+              permissionDenied ? 'Location permission denied' : 'GPS location unavailable',
+              permissionDenied
+                ? 'AQUALITY could not access device location. Enable location permission in device settings, then try again, or continue without GPS coordinates.'
+                : 'AQUALITY could not get a device GPS fix. Check that location services are enabled, then try again or continue without GPS coordinates.',
+              [
+                { text: 'Try Again', onPress: () => resolve(true) },
+                { text: 'Continue Without GPS', style: 'cancel', onPress: () => resolve(false) },
+              ],
+              { cancelable: false }
+            );
+          });
+          if (!retryLocation) break;
         }
       }
 
@@ -446,6 +434,7 @@ const CameraView = React.memo(function CameraView({
         multipartFetch: nativeMultipartFetch,
         userId: currentUser.id,
         location,
+        manualLocation,
         barangay: currentUser.barangay,
         municipality: currentUser.municipality,
         capturedAt: new Date().toISOString(),
@@ -464,6 +453,7 @@ const CameraView = React.memo(function CameraView({
         scanPayload = await addScanResult(scanPayload);
       }
 
+      setManualLocation(null);
       if (navigation && typeof navigation.navigate === 'function') {
         navigation.navigate('Result', scanPayload);
       }
@@ -642,6 +632,16 @@ const CameraView = React.memo(function CameraView({
                 : 'Tap map to pin the sample location'}
           </Text>
         </TouchableOpacity>
+        {manualLocation ? (
+          <TouchableOpacity
+            style={styles.clearLocationButton}
+            accessibilityRole="button"
+            accessibilityLabel="Clear manual sample location"
+            onPress={() => setManualLocation(null)}
+          >
+            <Text style={styles.clearLocationText}>Clear pin</Text>
+          </TouchableOpacity>
+        ) : null}
         {selectedReactionInstruction ? <Text style={styles.reactionInstruction}>{selectedReactionInstruction}</Text> : null}
       </View>
 
@@ -701,36 +701,21 @@ const CameraView = React.memo(function CameraView({
           <View style={styles.sampleModalCard}>
             <Text style={styles.sampleModalTitle}>Choose sample location</Text>
             <Text style={styles.sampleModalHint}>Tap the map to set an exact sample point before upload. Device GPS remains available separately and is only used when no custom pin is chosen.</Text>
-            <View style={styles.locationPickerMapWrap}>
-              <Map
-                style={StyleSheet.absoluteFill}
-                mapStyle={OPENFREEMAP_LIBERTY_STYLE}
-                attribution
-                compass
-                onPress={handleMapSelection}
-              >
-                <Camera
-                  initialViewState={{ center: toMapLibreLngLat(mapSelection || manualLocation || deviceLocation || DEFAULT_PIN_LOCATION), zoom: 11 }}
-                />
-                {mapSelection && Number.isFinite(Number(mapSelection.latitude)) && Number.isFinite(Number(mapSelection.longitude)) ? (
-                  <Marker id="manual-sample-location" lngLat={toMapLibreLngLat(mapSelection)} anchor="bottom">
-                    <View style={styles.manualLocationMarker}>
-                      <View style={styles.manualLocationMarkerInner} />
-                    </View>
-                  </Marker>
-                ) : null}
-              </Map>
-            </View>
-            {mapSelection && Number.isFinite(Number(mapSelection.latitude)) && Number.isFinite(Number(mapSelection.longitude)) ? (
-              <Text style={styles.locationSummaryText}>Selected: {Number(mapSelection.latitude).toFixed(4)}, {Number(mapSelection.longitude).toFixed(4)}</Text>
-            ) : null}
+            <ManualLocationMap
+              center={mapSelectionDraft?.cameraCenter || manualLocation || deviceLocation || DEFAULT_PIN_LOCATION}
+              selection={mapSelectionDraft?.coordinate || null}
+              onPress={handleMapSelection}
+            />
+            {mapSelectionDraft?.coordinate ? (
+              <Text style={styles.locationSummaryText}>Selected: {Number(mapSelectionDraft.coordinate.latitude).toFixed(4)}, {Number(mapSelectionDraft.coordinate.longitude).toFixed(4)}</Text>
+            ) : <Text style={styles.locationSummaryText}>Tap the map to select a sample location.</Text>}
             <View style={styles.locationPickerActions}>
               <TouchableOpacity style={styles.locationPickerCancel} onPress={() => setLocationPickerVisible(false)}>
                 <Text style={styles.locationPickerCancelText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.locationPickerConfirm, (!mapSelection || !Number.isFinite(Number(mapSelection.latitude)) || !Number.isFinite(Number(mapSelection.longitude))) && styles.sampleConfirmDisabled]}
-                disabled={!mapSelection || !Number.isFinite(Number(mapSelection.latitude)) || !Number.isFinite(Number(mapSelection.longitude))}
+                style={[styles.locationPickerConfirm, !mapSelectionDraft?.coordinate && styles.sampleConfirmDisabled]}
+                disabled={!mapSelectionDraft?.coordinate}
                 onPress={handleManualLocationConfirm}
               >
                 <Text style={styles.locationPickerConfirmText}>Confirm pin</Text>
@@ -884,6 +869,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(17, 132, 176, 0.68)',
   },
   locationPickerText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  clearLocationButton: { marginTop: 4, alignSelf: 'flex-start', paddingHorizontal: 4, paddingVertical: 2 },
+  clearLocationText: { color: '#B9E8FA', fontSize: 11, fontWeight: '700', textDecorationLine: 'underline' },
   reactionInstruction: { marginTop: 5, color: '#D6EAF8', fontSize: 12, fontWeight: '700' },
   sampleModalBackdrop: {
     flex: 1,
@@ -933,31 +920,6 @@ const styles = StyleSheet.create({
   },
   sampleConfirmDisabled: { opacity: 0.45 },
   sampleConfirmText: { color: '#fff', fontWeight: '900' },
-  locationPickerMapWrap: {
-    marginTop: 16,
-    height: 240,
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#BBD9EF',
-    backgroundColor: '#dfeef9',
-  },
-  manualLocationMarker: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(21, 141, 176, 0.25)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#fff',
-  },
-  manualLocationMarkerInner: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#1588B5',
-  },
   locationSummaryText: {
     color: '#17324B',
     fontSize: 13,

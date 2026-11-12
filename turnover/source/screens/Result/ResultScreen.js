@@ -138,8 +138,14 @@ export default function ResultScreen() {
             </View>
             {payload.location && Number.isFinite(Number(payload.location.latitude)) && Number.isFinite(Number(payload.location.longitude)) ? (
               <View style={styles.metaRow}>
-                <Text style={styles.metaLabel}>Location</Text>
+                <Text style={styles.metaLabel}>Sample location</Text>
                 <Text style={styles.metaValue}>{Number(payload.location.latitude).toFixed(4)}, {Number(payload.location.longitude).toFixed(4)}</Text>
+              </View>
+            ) : null}
+            {payload.gps && Number.isFinite(Number(payload.gps.latitude)) && Number.isFinite(Number(payload.gps.longitude)) ? (
+              <View style={styles.metaRow}>
+                <Text style={styles.metaLabel}>Device GPS</Text>
+                <Text style={styles.metaValue}>{Number(payload.gps.latitude).toFixed(4)}, {Number(payload.gps.longitude).toFixed(4)}</Text>
               </View>
             ) : null}
             {payload.gpsAccuracyMeters != null ? (

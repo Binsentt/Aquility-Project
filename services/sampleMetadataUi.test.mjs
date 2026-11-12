@@ -49,5 +49,5 @@ test('scanner reports GPS failures and offers an explicit retry or continue choi
   assert.match(cameraSource, /Try Again/);
   assert.match(cameraSource, /Continue Without GPS/);
   assert.match(cameraSource, /Location\.getCurrentPositionAsync\(\{ accuracy: Location\.Accuracy\.Balanced \}\)/);
-  assert.match(cameraSource, /location,\s*barangay: currentUser\.barangay/);
+  assert.match(cameraSource, /location,\s*manualLocation,\s*barangay: currentUser\.barangay/);
 });

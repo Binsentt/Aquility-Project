@@ -8,6 +8,8 @@ function toWaterTest(row) {
     imagePath: row.imagePath,
     latitude: row.latitude,
     longitude: row.longitude,
+    manualLatitude: row.manualLatitude,
+    manualLongitude: row.manualLongitude,
     sampleClass: row.sampleClass,
     siteName: row.siteName,
     sourceType: row.sourceType,
@@ -51,6 +53,8 @@ const waterTestColumns = `
   wt.image_path AS "imagePath",
   wt.latitude,
   wt.longitude,
+  wt.manual_latitude AS "manualLatitude",
+  wt.manual_longitude AS "manualLongitude",
   wt.sample_class AS "sampleClass",
   wt.site_name AS "siteName",
   wt.source_type AS "sourceType",
@@ -90,17 +94,18 @@ export function createWaterTestModel(pool) {
       const { rows } = await pool.query(
         `WITH inserted AS (
            INSERT INTO water_tests (
-           user_id, image_path, latitude, longitude, sample_class, site_name, source_type, sample_code, sample_number, barangay, municipality, captured_at,
+           user_id, image_path, latitude, longitude, manual_latitude, manual_longitude, sample_class, site_name, source_type, sample_code, sample_number, barangay, municipality, captured_at,
              gps_accuracy_meters, gps_captured_at, canonical_latitude, canonical_longitude, estimated_ph, ph_status, estimated_nitrite, nitrite_status,
              measured_parameters_status, scientific_validation_status, lab_ph, lab_nitrite, analysis_data, overall_status, remarks
-           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)
+           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
            RETURNING *
          )
          SELECT ${waterTestColumns.replaceAll('wt.', 'inserted.')}
          FROM inserted
          JOIN users u ON u.id = inserted.user_id`,
         [
-          record.userId, record.imagePath, record.latitude, record.longitude, record.sampleClass, record.siteName, record.sourceType,
+          record.userId, record.imagePath, record.latitude, record.longitude, record.manualLatitude, record.manualLongitude,
+          record.sampleClass, record.siteName, record.sourceType,
           record.sampleCode, record.sampleNumber, record.barangay, record.municipality, record.capturedAt, record.gpsAccuracyMeters,
           record.gpsCapturedAt, record.canonicalLatitude, record.canonicalLongitude, record.estimatedPH, record.phStatus,
           record.estimatedNitrite, record.nitriteStatus, record.measuredParametersStatus, record.scientificValidationStatus,
@@ -181,7 +186,8 @@ export function createWaterTestModel(pool) {
 
     async listMarkers() {
       const { rows } = await pool.query(
-        `SELECT id, latitude, longitude, sample_class AS "sampleClass", site_name AS "siteName", source_type AS "sourceType",
+        `SELECT id, COALESCE(manual_latitude, latitude) AS latitude, COALESCE(manual_longitude, longitude) AS longitude,
+                sample_class AS "sampleClass", site_name AS "siteName", source_type AS "sourceType",
                 overall_status AS "overallStatus", captured_at AS "capturedAt", barangay, municipality,
                 estimated_ph AS "pH",
                 analysis_data #>> '{nitrite,displayValue}' AS "nitriteDisplay",
@@ -189,7 +195,7 @@ export function createWaterTestModel(pool) {
                 analysis_data #>> '{nitrite,value}' AS "nitriteValue",
                 analysis_data #>> '{nitrite,classificationStatus}' AS "nitriteClassificationStatus"
          FROM water_tests
-         WHERE latitude IS NOT NULL AND longitude IS NOT NULL
+         WHERE COALESCE(manual_latitude, latitude) IS NOT NULL AND COALESCE(manual_longitude, longitude) IS NOT NULL
          ORDER BY created_at DESC`
       );
       return rows.map((row) => {

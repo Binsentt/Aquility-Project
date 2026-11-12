@@ -53,6 +53,50 @@ test('toScanResult maps API values and canonicalizes a historical sample class/c
   assert.equal(scan.imageUri, 'http://localhost:4000/api/water-tests/3ec25331-d511-491f-a1b6-11670bc4a2d6/image?token=short-lived-token');
 });
 
+test('toScanResult keeps selected sample location separate from actual GPS', () => {
+  const scan = toScanResult({
+    analysisId: 'manual-location-record',
+    gps: { latitude: 14.6, longitude: 120.98 },
+    location: { latitude: 14.7, longitude: 121.1 },
+    manualLocation: { latitude: 14.7, longitude: 121.1 },
+    actualLatitude: 14.6,
+    actualLongitude: 120.98,
+  }, 'https://aquality.example.test/api');
+
+  assert.deepEqual(scan.location, { latitude: 14.7, longitude: 121.1 });
+  assert.deepEqual(scan.manualLocation, { latitude: 14.7, longitude: 121.1 });
+  assert.deepEqual(scan.gps, { latitude: 14.6, longitude: 120.98 });
+  assert.equal(scan.actualLatitude, 14.6);
+  assert.equal(scan.actualLongitude, 120.98);
+});
+
+test('toScanResult preserves legacy GPS-only location responses', () => {
+  const scan = toScanResult({
+    analysisId: 'legacy-location-record',
+    location: { latitude: 14.6, longitude: 120.98 },
+  }, 'https://aquality.example.test/api');
+
+  assert.deepEqual(scan.location, { latitude: 14.6, longitude: 120.98 });
+  assert.deepEqual(scan.gps, { latitude: 14.6, longitude: 120.98 });
+  assert.equal(scan.manualLocation, null);
+});
+
+test('toScanResult does not reinterpret a manual-only sample location as device GPS', () => {
+  const scan = toScanResult({
+    analysisId: 'manual-only-location-record',
+    location: { latitude: 14.7, longitude: 121.1 },
+    manualLocation: { latitude: 14.7, longitude: 121.1 },
+    gps: null,
+    actualLatitude: null,
+    actualLongitude: null,
+  }, 'https://aquality.example.test/api');
+
+  assert.deepEqual(scan.location, { latitude: 14.7, longitude: 121.1 });
+  assert.equal(scan.gps, null);
+  assert.equal(scan.actualLatitude, null);
+  assert.equal(scan.actualLongitude, null);
+});
+
 test('Result screen contract displays backend-returned pH and Nitrite values', () => {
   const scan = toScanResult({
     analysisId: 'backend-measured-values',

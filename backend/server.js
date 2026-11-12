@@ -22,6 +22,16 @@ const authTokenService = createAuthTokenService();
 const guestLifecycleService = createGuestLifecycleService({ userModel, guestArchiveDays: env.guestArchiveDays });
 const uploadDeletionService = createUploadDeletionService();
 const healthCheck = () => pool.query('SELECT 1');
+const manualLocationCheck = async () => {
+  const { rows } = await pool.query(`
+    SELECT COUNT(*) AS column_count
+    FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = 'water_tests'
+      AND column_name IN ('manual_latitude', 'manual_longitude')
+  `);
+  return Number(rows[0]?.column_count) === 2;
+};
 const analysisDebugLogger = createAnalysisDebugLogger(env.analysisDebug);
 const app = createApp({
   authService: createAuthService({ userModel }),
@@ -39,6 +49,7 @@ const app = createApp({
   accountService: createAccountService({ pool, userModel, waterTestModel, uploadDeletionService }),
   mapService: createMapService({ waterTestModel }),
   healthCheck,
+  manualLocationCheck,
 });
 
 let server = null;

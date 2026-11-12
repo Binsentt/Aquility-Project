@@ -51,6 +51,20 @@ test('buildPdfHtml includes public user data, strip image, chemistry, GPS, statu
   assert.doesNotMatch(html, /Copper|Cu²⁺|Cu2\+/i);
 });
 
+test('buildPdfHtml labels manual testing coordinates separately from actual device GPS', () => {
+  const html = buildPdfHtml({
+    test: {
+      location: { latitude: 14.7, longitude: 121.1 },
+      manualLocation: { latitude: 14.7, longitude: 121.1 },
+      gps: { latitude: 14.6, longitude: 120.98 },
+      resultData: {},
+    },
+  });
+
+  assert.match(html, /Sample location:<\/strong> 14\.7000, 121\.1000/);
+  assert.match(html, /Device GPS coordinates:<\/strong> 14\.6000, 120\.9800/);
+});
+
 test('buildPdfHtml renders unavailable scientific values without null or NaN text', () => {
   const html = buildPdfHtml({
     test: {

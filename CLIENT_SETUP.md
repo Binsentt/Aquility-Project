@@ -38,6 +38,8 @@ Set-Location ..
 
 The seed command validates the checked-in calibration JSON; it does not insert sample accounts or fake water-test records.
 
+The manual sample-location feature requires backend migration `008_add_manual_sample_location.sql` and the matching API code. This adds nullable manual coordinates without changing existing GPS columns or records. The API health response reports `features.manualSampleLocation: true` only when both columns are available. The client checks this before uploading a manually pinned scan; if the deployed server does not report support, that scan is not uploaded until the pin is cleared or the backend is updated. Deploy the backend update only through the approved release process.
+
 ## Daily Start Procedure
 
 Terminal 1, from the project root:

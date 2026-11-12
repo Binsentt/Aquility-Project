@@ -47,9 +47,15 @@ export function createWaterAnalysisService({ colorAnalysisEngine, waterTestModel
         }
 
         const { latitude, longitude } = validateCoordinates(metadata?.gpsLatitude, metadata?.gpsLongitude);
+        const { latitude: manualLatitude, longitude: manualLongitude } = validateCoordinates(
+          metadata?.manualLatitude,
+          metadata?.manualLongitude,
+        );
         const capturedAt = validateCapturedAt(metadata?.capturedAt);
-        const gpsCapturedAt = validateCapturedAt(metadata?.gpsCapturedAt || metadata?.capturedAt);
-        const gpsAccuracyMeters = validateGpsAccuracy(metadata?.gpsAccuracyMeters);
+        const gpsCapturedAt = latitude == null
+          ? null
+          : validateCapturedAt(metadata?.gpsCapturedAt, { required: false });
+        const gpsAccuracyMeters = latitude == null ? null : validateGpsAccuracy(metadata?.gpsAccuracyMeters);
         const barangay = validateOptionalText(metadata?.barangay, 'Barangay', 120);
         const municipality = validateOptionalText(metadata?.municipality, 'Municipality', 120);
         const sampleCode = validateSampleCode(metadata?.sampleCode);
@@ -78,7 +84,9 @@ export function createWaterAnalysisService({ colorAnalysisEngine, waterTestModel
         if (requestedSampleClass && !selectedSampleSite) {
           throw new HttpError(400, 'INVALID_SAMPLE_SITE', 'The sample class must be SA, A, or SB.');
         }
-        const sampleSite = selectedSampleSite || sampleSiteMatcher(latitude, longitude) || {
+        const sampleSite = selectedSampleSite
+          || sampleSiteMatcher(manualLatitude ?? latitude, manualLongitude ?? longitude)
+          || {
           classCode: null,
           siteName: 'Unknown sampling site',
           sourceType: null,
@@ -97,6 +105,8 @@ export function createWaterAnalysisService({ colorAnalysisEngine, waterTestModel
           imagePath: `/uploads/${storedFile.filename}`,
           latitude,
           longitude,
+          manualLatitude,
+          manualLongitude,
           sampleClass: resolvedSampleClass,
           siteName: sampleSite.siteName === 'Unknown sampling site' ? null : sampleSite.siteName,
           sourceType: sampleSite.sourceType,

@@ -184,6 +184,68 @@ test('analysis uploads use FormData without overriding the multipart boundary he
   }
 });
 
+test('analysis upload carries manual sample coordinates separately from actual GPS', async () => {
+  const originalFetch = global.fetch;
+  const requests = [];
+  global.fetch = async (url, options) => {
+    requests.push({ url, options });
+    return jsonResponse(201, { analysisId: 'analysis-manual-location' });
+  };
+
+  try {
+    await api.analyzeWater({
+      imageUri: 'file:///tmp/water-strip.jpg',
+      userId: 'user-1',
+      gpsLatitude: 14.6,
+      gpsLongitude: 120.98,
+      gpsAccuracyMeters: 7.5,
+      gpsCapturedAt: '2026-08-04T00:00:00.000Z',
+      manualLatitude: 14.7,
+      manualLongitude: 121.1,
+      capturedAt: '2026-08-04T00:01:00.000Z',
+    });
+
+    const body = requests[0].options.body;
+    assert.equal(body.get('gpsLatitude'), '14.6');
+    assert.equal(body.get('gpsLongitude'), '120.98');
+    assert.equal(body.get('gpsAccuracyMeters'), '7.5');
+    assert.equal(body.get('gpsCapturedAt'), '2026-08-04T00:00:00.000Z');
+    assert.equal(body.get('manualLatitude'), '14.7');
+    assert.equal(body.get('manualLongitude'), '121.1');
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test('manual-only uploads do not synthesize GPS accuracy or capture time', async () => {
+  const originalFetch = global.fetch;
+  const requests = [];
+  global.fetch = async (url, options) => {
+    requests.push({ url, options });
+    return jsonResponse(201, { analysisId: 'analysis-manual-only' });
+  };
+
+  try {
+    await api.analyzeWater({
+      imageUri: 'file:///tmp/water-strip.jpg',
+      userId: 'user-1',
+      manualLatitude: 14.7,
+      manualLongitude: 121.1,
+      capturedAt: '2026-08-04T00:01:00.000Z',
+    });
+
+    const body = requests[0].options.body;
+    assert.equal(body.get('gpsLatitude'), '');
+    assert.equal(body.get('gpsLongitude'), '');
+    assert.equal(body.get('gpsAccuracyMeters'), '');
+    assert.equal(body.get('gpsCapturedAt'), '');
+    assert.equal(body.get('manualLatitude'), '14.7');
+    assert.equal(body.get('manualLongitude'), '121.1');
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test('analysis upload preserves gallery filename and supported MIME metadata', () => {
   assert.deepEqual(
     normalizeImageAsset('content://media/strip-01.png', {

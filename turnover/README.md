@@ -13,7 +13,8 @@ This folder contains a sanitized handoff package for the AQUALITY project, limit
 - No production database dumps or user records are included.
 - No API tokens, JWT secrets, or credentials are stored here.
 - Any environment or secret values must come from the repository's ignored local `.env` files or GitHub secrets only.
+- Local `.env` files, uploads, dependency folders, and generated test logs are excluded from the source package.
 
 ## Verified scope
 
-The project includes the React Native + Expo client, the Node.js backend, the PostgreSQL migration set, and the scientific calibration data used by the analysis pipeline.
+The project includes the React Native + Expo client, the Node.js backend, the PostgreSQL migration set (including the additive manual sample-location migration), and the scientific calibration data used by the analysis pipeline.

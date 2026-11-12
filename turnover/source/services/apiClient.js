@@ -132,6 +132,9 @@ function jsonRequest(method, body) {
 }
 
 export const api = {
+  getHealth() {
+    return request('/health');
+  },
   createUser(payload) {
     return request('/users', jsonRequest('POST', payload));
   },
@@ -168,7 +171,7 @@ export const api = {
   },
   setAccessToken,
   clearAccessToken,
-  async analyzeWater({ imageUri, imageAsset, imageFile, uploadDiagnostics, multipartFetch, userId, gpsLatitude, gpsLongitude, gpsAccuracyMeters, gpsCapturedAt, barangay, municipality, sampleClass, sampleCode, sampleNumber, siteName, sourceType, capturedAt }) {
+  async analyzeWater({ imageUri, imageAsset, imageFile, uploadDiagnostics, multipartFetch, userId, gpsLatitude, gpsLongitude, gpsAccuracyMeters, gpsCapturedAt, manualLatitude, manualLongitude, barangay, municipality, sampleClass, sampleCode, sampleNumber, siteName, sourceType, capturedAt }) {
     if (!imageUri) {
       throw new ApiError(400, 'A captured water-test image is required.', 'IMAGE_REQUIRED');
     }
@@ -198,7 +201,9 @@ export const api = {
     formData.append('gpsLatitude', gpsLatitude == null ? '' : String(gpsLatitude));
     formData.append('gpsLongitude', gpsLongitude == null ? '' : String(gpsLongitude));
     formData.append('gpsAccuracyMeters', gpsAccuracyMeters == null ? '' : String(gpsAccuracyMeters));
-    formData.append('gpsCapturedAt', gpsCapturedAt || capturedAt || '');
+    formData.append('gpsCapturedAt', gpsCapturedAt || '');
+    formData.append('manualLatitude', manualLatitude == null ? '' : String(manualLatitude));
+    formData.append('manualLongitude', manualLongitude == null ? '' : String(manualLongitude));
     formData.append('barangay', barangay || '');
     formData.append('municipality', municipality || '');
     formData.append('sampleClass', sampleClass || '');

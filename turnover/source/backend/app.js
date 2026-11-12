@@ -29,7 +29,7 @@ function corsOptions() {
   };
 }
 
-export function createApp({ authService, authTokenService, userService, waterAnalysisService, waterTestService, mapService, guestLifecycleService, accountService, healthCheck, trustProxyHops = env.trustProxyHops } = {}) {
+export function createApp({ authService, authTokenService, userService, waterAnalysisService, waterTestService, mapService, guestLifecycleService, accountService, healthCheck, manualLocationCheck, trustProxyHops = env.trustProxyHops } = {}) {
   const app = express();
   const needsAuthentication = Boolean(authService || userService || waterAnalysisService || waterTestService || mapService);
   if (needsAuthentication && !authTokenService) {
@@ -47,7 +47,7 @@ export function createApp({ authService, authTokenService, userService, waterAna
   app.use(cors(corsOptions()));
   app.use(express.json({ limit: REQUEST_BODY_LIMIT }));
   app.use(express.urlencoded({ extended: true, limit: REQUEST_BODY_LIMIT }));
-  app.use('/api/health', createHealthRoutes({ healthCheck }));
+  app.use('/api/health', createHealthRoutes({ healthCheck, manualLocationCheck }));
   if (authService) {
     const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 15, standardHeaders: true, legacyHeaders: false, message: { error: { code: 'RATE_LIMITED', message: 'Too many login attempts. Please try again later.' } } });
     app.use('/api/auth', loginLimiter, createAuthRoutes({ authService, authTokenService, guestLifecycleService, requireAuth }));

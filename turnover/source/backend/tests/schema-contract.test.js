@@ -7,6 +7,7 @@ const copperRemovalMigrationUrl = new URL('../database/migrations/004_remove_cop
 const nitriteMigrationUrl = new URL('../database/migrations/005_add_nitrite_analysis.sql', import.meta.url);
 const sampleSiteMigrationUrl = new URL('../database/migrations/006_add_sample_site_metadata.sql', import.meta.url);
 const scientificMetadataMigrationUrl = new URL('../database/migrations/007_add_scientific_sample_metadata.sql', import.meta.url);
+const manualLocationMigrationUrl = new URL('../database/migrations/008_add_manual_sample_location.sql', import.meta.url);
 
 test('initial schema defines users and water_tests with credentials, results, and GPS columns', async () => {
   const sql = await readFile(migrationUrl, 'utf8');
@@ -58,4 +59,14 @@ test('scientific metadata migration adds nullable lab/GPS fields and supports no
   }
   assert.match(sql, /NOT CLASSIFIED/i);
   assert.doesNotMatch(sql, /estimated_copper|copper_status/i);
+});
+
+test('manual-location migration adds nullable testing coordinates without changing GPS history', async () => {
+  const sql = await readFile(manualLocationMigrationUrl, 'utf8');
+
+  assert.match(sql, /ADD COLUMN IF NOT EXISTS manual_latitude DOUBLE PRECISION/i);
+  assert.match(sql, /ADD COLUMN IF NOT EXISTS manual_longitude DOUBLE PRECISION/i);
+  assert.match(sql, /manual_latitude IS NULL/i);
+  assert.match(sql, /manual_longitude IS NULL/i);
+  assert.doesNotMatch(sql, /UPDATE water_tests|DROP COLUMN/i);
 });

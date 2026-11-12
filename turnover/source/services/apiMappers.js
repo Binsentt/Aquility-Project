@@ -79,6 +79,11 @@ export function toScanResult(waterTest = {}, apiBaseUrl) {
     || waterTest.resultData?.['Nitrite Status']
     || null;
   const imageUri = resolveMediaUrl(waterTest.imageUri || waterTest.imagePath, apiBaseUrl);
+  const manualLocation = waterTest.manualLocation || null;
+  const gps = waterTest.gps || (waterTest.actualLatitude != null && waterTest.actualLongitude != null
+    ? { latitude: waterTest.actualLatitude, longitude: waterTest.actualLongitude }
+    : (!manualLocation ? waterTest.location || null : null));
+  const location = waterTest.location || manualLocation || gps;
   const overallStatus = waterTest.overallStatus && waterTest.overallStatus !== 'Unvalidated'
     ? waterTest.overallStatus
     : 'NOT CLASSIFIED';
@@ -127,9 +132,11 @@ export function toScanResult(waterTest = {}, apiBaseUrl) {
     images: imageUri ? [imageUri] : [],
     imageUri,
     image: imageUri,
-    location: waterTest.gps || waterTest.location || null,
-    actualLatitude: waterTest.actualLatitude ?? waterTest.gps?.latitude ?? waterTest.location?.latitude ?? null,
-    actualLongitude: waterTest.actualLongitude ?? waterTest.gps?.longitude ?? waterTest.location?.longitude ?? null,
+    location,
+    gps,
+    manualLocation,
+    actualLatitude: waterTest.actualLatitude ?? gps?.latitude ?? null,
+    actualLongitude: waterTest.actualLongitude ?? gps?.longitude ?? null,
     barangay: waterTest.barangay || null,
     municipality: waterTest.municipality || null,
     sampleClass,
