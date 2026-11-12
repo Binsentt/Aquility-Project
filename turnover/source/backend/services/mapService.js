@@ -1,4 +1,4 @@
-import { canonicalizeSampleClass } from './sampleSites.js';
+import { canonicalizeSampleClass, canonicalizeSampleCode } from './sampleSites.js';
 
 function nullableText(value) {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
@@ -30,6 +30,7 @@ export function createMapService({ waterTestModel }) {
             barangay: nullableText(marker.barangay),
             municipality: nullableText(marker.municipality),
             sampleClass: canonicalizeSampleClass(marker.sampleClass) || nullableText(marker.sampleClass),
+            sampleCode: canonicalizeSampleCode(marker.sampleCode) || nullableText(marker.sampleCode),
             siteName: nullableText(marker.siteName),
             sourceType: nullableText(marker.sourceType),
             pH: nullableNumber(marker.pH),

@@ -140,7 +140,7 @@ export function toScanResult(waterTest = {}, apiBaseUrl) {
     barangay: waterTest.barangay || null,
     municipality: waterTest.municipality || null,
     sampleClass,
-    siteName: waterTest.siteName || waterTest.sampleSite?.siteName || 'Unknown sampling site',
+    siteName: waterTest.siteName || waterTest.sampleSite?.siteName || null,
     sourceType: waterTest.sourceType || waterTest.sampleSite?.sourceType || null,
     user: waterTest.user || null,
     userId: waterTest.userId || waterTest.user?.id || null,
@@ -206,7 +206,9 @@ export function toMapMarker(payload = {}) {
   const overallStatus = payload.overallStatus || payload.status || 'NOT CLASSIFIED';
   const sampleClassInput = payload.sampleClass || null;
   const sampleClass = canonicalizeSampleClass(sampleClassInput) || sampleClassInput;
-  const siteName = payload.siteName || 'Unknown sampling site';
+  const sampleCodeInput = payload.sampleCode || null;
+  const sampleCode = canonicalizeSampleCode(sampleCodeInput) || sampleCodeInput;
+  const siteName = payload.siteName || null;
   const pH = finiteMeasurement(payload.pH);
   const nitriteDisplayInput = [
     payload.nitriteDisplay,
@@ -228,7 +230,7 @@ export function toMapMarker(payload = {}) {
   return {
     id,
     coordinate,
-    title: sampleClass && siteName ? `Class ${sampleClass} — ${siteName}` : (siteName || 'Water Test'),
+    title: sampleClass && siteName ? `Class ${sampleClass} — ${siteName}` : (sampleCode || siteName || 'Water Test'),
     description: overallStatus,
     barangay: payload.barangay || 'Unavailable',
     municipality: payload.municipality || 'Unavailable',
@@ -236,6 +238,7 @@ export function toMapMarker(payload = {}) {
     pinColor: markerColorFor(overallStatus),
     createdAt,
     sampleClass,
+    sampleCode,
     siteName,
     sourceType: payload.sourceType || null,
     pH,

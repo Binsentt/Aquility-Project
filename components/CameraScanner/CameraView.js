@@ -32,17 +32,12 @@ import {
   createManualLocationDraft,
   selectManualLocation,
 } from '../../services/manualLocationSelection';
-import { officialReactionInstruction } from '../../services/officialReactionProtocol';
 import { nativeMultipartFetch, prepareNativeMultipartFile } from '../../services/nativeMultipartUpload';
 import { createUploadDiagnostics } from '../../services/uploadDiagnostics';
+import { unclassifiedSampleCodeForNumber } from '../../services/sampleSites';
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const scannerDebugEnabled = process.env.NODE_ENV === 'development' || process.env.EXPO_PUBLIC_AQUALITY_DEBUG === 'true';
-const SAMPLE_CLASSES = [
-  { code: 'SA', siteName: 'Pawikan', sourceType: 'Coastal / Pawikan' },
-  { code: 'A', siteName: 'Well', sourceType: 'Well / Groundwater' },
-  { code: 'SB', siteName: 'Fish Farm', sourceType: 'Fish Farm / Aquaculture' },
-];
 const SAMPLE_NUMBERS = Array.from({ length: 15 }, (_, index) => index + 1);
 const DEFAULT_PIN_LOCATION = { latitude: 14.5995, longitude: 120.9842 };
 
@@ -133,7 +128,6 @@ const CameraView = React.memo(function CameraView({
   const [isDocumentAligned, setIsDocumentAligned] = useState(false);
   const [alignmentMessage, setAlignmentMessage] = useState('Center the water-test strip in the guide.');
   const [selectedImage, setSelectedImage] = useState(null);
-  const [selectedSampleClass, setSelectedSampleClass] = useState(null);
   const [selectedSampleNumber, setSelectedSampleNumber] = useState(null);
   const [sampleSelectionVisible, setSampleSelectionVisible] = useState(false);
   const [manualLocation, setManualLocation] = useState(null);
@@ -152,10 +146,7 @@ const CameraView = React.memo(function CameraView({
   const focusTimerRef = useRef(null);
   const isMountedRef = useRef(true);
   const bottomInset = Math.max(insets.bottom, 16);
-  const selectedSampleCode = selectedSampleClass && selectedSampleNumber
-    ? `${selectedSampleClass}-${String(selectedSampleNumber).padStart(2, '0')}`
-    : null;
-  const selectedReactionInstruction = officialReactionInstruction(selectedSampleClass);
+  const selectedSampleCode = unclassifiedSampleCodeForNumber(selectedSampleNumber);
 
   useEffect(() => {
     if (permission?.status === 'undetermined') {
@@ -354,7 +345,7 @@ const CameraView = React.memo(function CameraView({
       return;
     }
 
-    if (!selectedSampleClass || !selectedSampleNumber) {
+    if (!selectedSampleNumber) {
       setSampleSelectionVisible(true);
       return;
     }
@@ -438,7 +429,7 @@ const CameraView = React.memo(function CameraView({
         barangay: currentUser.barangay,
         municipality: currentUser.municipality,
         capturedAt: new Date().toISOString(),
-        sampleClass: selectedSampleClass,
+        sampleClass: null,
         sampleCode: selectedSampleCode,
         sampleNumber: selectedSampleNumber,
       });
@@ -469,7 +460,7 @@ const CameraView = React.memo(function CameraView({
         setProcessing(false);
       }
     }
-  }, [addScanResult, capturedImages, currentUser, manualLocation, navigation, processing, selectedSampleClass, selectedSampleCode, selectedSampleNumber, submitCommitted]);
+  }, [addScanResult, capturedImages, currentUser, manualLocation, navigation, processing, selectedSampleCode, selectedSampleNumber, submitCommitted]);
 
   const handleShareExactUpload = useCallback(async () => {
     if (!scannerDebugEnabled || !capturedImages.length) return;
@@ -621,7 +612,7 @@ const CameraView = React.memo(function CameraView({
         <Text style={styles.assistTitle}>{autoScan ? 'Assisted capture' : 'Manual capture'}</Text>
         <Text style={[styles.assistText, isDocumentAligned && styles.assistTextActive]}>{alignmentMessage}</Text>
         <TouchableOpacity style={styles.samplePickerButton} onPress={() => setSampleSelectionVisible(true)} activeOpacity={0.85}>
-          <Text style={styles.samplePickerText}>{selectedSampleCode ? `Sample ${selectedSampleCode} · ${SAMPLE_CLASSES.find((entry) => entry.code === selectedSampleClass)?.siteName}` : 'Select sample class and number'}</Text>
+          <Text style={styles.samplePickerText}>{selectedSampleCode ? `Sample ${selectedSampleCode}` : 'Select sample number'}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.locationPickerButton} onPress={handleLocationPickerOpen} activeOpacity={0.85}>
           <Text style={styles.locationPickerText}>
@@ -642,7 +633,7 @@ const CameraView = React.memo(function CameraView({
             <Text style={styles.clearLocationText}>Clear pin</Text>
           </TouchableOpacity>
         ) : null}
-        {selectedReactionInstruction ? <Text style={styles.reactionInstruction}>{selectedReactionInstruction}</Text> : null}
+        <Text style={styles.reactionInstruction}>Follow the approved reaction time for your test strip.</Text>
       </View>
 
       <Modal
@@ -654,20 +645,7 @@ const CameraView = React.memo(function CameraView({
         <View style={styles.sampleModalBackdrop}>
           <View style={styles.sampleModalCard}>
             <Text style={styles.sampleModalTitle}>Select water sample</Text>
-            <Text style={styles.sampleModalHint}>Choose the study class and sample number before analysis.</Text>
-            <Text style={styles.sampleModalLabel}>Sample class</Text>
-            <View style={styles.sampleOptionRow}>
-              {SAMPLE_CLASSES.map((entry) => (
-                <TouchableOpacity
-                  key={entry.code}
-                  style={[styles.sampleOption, selectedSampleClass === entry.code && styles.sampleOptionSelected]}
-                  onPress={() => setSelectedSampleClass(entry.code)}
-                >
-                  <Text style={[styles.sampleOptionText, selectedSampleClass === entry.code && styles.sampleOptionTextSelected]}>{entry.code}</Text>
-                  <Text style={[styles.sampleOptionSubtext, selectedSampleClass === entry.code && styles.sampleOptionTextSelected]}>{entry.siteName}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            <Text style={styles.sampleModalHint}>Choose a sample number to identify this test. No water classification is assigned.</Text>
             <Text style={styles.sampleModalLabel}>Sample number</Text>
             <View style={styles.sampleNumberGrid}>
               {SAMPLE_NUMBERS.map((number) => (
@@ -681,8 +659,8 @@ const CameraView = React.memo(function CameraView({
               ))}
             </View>
             <TouchableOpacity
-              style={[styles.sampleConfirmButton, (!selectedSampleClass || !selectedSampleNumber) && styles.sampleConfirmDisabled]}
-              disabled={!selectedSampleClass || !selectedSampleNumber}
+              style={[styles.sampleConfirmButton, !selectedSampleNumber && styles.sampleConfirmDisabled]}
+              disabled={!selectedSampleNumber}
               onPress={() => setSampleSelectionVisible(false)}
             >
               <Text style={styles.sampleConfirmText}>{selectedSampleCode ? `Use ${selectedSampleCode}` : 'Select a sample'}</Text>
@@ -887,7 +865,6 @@ const styles = StyleSheet.create({
   sampleModalTitle: { color: '#082744', fontSize: 20, fontWeight: '900' },
   sampleModalHint: { color: '#527087', marginTop: 6, lineHeight: 20 },
   sampleModalLabel: { color: '#17324B', fontSize: 13, fontWeight: '800', marginTop: 16, marginBottom: 8 },
-  sampleOptionRow: { flexDirection: 'row', gap: 8 },
   sampleOption: {
     flex: 1,
     minHeight: 54,
@@ -899,7 +876,6 @@ const styles = StyleSheet.create({
   },
   sampleOptionSelected: { backgroundColor: '#0D4C7A' },
   sampleOptionText: { color: '#17324B', fontSize: 14, fontWeight: '900' },
-  sampleOptionSubtext: { color: '#527087', fontSize: 10, marginTop: 2 },
   sampleOptionTextSelected: { color: '#fff' },
   sampleNumberGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   sampleNumberOption: {

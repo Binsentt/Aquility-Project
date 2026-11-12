@@ -1,6 +1,6 @@
 import { ApiError, api, getApiBaseUrl } from './apiClient.js';
 import { toScanResult } from './apiMappers.js';
-import { matchSampleSite, sampleSiteForClass } from './sampleSites.js';
+import { sampleSiteForClass } from './sampleSites.js';
 
 export async function analyzeWaterTest(imageUri, metadata = {}) {
   if (metadata.manualLocation) {
@@ -16,8 +16,7 @@ export async function analyzeWaterTest(imageUri, metadata = {}) {
 
   const sampleLocation = metadata.manualLocation || metadata.location;
   const sampleSite = metadata.sampleSite
-    || sampleSiteForClass(metadata.sampleClass)
-    || matchSampleSite(sampleLocation?.latitude, sampleLocation?.longitude);
+    || sampleSiteForClass(metadata.sampleClass);
   const waterTest = await api.analyzeWater({
     imageUri,
     imageAsset: metadata.imageAsset,
@@ -33,7 +32,7 @@ export async function analyzeWaterTest(imageUri, metadata = {}) {
     manualLongitude: metadata.manualLocation?.longitude,
     barangay: metadata.barangay,
     municipality: metadata.municipality,
-    sampleClass: metadata.sampleClass || sampleSite?.classCode,
+    sampleClass: metadata.sampleClass || sampleSite?.classCode || null,
     sampleCode: metadata.sampleCode,
     sampleNumber: metadata.sampleNumber,
     siteName: sampleSite?.siteName === 'Unknown sampling site' ? null : sampleSite?.siteName,

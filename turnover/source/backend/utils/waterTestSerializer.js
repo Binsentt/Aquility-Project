@@ -110,11 +110,11 @@ export function serializeWaterTest(record, authTokenService = null) {
     sampleClass,
     sampleCode,
     sampleNumber: record.sampleNumber == null ? null : Number(record.sampleNumber),
-    siteName: record.siteName || 'Unknown sampling site',
+    siteName: record.siteName || null,
     sourceType: record.sourceType || null,
     sampleSite: {
       classCode: sampleClass,
-      siteName: record.siteName || 'Unknown sampling site',
+      siteName: record.siteName || null,
       sourceType: record.sourceType || null,
     },
     barangay: record.barangay,

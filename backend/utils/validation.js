@@ -98,7 +98,7 @@ export function validateSampleCode(value) {
   const sampleCode = text(value, 'Sample code', { maxLength: 6 });
   if (!sampleCode) return null;
   const canonicalSampleCode = canonicalizeSampleCode(sampleCode);
-  if (!canonicalSampleCode) throw new HttpError(400, 'INVALID_SAMPLE_CODE', 'Sample code must use SA-01 to SA-15, A-01 to A-15, or SB-01 to SB-15.');
+  if (!canonicalSampleCode) throw new HttpError(400, 'INVALID_SAMPLE_CODE', 'Sample code must use AQ-01 to AQ-15 or a historical SA-01 to SA-15, A-01 to A-15, or SB-01 to SB-15 code.');
   return canonicalSampleCode;
 }
 

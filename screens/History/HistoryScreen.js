@@ -5,6 +5,13 @@ import { COLORS, LAYOUT, RADII, SHADOWS, SIZES, SPACING } from '../../styles/the
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../context/AuthContext';
 
+function sampleMetadataLabel(item) {
+  const knownMetadata = [item.sampleClass, item.siteName, item.sourceType]
+    .filter((value) => value && value !== 'Unknown sampling site');
+  if (knownMetadata.length) return knownMetadata.join(' · ');
+  return item.sampleCode ? `Sample ${item.sampleCode}` : 'Classification not assigned';
+}
+
 export default function HistoryScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const navigation = useNavigation();
@@ -22,7 +29,7 @@ export default function HistoryScreen() {
     if (!searchQuery.trim()) return scanHistory;
 
     return scanHistory.filter((item) => {
-      const haystack = `${item.title || ''} ${item.status || ''} ${item.scanStatus || ''} ${item.sampleClass || ''} ${item.siteName || ''} ${item.sourceType || ''} ${item.summary || ''}`.toLowerCase();
+      const haystack = `${item.title || ''} ${item.status || ''} ${item.scanStatus || ''} ${item.sampleClass || ''} ${item.sampleCode || ''} ${item.siteName || ''} ${item.sourceType || ''} ${item.summary || ''}`.toLowerCase();
       return haystack.includes(searchQuery.trim().toLowerCase());
     });
   }, [scanHistory, searchQuery]);
@@ -76,9 +83,7 @@ export default function HistoryScreen() {
               ) : null}
 
               <Text style={styles.cardDate}>{new Date(item.createdAt || Date.now()).toLocaleString()}</Text>
-              <Text style={styles.cardSite}>
-                {item.sampleClass || 'Unknown'} · {item.siteName || 'Unknown sampling site'} · {item.sourceType || 'Unknown source'}
-              </Text>
+              <Text style={styles.cardSite}>{sampleMetadataLabel(item)}</Text>
               <Text style={styles.cardScientific}>pH: {item.resultData?.pH || 'Unavailable'} · Nitrite: {item.resultData?.Nitrite || 'Unavailable'}</Text>
               <Text numberOfLines={2} style={styles.cardSummary}>
                 {item.summary || 'No summary available.'}

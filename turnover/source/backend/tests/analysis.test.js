@@ -50,16 +50,15 @@ test('analysis service stores upload metadata and returns a stable result shape'
   assert.equal(result.imagePath, '/uploads/strip.jpg');
 });
 
-test('analysis service stores actual GPS alongside server-matched sampling-site identity', async () => {
+test('analysis service never infers sample class or site from GPS coordinates', async () => {
   let createdRecord;
+  let matcherCalls = 0;
   const service = createWaterAnalysisService({
     colorAnalysisEngine: { async analyze() { return sampleMeasurements; } },
-    sampleSiteMatcher: () => ({
-      classCode: 'AA',
-      siteName: 'Pawikan',
-      sourceType: 'Coastal / Pawikan',
-      distanceMeters: 12,
-    }),
+    sampleSiteMatcher: () => {
+      matcherCalls += 1;
+      return { classCode: 'AA', siteName: 'Pawikan', sourceType: 'Coastal / Pawikan', distanceMeters: 12 };
+    },
     waterTestModel: {
       async create(record) {
         createdRecord = record;
@@ -74,6 +73,8 @@ test('analysis service stores actual GPS alongside server-matched sampling-site 
       userId: '8ed82724-1db6-452a-a872-f6e5c81d8b5a',
       gpsLatitude: '14.6',
       gpsLongitude: '120.98',
+      sampleCode: 'AQ-01',
+      sampleNumber: '1',
       capturedAt: '2026-08-04T00:00:00.000Z',
     },
     authenticatedUserId: '8ed82724-1db6-452a-a872-f6e5c81d8b5a',
@@ -81,11 +82,14 @@ test('analysis service stores actual GPS alongside server-matched sampling-site 
 
   assert.equal(createdRecord.latitude, 14.6);
   assert.equal(createdRecord.longitude, 120.98);
-  assert.equal(createdRecord.sampleClass, 'SA');
-  assert.equal(createdRecord.siteName, 'Pawikan');
-  assert.equal(createdRecord.sourceType, 'Coastal / Pawikan');
-  assert.equal(result.sampleClass, 'SA');
-  assert.equal(result.siteName, 'Pawikan');
+  assert.equal(matcherCalls, 0);
+  assert.equal(createdRecord.sampleClass, null);
+  assert.equal(createdRecord.siteName, null);
+  assert.equal(createdRecord.sourceType, null);
+  assert.equal(createdRecord.sampleCode, 'AQ-01');
+  assert.equal(createdRecord.sampleNumber, 1);
+  assert.equal(result.sampleClass, null);
+  assert.equal(result.siteName, null);
 });
 
 test('analysis service stores manual sample coordinates separately from actual GPS', async () => {
@@ -184,9 +188,9 @@ test('analysis service preserves an explicitly selected sample code when canonic
 
   assert.equal(createdRecord.sampleCode, 'SA-03');
   assert.equal(createdRecord.sampleNumber, null);
-  assert.equal(createdRecord.sampleClass, 'SA');
-  assert.equal(createdRecord.siteName, 'Pawikan');
-  assert.equal(createdRecord.sourceType, 'Coastal / Pawikan');
+  assert.equal(createdRecord.sampleClass, null);
+  assert.equal(createdRecord.siteName, null);
+  assert.equal(createdRecord.sourceType, null);
 });
 
 test('analysis diagnostics carry a request-correlated analysis id without user data', async () => {

@@ -187,7 +187,7 @@ export function createWaterTestModel(pool) {
     async listMarkers() {
       const { rows } = await pool.query(
         `SELECT id, COALESCE(manual_latitude, latitude) AS latitude, COALESCE(manual_longitude, longitude) AS longitude,
-                sample_class AS "sampleClass", site_name AS "siteName", source_type AS "sourceType",
+                sample_class AS "sampleClass", sample_code AS "sampleCode", site_name AS "siteName", source_type AS "sourceType",
                 overall_status AS "overallStatus", captured_at AS "capturedAt", barangay, municipality,
                 estimated_ph AS "pH",
                 analysis_data #>> '{nitrite,displayValue}' AS "nitriteDisplay",
@@ -221,6 +221,7 @@ export function createWaterTestModel(pool) {
           barangay: row.barangay,
           municipality: row.municipality,
           sampleClass: row.sampleClass,
+          sampleCode: row.sampleCode,
           siteName: row.siteName,
           sourceType: row.sourceType,
           pH: Number.isFinite(pH) ? pH : null,

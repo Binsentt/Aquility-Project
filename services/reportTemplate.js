@@ -53,8 +53,13 @@ export function buildPdfHtml({ user = {}, test = {}, brandImageUri = null } = {}
     || test.nitriteStatus
     || test.nitrite?.status
     || 'Unavailable';
-  const sampleClass = canonicalizeSampleClass(test.sampleClass) || test.sampleClass || 'Unknown';
+  const sampleClass = canonicalizeSampleClass(test.sampleClass) || test.sampleClass || null;
   const sampleCode = canonicalizeSampleCode(test.sampleCode) || test.sampleCode || 'Unavailable';
+  const sampleMetadata = [
+    sampleClass ? `<strong>Sample class:</strong> ${escapeHtml(sampleClass)}` : null,
+    test.siteName && test.siteName !== 'Unknown sampling site' ? `<strong>Sampling site:</strong> ${escapeHtml(test.siteName)}` : null,
+    test.sourceType ? `<strong>Water source:</strong> ${escapeHtml(test.sourceType)}` : null,
+  ].filter(Boolean).join('<br>');
   const roiColors = `pH ROI median RGB: ${formatRgb(test.pHResult?.measuredRGB)}; Nitrite ROI median RGB: ${formatRgb(test.nitrite?.measuredRGB)}`;
 
   return `
@@ -80,9 +85,7 @@ export function buildPdfHtml({ user = {}, test = {}, brandImageUri = null } = {}
         <strong>Device GPS coordinates:</strong> ${escapeHtml(gpsCoordinates)}<br>
         <strong>Sample code:</strong> ${escapeHtml(sampleCode)}<br>
         <strong>Sample number:</strong> ${escapeHtml(test.sampleNumber == null ? 'Unavailable' : test.sampleNumber)}<br>
-        <strong>Sample class:</strong> ${escapeHtml(sampleClass)}<br>
-        <strong>Sampling site:</strong> ${escapeHtml(test.siteName || 'Unknown sampling site')}<br>
-        <strong>Water source:</strong> ${escapeHtml(test.sourceType || 'Unknown')}<br>
+        ${sampleMetadata ? `${sampleMetadata}<br>` : ''}
         <strong>Reaction/immersion time:</strong> ${escapeHtml(reactionTime == null ? 'Not supplied' : reactionTime)}${mapUrl ? `<br><strong>Map location:</strong> <a href="${escapeHtml(mapUrl)}">Open map location</a>` : ''}</p>
         ${stripImage ? `<h2 style="font-size: 18px; border-bottom: 1px solid #D8E6EE; padding-bottom: 6px;">Captured Test Strip</h2><img src="${escapeHtml(stripImage)}" style="width: 100%; max-height: 320px; object-fit: contain; border-radius: 10px; border: 1px solid #D8E6EE;">` : ''}
         <h2 style="font-size: 18px; border-bottom: 1px solid #D8E6EE; padding-bottom: 6px;">Estimated Results</h2>

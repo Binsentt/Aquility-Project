@@ -299,6 +299,21 @@ test('historical map marker classes are normalized in marker titles', () => {
   assert.equal(toMapMarker({ id: 'well', latitude: 14.6, longitude: 120.98, sampleClass: 'A', siteName: 'Well' }).sampleClass, 'A');
 });
 
+test('classless sample codes identify new map markers without inventing a class', () => {
+  const marker = toMapMarker({
+    id: 'classless-marker',
+    latitude: 14.6,
+    longitude: 120.98,
+    sampleClass: null,
+    sampleCode: 'AQ-01',
+    siteName: null,
+  });
+
+  assert.equal(marker.sampleClass, null);
+  assert.equal(marker.sampleCode, 'AQ-01');
+  assert.equal(marker.title, 'AQ-01');
+});
+
 test('map API failure and location denial resolve to safe empty values', () => {
   assert.deepEqual(safeMapFeed(null), []);
   assert.deepEqual(safeMapFeed({ items: null }), []);

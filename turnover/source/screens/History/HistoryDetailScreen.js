@@ -231,20 +231,26 @@ export default function HistoryDetailScreen({ route, navigation }) {
           </View>
         ) : null}
 
-        {sampleClass || item.siteName || item.sourceType ? (
+        {sampleClass || (item.siteName && item.siteName !== 'Unknown sampling site') || item.sourceType ? (
           <>
-            <View style={styles.fieldRow}>
-              <Text style={styles.fieldLabel}>Sample class</Text>
-              <Text style={styles.fieldValue}>{sampleClass || 'Unknown'}</Text>
-            </View>
-            <View style={styles.fieldRow}>
-              <Text style={styles.fieldLabel}>Sampling site</Text>
-              <Text style={styles.fieldValue}>{item.siteName || 'Unknown sampling site'}</Text>
-            </View>
-            <View style={styles.fieldRow}>
-              <Text style={styles.fieldLabel}>Water source</Text>
-              <Text style={styles.fieldValue}>{item.sourceType || 'Unknown'}</Text>
-            </View>
+            {sampleClass ? (
+              <View style={styles.fieldRow}>
+                <Text style={styles.fieldLabel}>Sample class</Text>
+                <Text style={styles.fieldValue}>{sampleClass}</Text>
+              </View>
+            ) : null}
+            {item.siteName && item.siteName !== 'Unknown sampling site' ? (
+              <View style={styles.fieldRow}>
+                <Text style={styles.fieldLabel}>Sampling site</Text>
+                <Text style={styles.fieldValue}>{item.siteName}</Text>
+              </View>
+            ) : null}
+            {item.sourceType ? (
+              <View style={styles.fieldRow}>
+                <Text style={styles.fieldLabel}>Water source</Text>
+                <Text style={styles.fieldValue}>{item.sourceType}</Text>
+              </View>
+            ) : null}
           </>
         ) : null}
 

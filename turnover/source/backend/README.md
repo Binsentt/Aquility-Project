@@ -9,8 +9,6 @@
 5. Run `npm run db:seed` to validate the configured client calibration structure.
 6. Start the API with `npm start`, then verify `GET http://localhost:4000/api/health` returns `database: "connected"`.
 
-Migration `008_add_manual_sample_location.sql` adds nullable manual sample coordinates without changing device GPS or rewriting existing records. After migration, `/api/health` reports `features.manualSampleLocation: true`; clients check this before uploading a manually pinned scan.
-
 The Expo app reads `EXPO_PUBLIC_API_BASE_URL` from the root `.env` file. Use `http://localhost:4000/api` for web, `http://10.0.2.2:4000/api` for an Android emulator, or `http://<LAPTOP_LAN_IP>:4000/api` for a physical phone. Keep the phone and computer on the same private Wi-Fi and allow port 4000 through the Windows Firewall only on that private network if prompted. Verify reachability from the phone browser at `http://<LAPTOP_LAN_IP>:4000/api/health`.
 
 See [`../docs/DEPLOYMENT.md`](../docs/DEPLOYMENT.md) for environment, local PostgreSQL/VS Code connection values, migration, and release steps, and [`../docs/API.md`](../docs/API.md) for request/response contracts.

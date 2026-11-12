@@ -18,8 +18,15 @@ export function canonicalizeSampleClass(classCode) {
 export function canonicalizeSampleCode(sampleCode) {
   if (typeof sampleCode !== 'string') return null;
   const match = /^(AA|SA|A|C|SB)-(0[1-9]|1[0-5])$/i.exec(sampleCode.trim());
-  if (!match) return null;
-  return `${canonicalizeSampleClass(match[1])}-${match[2]}`;
+  if (match) return `${canonicalizeSampleClass(match[1])}-${match[2]}`;
+  const unclassifiedMatch = /^AQ-(0[1-9]|1[0-5])$/i.exec(sampleCode.trim());
+  return unclassifiedMatch ? `AQ-${unclassifiedMatch[1]}` : null;
+}
+
+export function unclassifiedSampleCodeForNumber(sampleNumber) {
+  const number = Number(sampleNumber);
+  if (!Number.isInteger(number) || number < 1 || number > 15) return null;
+  return `AQ-${String(number).padStart(2, '0')}`;
 }
 
 export function sampleSiteForClass(classCode, sites = SAMPLE_SITES) {
@@ -57,7 +64,9 @@ export function matchSampleSite(latitude, longitude, sites = SAMPLE_SITES) {
   }
 
   const matches = Object.values(sites)
-    .filter((site) => Number.isFinite(Number(site.latitude)) && Number.isFinite(Number(site.longitude)) && Number(site.radiusMeters) > 0)
+    .filter((site) => site.latitude != null && site.longitude != null
+      && Number.isFinite(Number(site.latitude)) && Number.isFinite(Number(site.longitude))
+      && Number(site.radiusMeters) > 0)
     .map((site) => ({ site, distance: distanceMeters(parsedLatitude, parsedLongitude, Number(site.latitude), Number(site.longitude)) }))
     .filter(({ site, distance }) => distance <= Number(site.radiusMeters))
     .sort((left, right) => left.distance - right.distance);

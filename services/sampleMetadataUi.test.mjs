@@ -8,7 +8,7 @@ const analysisServiceSource = readFileSync(new URL('./waterAnalysisService.js', 
 const resultSource = readFileSync(new URL('../screens/Result/ResultScreen.js', import.meta.url), 'utf8');
 const historySource = readFileSync(new URL('../screens/History/HistoryDetailScreen.js', import.meta.url), 'utf8');
 
-test('sample classes canonicalize historical values while the scanner offers only SA, A, and SB', () => {
+test('sample classes and codes canonicalize historical values', () => {
   assert.deepEqual(Object.keys(SAMPLE_SITES).sort(), ['A', 'SA', 'SB']);
   assert.equal(canonicalizeSampleClass('AA'), 'SA');
   assert.equal(canonicalizeSampleClass('A'), 'A');
@@ -21,16 +21,25 @@ test('sample classes canonicalize historical values while the scanner offers onl
   assert.equal(sampleSiteForClass('A').siteName, 'Well');
   assert.equal(sampleSiteForClass('C').classCode, 'SB');
   assert.equal(sampleSiteForClass('C').siteName, 'Fish Farm');
-  assert.match(cameraSource, /Array\.from\(\{ length: 15 \}/);
-  assert.match(cameraSource, /code: 'SA'/);
-  assert.match(cameraSource, /code: 'A'/);
-  assert.match(cameraSource, /code: 'SB'/);
-  assert.doesNotMatch(cameraSource, /code: '(?:AA|C)'/);
+});
+
+test('scanner identifies samples by number without a water-class selection', async () => {
+  const { unclassifiedSampleCodeForNumber } = await import('./sampleSites.js');
+
+  assert.equal(unclassifiedSampleCodeForNumber?.(1), 'AQ-01');
+  assert.equal(unclassifiedSampleCodeForNumber?.(15), 'AQ-15');
+  assert.equal(unclassifiedSampleCodeForNumber?.(0), null);
+  assert.equal(unclassifiedSampleCodeForNumber?.(16), null);
+  assert.match(cameraSource, /const SAMPLE_NUMBERS = Array\.from\(\{ length: 15 \}/);
+  assert.doesNotMatch(cameraSource, /SAMPLE_CLASSES|selectedSampleClass|Sample class/);
+  assert.match(cameraSource, /Sample number/);
+  assert.match(cameraSource, /unclassifiedSampleCodeForNumber/);
+  assert.match(cameraSource, /sampleClass: null/);
   assert.match(cameraSource, /source: 'camera'/);
   assert.match(cameraSource, /source: 'gallery'/);
   assert.match(cameraSource, /sampleCode: selectedSampleCode/);
   assert.match(cameraSource, /sampleNumber: selectedSampleNumber/);
-  assert.match(analysisServiceSource, /sampleClass: input\.sampleClass/);
+  assert.doesNotMatch(analysisServiceSource, /matchSampleSite\(/);
 });
 
 test('result and history omit client-facing laboratory comparison and scientific validation', () => {

@@ -193,6 +193,7 @@ test('authenticated map feed contains only anonymous marker data', async () => {
     barangay: 'San Isidro',
     municipality: 'Sample City',
     sampleClass: 'SA',
+    sampleCode: null,
     siteName: 'Pawikan',
     sourceType: 'Coastal / Pawikan',
     pH: 6.8,

@@ -58,3 +58,10 @@ test('sample class and code compatibility aliases normalize to canonical values'
   assert.equal(sampleSiteForClass('AA').classCode, 'SA');
   assert.equal(sampleSiteForClass('C').classCode, 'SB');
 });
+
+test('neutral AQ codes remain classless and null site coordinates never match GPS 0,0', () => {
+  assert.equal(canonicalizeSampleClass('AQ'), null);
+  assert.equal(canonicalizeSampleCode('AQ-01'), 'AQ-01');
+  assert.equal(canonicalizeSampleCode('aq-15'), 'AQ-15');
+  assert.equal(matchSampleSite(0, 0).classCode, null);
+});

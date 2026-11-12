@@ -22,5 +22,8 @@ test('sample codes accept canonical classes and normalize historical prefixes', 
   assert.equal(validateSampleCode('SB-15'), 'SB-15');
   assert.equal(validateSampleCode('AA-01'), 'SA-01');
   assert.equal(validateSampleCode('C-01'), 'SB-01');
+  assert.equal(validateSampleCode('AQ-01'), 'AQ-01');
+  assert.equal(validateSampleCode('aq-15'), 'AQ-15');
   assert.throws(() => validateSampleCode('D-01'), (error) => error.code === 'INVALID_SAMPLE_CODE');
+  assert.throws(() => validateSampleCode('AQ-16'), (error) => error.code === 'INVALID_SAMPLE_CODE');
 });

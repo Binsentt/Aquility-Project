@@ -3,7 +3,7 @@ import { serializeWaterTest } from '../utils/waterTestSerializer.js';
 import { validateCapturedAt, validateCoordinates, validateGpsAccuracy, validateOptionalText, validateSampleCode, validateSampleNumber } from '../utils/validation.js';
 import { readFile, rename, unlink } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { canonicalizeSampleClass, matchSampleSite, sampleSiteForClass } from './sampleSites.js';
+import { canonicalizeSampleClass, sampleSiteForClass } from './sampleSites.js';
 
 function imageExtension(buffer) {
   if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return 'jpg';
@@ -28,7 +28,7 @@ async function removeUpload(file) {
   await unlink(file.path).catch(() => undefined);
 }
 
-export function createWaterAnalysisService({ colorAnalysisEngine, waterTestModel, userModel, authTokenService = null, debugLogger = null, sampleSiteMatcher = matchSampleSite }) {
+export function createWaterAnalysisService({ colorAnalysisEngine, waterTestModel, userModel, authTokenService = null, debugLogger = null }) {
   return {
     async analyze({ file, metadata, authenticatedUserId, requestDebugLogger = null, requestId = null }) {
       if (!file?.filename) {
@@ -60,8 +60,7 @@ export function createWaterAnalysisService({ colorAnalysisEngine, waterTestModel
         const municipality = validateOptionalText(metadata?.municipality, 'Municipality', 120);
         const sampleCode = validateSampleCode(metadata?.sampleCode);
         const sampleNumber = validateSampleNumber(metadata?.sampleNumber);
-        const requestedSampleClassInput = validateOptionalText(metadata?.sampleClass, 'Sample class', 8)
-          || (sampleCode ? sampleCode.split('-')[0] : null);
+        const requestedSampleClassInput = validateOptionalText(metadata?.sampleClass, 'Sample class', 8);
         const requestedSampleClass = requestedSampleClassInput
           ? canonicalizeSampleClass(requestedSampleClassInput)
           : null;
@@ -77,23 +76,22 @@ export function createWaterAnalysisService({ colorAnalysisEngine, waterTestModel
             throw new HttpError(400, 'INVALID_SAMPLE_CODE', 'Sample number must match the selected sample code.');
           }
         }
-        if (requestedSampleClass && sampleCode && requestedSampleClass !== sampleCode.split('-')[0]) {
+        const codeSampleClass = sampleCode ? canonicalizeSampleClass(sampleCode.split('-')[0]) : null;
+        if (requestedSampleClass && codeSampleClass && requestedSampleClass !== codeSampleClass) {
           throw new HttpError(400, 'INVALID_SAMPLE_SITE', 'The sample class does not match the selected sample code.');
         }
         const selectedSampleSite = requestedSampleClass ? sampleSiteForClass(requestedSampleClass) : null;
         if (requestedSampleClass && !selectedSampleSite) {
           throw new HttpError(400, 'INVALID_SAMPLE_SITE', 'The sample class must be SA, A, or SB.');
         }
-        const sampleSite = selectedSampleSite
-          || sampleSiteMatcher(manualLatitude ?? latitude, manualLongitude ?? longitude)
-          || {
+        const sampleSite = selectedSampleSite || {
           classCode: null,
-          siteName: 'Unknown sampling site',
+          siteName: null,
           sourceType: null,
           latitude: null,
           longitude: null,
         };
-        const resolvedSampleClass = requestedSampleClass || canonicalizeSampleClass(sampleSite.classCode) || sampleSite.classCode || null;
+        const resolvedSampleClass = requestedSampleClass || null;
         storedFile = await validateStoredImage(file);
         const analysisLogger = requestDebugLogger || debugLogger;
         const log = (stage, details = {}) => analysisLogger?.(stage, { analysisId: requestId || null, ...details });
@@ -108,7 +106,7 @@ export function createWaterAnalysisService({ colorAnalysisEngine, waterTestModel
           manualLatitude,
           manualLongitude,
           sampleClass: resolvedSampleClass,
-          siteName: sampleSite.siteName === 'Unknown sampling site' ? null : sampleSite.siteName,
+          siteName: sampleSite.siteName,
           sourceType: sampleSite.sourceType,
           sampleCode,
           sampleNumber,

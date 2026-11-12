@@ -158,18 +158,24 @@ export default function ResultScreen() {
               <Text style={styles.metaLabel}>Sample</Text>
               <Text style={styles.metaValue}>{sampleCode || 'Not selected'}</Text>
             </View>
-            <View style={styles.metaRow}>
-              <Text style={styles.metaLabel}>Sample class</Text>
-              <Text style={styles.metaValue}>{sampleClass || 'Unknown'}</Text>
-            </View>
-            <View style={styles.metaRow}>
-              <Text style={styles.metaLabel}>Sampling site</Text>
-              <Text style={styles.metaValue}>{payload.siteName || 'Unknown sampling site'}</Text>
-            </View>
-            <View style={styles.metaRow}>
-              <Text style={styles.metaLabel}>Water source</Text>
-              <Text style={styles.metaValue}>{payload.sourceType || 'Unknown'}</Text>
-            </View>
+            {sampleClass ? (
+              <View style={styles.metaRow}>
+                <Text style={styles.metaLabel}>Sample class</Text>
+                <Text style={styles.metaValue}>{sampleClass}</Text>
+              </View>
+            ) : null}
+            {payload.siteName && payload.siteName !== 'Unknown sampling site' ? (
+              <View style={styles.metaRow}>
+                <Text style={styles.metaLabel}>Sampling site</Text>
+                <Text style={styles.metaValue}>{payload.siteName}</Text>
+              </View>
+            ) : null}
+            {payload.sourceType ? (
+              <View style={styles.metaRow}>
+                <Text style={styles.metaLabel}>Water source</Text>
+                <Text style={styles.metaValue}>{payload.sourceType}</Text>
+              </View>
+            ) : null}
             <Text style={styles.summaryText}>{cleanClientRemarks(payload.summary) || 'No summary available yet.'}</Text>
             {backendError ? <Text style={styles.secondaryText}>{backendError}</Text> : null}
           </View>

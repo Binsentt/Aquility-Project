@@ -21,9 +21,11 @@ CREATE DATABASE aquality OWNER aquality_user;
 ## 3. Install dependencies
 
 ```powershell
+Set-Location source
 npm install
-Set-Location backend
+Push-Location backend
 npm install
+Pop-Location
 ```
 
 ## 4. Configure environment
@@ -31,15 +33,16 @@ npm install
 Create the ignored backend environment file locally:
 
 ```powershell
+Set-Location source
 Copy-Item backend/.env.example backend/.env
 ```
 
-Then set `DATABASE_URL`, `JWT_SECRET`, and the local server settings in `backend/.env`. Never commit these values.
+Then set `DATABASE_URL`, `JWT_SECRET`, and the local server settings in `source/backend/.env`. Never commit these values.
 
 ## 5. Apply migrations
 
 ```powershell
-Set-Location backend
+Set-Location source/backend
 npm run db:migrate
 npm run db:seed
 ```
@@ -53,13 +56,14 @@ Manual sample pins use the additive migration `008_add_manual_sample_location.sq
 Terminal 1:
 
 ```powershell
-Set-Location backend
+Set-Location source/backend
 npm start
 ```
 
 Terminal 2:
 
 ```powershell
+Set-Location source
 npm run web
 ```
 

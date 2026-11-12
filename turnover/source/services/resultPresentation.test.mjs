@@ -46,3 +46,21 @@ test('Result, History Detail, and PDF use the same persisted pH category and qua
   assert.match(pdf, /Nitrite estimate basis:<\/strong> Client-supplied reference colors/);
   assert.doesNotMatch(pdf, /undefined|NaN/);
 });
+
+test('classless samples keep their neutral identifier and do not display an invented class', () => {
+  const record = toScanResult({
+    id: 'classless-result',
+    sampleClass: null,
+    sampleCode: 'AQ-01',
+    sampleNumber: 1,
+  }, 'https://api.example.test/api');
+  const pdf = buildPdfHtml({ test: record });
+
+  assert.equal(record.sampleClass, null);
+  assert.equal(record.sampleCode, 'AQ-01');
+  assert.match(resultScreen, /sampleClass \? \(/);
+  assert.match(historyDetail, /sampleClass \? \(/);
+  assert.match(historyList, /sampleMetadataLabel/);
+  assert.match(pdf, /Sample code:<\/strong> AQ-01/);
+  assert.doesNotMatch(pdf, /Sample class:<\/strong>/);
+});

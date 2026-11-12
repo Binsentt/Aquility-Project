@@ -8,6 +8,8 @@ This folder contains a sanitized handoff package for the AQUALITY project, limit
 - `database/` — schema migration files and the checked-in calibration metadata used in solution validation
 - `setup.md` — local setup and validation guide without private credentials
 
+The source snapshot includes its Expo manifests and app assets, and is synchronized with the review-branch implementation. New samples use classless `AQ-01`–`AQ-15` identifiers; no migration is needed because sample class/site/source fields are already nullable. Historical SA/A/SB records remain readable. The live Railway API still needs the reviewed backend update before an APK using AQ identifiers can submit scans.
+
 ## Safety restrictions
 
 - No production database dumps or user records are included.

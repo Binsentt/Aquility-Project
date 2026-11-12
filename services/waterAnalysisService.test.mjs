@@ -69,3 +69,37 @@ test('manual-location analysis uploads only after backend capability confirmatio
     global.fetch = originalFetch;
   }
 });
+
+test('classless numbered scans upload a neutral ID without inferring class from GPS', async () => {
+  const originalFetch = global.fetch;
+  const requests = [];
+  global.fetch = async (url, options) => {
+    requests.push({ url, options });
+    return jsonResponse(201, {
+      analysisId: 'classless-scan',
+      sampleClass: null,
+      sampleCode: 'AQ-01',
+      sampleNumber: 1,
+      gps: { latitude: 0, longitude: 0 },
+    });
+  };
+
+  try {
+    const result = await analyzeWaterTest('file:///tmp/water-strip.jpg', {
+      userId: 'user-1',
+      location: { latitude: 0, longitude: 0, accuracy: 5, timestamp: 1794451200000 },
+      sampleCode: 'AQ-01',
+      sampleNumber: 1,
+      capturedAt: '2026-11-12T00:00:00.000Z',
+    });
+
+    const body = requests[0].options.body;
+    assert.equal(body.get('sampleClass'), '');
+    assert.equal(body.get('sampleCode'), 'AQ-01');
+    assert.equal(body.get('sampleNumber'), '1');
+    assert.equal(result.sampleClass, null);
+    assert.equal(result.sampleCode, 'AQ-01');
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
