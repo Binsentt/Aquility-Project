@@ -37,7 +37,7 @@
   "pH": {
     "method": "RGB median -> CIE Lab D65 -> nearest reference by CIEDE2000",
     "maxDeltaE00": null,
-    "reliabilityNote": "No client-approved pH acceptance threshold is available. Production analysis must remain unreliable until a provisional threshold is explicitly configured and validated against paired standards.",
+    "reliabilityNote": "No independent laboratory or cross-camera pH validation is available. The continuous model remains bounded to supportedPH; client-workbook RGB references are provisional and require the existing image-quality gate plus RGB-envelope, distance, and margin checks.",
     "references": [
       { "label": "0-4", "value": "0-4", "exactValue": null, "lab": [50.9, 66.5, 54.0] },
       { "label": "5", "value": 5, "exactValue": 5, "lab": [65.4, 36.1, 68.7] },
@@ -89,6 +89,533 @@
         "trainingFoldMeanBaselineMAE": 0.43790267735001015,
         "trainingFoldMeanBaselineRMSE": 0.45977009400971,
         "note": "Three class-level laboratory labels are available; within-class individual-strip pH labels were not supplied. Validation does not establish 0.05-pH resolution or transfer to unrepresented water, camera, or pH conditions."
+      }
+    },
+    "workbookCalibration": {
+      "version": "client-workbook-rgb-2026-11-v1",
+      "sourceFile": "App_Calibrate (1).xlsx",
+      "sourceSheet": "Results_pH1_20min",
+      "sourceSha256": "ACAF8F7B09616199F75AFD71A3323D9BC5842689F02639808C7E6B8E78FE5B4F",
+      "sourceLabelDefinition": "pH group labels in workbook column A; RGB readings in columns B:D",
+      "captureCondition": "Sheet title says 20min; no device, exposure, lighting, reaction protocol, replicate linkage, or independent laboratory report is recorded in the workbook.",
+      "scientificStatus": "Client-supplied labeled RGB calibration evidence; within-workbook leave-one-out checks are exploratory and are not independent analytical validation.",
+      "method": "nearest workbook sample in sRGB-derived CIE Lab D65 using CIEDE2000; require the integer-rounded per-class RGB envelope, class-specific distance limit, and runner-up margin",
+      "confidenceGuards": {
+        "rgbEnvelope": "Each measured RGB channel must fall between floor(minimum observed class channel) and ceil(maximum observed class channel).",
+        "distance": "Class-specific maximum Delta E 2000 distance derived from per-sample leave-one-out observations.",
+        "margin": "Class-specific minimum distance to the runner-up label derived from per-sample leave-one-out observations."
+      },
+      "references": [
+        {
+          "label": "1",
+          "value": 1,
+          "enabled": true,
+          "maximumDeltaE00": 1.9964991213190706,
+          "minimumMargin": 4.82422035056655,
+          "samples": [
+            [
+              178.487,
+              119.447,
+              129.173
+            ],
+            [
+              176.929,
+              111.091,
+              126.176
+            ],
+            [
+              180.402,
+              120.069,
+              129.55
+            ],
+            [
+              179.96,
+              125.58,
+              130.335
+            ],
+            [
+              180.959,
+              120.7,
+              132.628
+            ],
+            [
+              180.447,
+              119.622,
+              132.079
+            ],
+            [
+              179.819,
+              111.913,
+              132.718
+            ],
+            [
+              181.538,
+              122.161,
+              138.652
+            ]
+          ]
+        },
+        {
+          "label": "2",
+          "value": 2,
+          "enabled": true,
+          "maximumDeltaE00": 0.895151340268695,
+          "minimumMargin": 1.8160806338344297,
+          "samples": [
+            [
+              184.768,
+              133.418,
+              117.942
+            ],
+            [
+              176.782,
+              126.064,
+              122.831
+            ],
+            [
+              182.99,
+              127.485,
+              121.413
+            ],
+            [
+              182.342,
+              129.887,
+              122.858
+            ],
+            [
+              185.316,
+              130.194,
+              125.203
+            ],
+            [
+              182.731,
+              129.87,
+              123.41
+            ],
+            [
+              186.402,
+              145.107,
+              142.967
+            ],
+            [
+              182.564,
+              131.983,
+              120.471
+            ]
+          ]
+        },
+        {
+          "label": "3",
+          "value": 3,
+          "enabled": true,
+          "maximumDeltaE00": 2.239971859229181,
+          "minimumMargin": 2.6051124324659938,
+          "samples": [
+            [
+              168.403,
+              131.807,
+              107.806
+            ],
+            [
+              162.79,
+              131.137,
+              108.8
+            ],
+            [
+              175.891,
+              133.051,
+              109.541
+            ],
+            [
+              176.967,
+              139.043,
+              115.862
+            ],
+            [
+              170.537,
+              144.741,
+              122.085
+            ],
+            [
+              176.669,
+              130.157,
+              100.947
+            ],
+            [
+              183.801,
+              142.73,
+              124.775
+            ],
+            [
+              185.861,
+              126.005,
+              91.432
+            ]
+          ]
+        },
+        {
+          "label": "4",
+          "value": 4,
+          "enabled": true,
+          "maximumDeltaE00": 2.0287884031847847,
+          "minimumMargin": 0.9621759223376491,
+          "samples": [
+            [
+              185.197,
+              129.511,
+              117.06
+            ],
+            [
+              186.492,
+              130.366,
+              114.89
+            ],
+            [
+              183.287,
+              121.279,
+              109.15
+            ],
+            [
+              177.145,
+              118.391,
+              108.086
+            ],
+            [
+              184.884,
+              128.404,
+              115.702
+            ],
+            [
+              183.4,
+              124.611,
+              106.832
+            ],
+            [
+              180.598,
+              118.127,
+              111.038
+            ],
+            [
+              178.563,
+              117.641,
+              92.093
+            ]
+          ]
+        },
+        {
+          "label": "5",
+          "value": 5,
+          "enabled": true,
+          "maximumDeltaE00": 2.5492391611230687,
+          "minimumMargin": 0.3633782159200203,
+          "samples": [
+            [
+              181.153,
+              173.227,
+              126.624
+            ],
+            [
+              173.244,
+              162.703,
+              112.082
+            ],
+            [
+              177.355,
+              166.355,
+              122.657
+            ],
+            [
+              175.583,
+              164.284,
+              117.408
+            ],
+            [
+              189.833,
+              161.612,
+              127.259
+            ],
+            [
+              187.212,
+              150.71,
+              119.188
+            ],
+            [
+              179.498,
+              157.631,
+              128.717
+            ],
+            [
+              177.719,
+              147.018,
+              115.857
+            ]
+          ]
+        },
+        {
+          "label": "6",
+          "value": 6,
+          "enabled": true,
+          "maximumDeltaE00": 1.3623684280302126,
+          "minimumMargin": 0.598912304586828,
+          "samples": [
+            [
+              182.019,
+              170.297,
+              123.21
+            ],
+            [
+              182.798,
+              169.536,
+              119.819
+            ],
+            [
+              188.266,
+              171.011,
+              117.787
+            ],
+            [
+              186.571,
+              166.844,
+              113.115
+            ],
+            [
+              189.339,
+              173.982,
+              124.008
+            ],
+            [
+              186.495,
+              170.732,
+              122.967
+            ],
+            [
+              179.256,
+              161.754,
+              118.046
+            ],
+            [
+              175.767,
+              159.474,
+              112.782
+            ]
+          ]
+        },
+        {
+          "label": "7",
+          "value": 7,
+          "enabled": true,
+          "maximumDeltaE00": 0.7790293627595042,
+          "minimumMargin": 0.31621586342707353,
+          "samples": [
+            [
+              184.459,
+              165.276,
+              135.401
+            ],
+            [
+              186.091,
+              172.207,
+              150.092
+            ],
+            [
+              181.932,
+              175.778,
+              139.13
+            ],
+            [
+              180.453,
+              176.162,
+              139.375
+            ],
+            [
+              172.354,
+              168.359,
+              124.978
+            ],
+            [
+              163.814,
+              167.103,
+              130.038
+            ],
+            [
+              185.426,
+              145.805,
+              189.964
+            ],
+            [
+              185.279,
+              184.909,
+              131.847
+            ]
+          ]
+        },
+        {
+          "label": "8",
+          "value": 8,
+          "enabled": true,
+          "maximumDeltaE00": 2.2379552022615234,
+          "minimumMargin": 3.284132471856722,
+          "samples": [
+            [
+              149.333,
+              155.086,
+              137.792
+            ],
+            [
+              146.549,
+              150.677,
+              138.203
+            ],
+            [
+              132.255,
+              137.451,
+              129.872
+            ],
+            [
+              140.771,
+              145.34,
+              139.089
+            ],
+            [
+              142.385,
+              149.781,
+              133.969
+            ],
+            [
+              137.502,
+              148.269,
+              129.155
+            ],
+            [
+              148.492,
+              161.001,
+              138.59
+            ],
+            [
+              140.533,
+              151.325,
+              128.448
+            ]
+          ]
+        },
+        {
+          "label": "9-14",
+          "value": null,
+          "displayValue": "9-14",
+          "groupedReference": true,
+          "enabled": true,
+          "maximumDeltaE00": 1.3976525014424002,
+          "minimumMargin": 5.27697373974348,
+          "samples": [
+            [
+              177.312,
+              181.298,
+              174.687
+            ],
+            [
+              174.687,
+              179.658,
+              174.01
+            ],
+            [
+              166.12,
+              168.458,
+              162.459
+            ],
+            [
+              161.242,
+              163.811,
+              157.947
+            ],
+            [
+              177.533,
+              182.338,
+              175.827
+            ],
+            [
+              176.763,
+              180.823,
+              173.481
+            ],
+            [
+              181.85,
+              184.208,
+              175.151
+            ],
+            [
+              181.027,
+              184.731,
+              174.565
+            ],
+            [
+              179.511,
+              183.162,
+              175.443
+            ],
+            [
+              178.262,
+              182.136,
+              173.96
+            ]
+          ]
+        }
+      ],
+      "validation": {
+        "method": "per-sample leave-one-out nearest-reference with RGB envelope, Delta E 2000 distance, and class-specific margin gates",
+        "sampleCount": 74,
+        "nearestLabelCorrectCount": 65,
+        "acceptedCorrectCount": 40,
+        "acceptedIncorrectCount": 0,
+        "independentValidation": false,
+        "cutoffDerivation": "For each predicted class, selected the distance and runner-up margin cutoffs that retained the most correctly labeled leave-one-out workbook observations while accepting no observed wrong labels in this workbook. The per-class RGB envelope is computed from the remaining observations in each leave-one-out fold. This is exploratory tuning, not external validation.",
+        "perClass": {
+          "1": {
+            "sampleCount": 8,
+            "nearestLabelCorrectCount": 8,
+            "acceptedCorrectCount": 5
+          },
+          "2": {
+            "sampleCount": 8,
+            "nearestLabelCorrectCount": 6,
+            "acceptedCorrectCount": 4
+          },
+          "3": {
+            "sampleCount": 8,
+            "nearestLabelCorrectCount": 7,
+            "acceptedCorrectCount": 4
+          },
+          "4": {
+            "sampleCount": 8,
+            "nearestLabelCorrectCount": 8,
+            "acceptedCorrectCount": 4
+          },
+          "5": {
+            "sampleCount": 8,
+            "nearestLabelCorrectCount": 6,
+            "acceptedCorrectCount": 3
+          },
+          "6": {
+            "sampleCount": 8,
+            "nearestLabelCorrectCount": 8,
+            "acceptedCorrectCount": 6
+          },
+          "7": {
+            "sampleCount": 8,
+            "nearestLabelCorrectCount": 4,
+            "acceptedCorrectCount": 2
+          },
+          "8": {
+            "sampleCount": 8,
+            "nearestLabelCorrectCount": 8,
+            "acceptedCorrectCount": 3
+          },
+          "9-14": {
+            "sampleCount": 10,
+            "nearestLabelCorrectCount": 10,
+            "acceptedCorrectCount": 9
+          }
+        },
+        "note": "Workbook-only LOO; tuned on the same workbook, no independent camera capture or laboratory validation."
       }
     }
   },

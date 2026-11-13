@@ -39,6 +39,7 @@ const PUBLIC_MARKER_FIELDS = [
   'sampleCode',
   'siteName',
   'sourceType',
+  'pHDisplay',
   'nitriteDisplay',
   'nitriteStatus',
 ];
@@ -97,6 +98,7 @@ export function mapMarkersFromHistory(scanHistory) {
     siteName: scan?.siteName,
     sourceType: scan?.sourceType,
     pH: scan?.pH,
+    pHDisplay: scan?.pHResult?.displayValue || scan?.resultData?.pH || null,
     nitriteDisplay: scan?.nitrite?.displayValue || scan?.resultData?.Nitrite || null,
     nitriteStatus: scan?.nitriteClassificationStatus || scan?.nitrite?.classificationStatus || scan?.resultData?.['Nitrite Status'] || null,
     nitrite: scan?.nitrite,

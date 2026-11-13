@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 import { HttpError } from '../middleware/errorHandler.js';
-import { assessColorQuality, extractRoiStatistics, interpolateNitriteHue, matchNitriteClientColor, matchPHClientColor, rgbToHsv, rgbToLab } from '../utils/colorAnalysis.js';
+import { assessColorQuality, extractRoiStatistics, interpolateNitriteHue, matchNitriteClientColor, matchPHClientColor, matchPHWorkbookSamples, rgbToHsv, rgbToLab } from '../utils/colorAnalysis.js';
 import { estimatePHFromColor } from '../utils/phColorModel.js';
 import { classifyMeasurements, classifyNitriteStatus, MEASUREMENT_STATUS } from './measurementClassification.js';
 import { buildUPadDiagnosticOverlaySvg, createUPadDiagnosticOverlay, detectUPadRegistration } from './upadRegistration.js';
@@ -163,6 +163,10 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
         phStats.measuredRGB,
         calibration.pH?.clientRgbRanges,
       );
+      const workbookPHMatch = matchPHWorkbookSamples(
+        phStats.measuredRGB,
+        calibration.pH?.workbookCalibration?.references,
+      );
       const phProfile = clientColorMatch.reference
         ? clientColorMatch.candidates.find(({ reference }) => reference === clientColorMatch.reference)
         : null;
@@ -178,22 +182,35 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
         deltaE00: phDeltaE00,
       } : null;
       const continuousModelAccepted = Boolean(phQuality.reliable && continuousPH.accepted);
-      const phReliable = Boolean(phQuality.reliable && (continuousModelAccepted || clientColorMatch.accepted));
+      const clientRgbMatchAccepted = Boolean(phQuality.reliable && clientColorMatch.accepted);
+      const workbookPHMatchAccepted = Boolean(phQuality.reliable
+        && !continuousModelAccepted
+        && !clientRgbMatchAccepted
+        && workbookPHMatch.accepted);
+      const acceptedPHReference = clientRgbMatchAccepted
+        ? phMatch.reference
+        : workbookPHMatchAccepted ? workbookPHMatch.reference : null;
+      const phReliable = Boolean(phQuality.reliable
+        && (continuousModelAccepted || clientRgbMatchAccepted || workbookPHMatchAccepted));
       const phValue = !phReliable
         ? null
         : continuousModelAccepted
           ? continuousPH.value
-          : phMatch.reference.value;
-      const directClientRgbMatch = phReliable && clientColorMatch.matchMethod === 'RAW_RGB_INTERVAL';
+          : acceptedPHReference?.value ?? null;
+      const directClientRgbMatch = clientRgbMatchAccepted && clientColorMatch.matchMethod === 'RAW_RGB_INTERVAL';
       const phReliabilityStatus = !phQuality.reliable
         ? 'IMAGE_QUALITY_INSUFFICIENT'
         : continuousModelAccepted
           ? 'OFFICIAL_TIME_CONTINUOUS_COLOR_MODEL'
-          : directClientRgbMatch
+          : clientRgbMatchAccepted && directClientRgbMatch
           ? 'CLIENT_RGB_RANGE_MATCH'
-          : clientColorMatch.accepted
+          : clientRgbMatchAccepted
             ? 'CLIENT_CIEDE2000_DISTANCE_MATCH'
-            : continuousPH.status === 'OUTSIDE_CALIBRATED_COLOR_DOMAIN'
+            : workbookPHMatchAccepted
+              ? 'CLIENT_WORKBOOK_RGB_REFERENCE_MATCH'
+              : workbookPHMatch.blocksFallback
+                ? workbookPHMatch.matchState
+                : continuousPH.status === 'OUTSIDE_CALIBRATED_COLOR_DOMAIN'
               ? 'COLOR_OUTSIDE_CALIBRATED_DOMAIN'
               : clientColorMatch.matchState === 'AMBIGUOUS'
                 ? 'AMBIGUOUS_REFERENCE_MATCH'
@@ -228,6 +245,7 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
       debugLogger?.('parameter-match-diagnostics', {
         pH: {
           ...clientColorMatch.diagnostics,
+          workbookCalibration: workbookPHMatch.diagnostics,
           continuousModel: {
             status: continuousPH.status,
             rawValue: continuousPH.rawValue,
@@ -325,18 +343,26 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
       return {
         pH: {
           value: phValue,
-          exactValue: phReliable && !continuousModelAccepted ? phMatch.reference.value : null,
+          exactValue: phReliable && !continuousModelAccepted ? acceptedPHReference?.value ?? null : null,
+          displayValue: workbookPHMatchAccepted ? workbookPHMatch.displayValue : null,
+          groupedReference: workbookPHMatchAccepted && workbookPHMatch.groupedReference,
           unit: 'pH',
           status: phStatus,
           measuredRGB: phStats.measuredRGB,
           measuredLab,
-          matchedReference: phReliable && !continuousModelAccepted
-            ? { label: phMatch.reference.label, lab: phMatch.reference.lab, source: phMatch.reference.source || 'client-lab-reference' }
+          matchedReference: phReliable && !continuousModelAccepted && acceptedPHReference
+            ? {
+              label: acceptedPHReference.label,
+              ...(acceptedPHReference.lab ? { lab: acceptedPHReference.lab } : {}),
+              source: workbookPHMatchAccepted ? 'client-workbook-rgb-sample' : (acceptedPHReference.source || 'client-lab-reference'),
+            }
             : null,
           matchMethod: continuousModelAccepted
             ? 'official-time-continuous-lab-ridge-quadratic'
-            : directClientRgbMatch ? 'direct-client-rgb-range' : 'ciede2000-centroid-distance',
-          deltaE00: continuousModelAccepted ? null : phDeltaE00,
+            : workbookPHMatchAccepted
+              ? workbookPHMatch.matchMethod
+              : directClientRgbMatch ? 'direct-client-rgb-range' : 'ciede2000-centroid-distance',
+          deltaE00: continuousModelAccepted ? null : workbookPHMatchAccepted ? workbookPHMatch.distance : phDeltaE00,
           reliabilityStatus: phReliabilityStatus,
           calibrationModel: continuousModelAccepted ? {
             version: continuousPH.modelVersion,
@@ -345,6 +371,11 @@ export function createColorAnalysisEngine({ readJson = readFixture, allowDevelop
             supportedPH: calibration.pH.continuousModel.supportedPH,
             rawValue: continuousPH.rawValue,
             clamped: continuousPH.clamped,
+          } : workbookPHMatchAccepted ? {
+            version: calibration.pH.workbookCalibration.version,
+            method: calibration.pH.workbookCalibration.method,
+            source: calibration.pH.workbookCalibration.sourceFile,
+            validation: 'within-workbook leave-one-out only; independent laboratory and camera validation not established',
           } : null,
           rgbMatch: directClientRgbMatch && !continuousModelAccepted ? {
             status: 'EXACT_IN_RANGE',

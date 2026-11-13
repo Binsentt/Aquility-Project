@@ -21,7 +21,7 @@ function clientRemarks(record, pHResult, nitrite) {
   }
 
   const reasons = [];
-  if (pHResult?.value == null && Array.isArray(pHResult?.measuredRGB)) {
+  if (pHResult?.value == null && !pHResult?.displayValue && Array.isArray(pHResult?.measuredRGB)) {
     const reason = pHResult.reliabilityStatus === 'THRESHOLD_NOT_CONFIGURED'
       ? 'the pH match-confidence threshold is not configured'
       : 'no reliable pH reference match was found';

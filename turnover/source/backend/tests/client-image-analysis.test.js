@@ -209,6 +209,42 @@ test('real client image completes authenticated upload, analysis, persistence, a
   }
 });
 
+test('client workbook pH RGB is analyzed from ROI pixels and persists through Result, History, Map, and PDF', async () => {
+  const { app, persistedRecords } = await createComputedResultTestApp();
+  const image = await createDeveloperRoiImage([178, 119, 129], [150, 145, 137]);
+  const response = await submitDeveloperImage(app, image, { capturedAt: '2026-11-13T00:00:00.000Z' });
+
+  assert.equal(response.status, 201, JSON.stringify(response.body));
+  assert.deepEqual(response.body.pHResult.measuredRGB, [178, 119, 129]);
+  assert.equal(response.body.pH, 1);
+  assert.equal(response.body.pHResult.value, 1);
+  assert.equal(response.body.pHResult.exactValue, 1);
+  assert.equal(response.body.pHResult.matchMethod, 'WORKBOOK_CIEDE2000_NEAREST_SAMPLE');
+  assert.equal(response.body.pHResult.matchedReference.label, '1');
+  assert.equal(persistedRecords[0].estimatedPH, 1);
+  assert.equal(persistedRecords[0].analysisData.pH.measuredRGB.join(','), '178,119,129');
+  assert.equal(persistedRecords[0].analysisData.pH.displayValue, '1');
+  assert.equal(persistedRecords[0].analysisData.nitrite.value, null);
+
+  const resultView = toScanResult(response.body, 'https://aquality-api.example.test/api');
+  const historyRecord = serializeWaterTest({ ...persistedRecords[0], id: response.body.id });
+  const historyView = toScanResult(historyRecord, 'https://aquality-api.example.test/api');
+  const marker = toMapMarker({
+    id: response.body.id,
+    latitude: 14.6,
+    longitude: 120.98,
+    pH: historyView.pH,
+    pHResult: historyRecord.pHResult,
+    resultData: historyRecord.resultData,
+  });
+  const pdf = buildPdfHtml({ test: historyView });
+
+  assert.equal(resultView.resultData.pH, '1');
+  assert.equal(historyView.resultData.pH, resultView.resultData.pH);
+  assert.equal(marker.pH, 1);
+  assert.match(pdf, /pH:<\/strong> 1/);
+});
+
 test('real portrait client color is not falsely assigned to pH after fiducial role correction', async () => {
   {
     const [{ createApp }, { createColorAnalysisEngine }, { createWaterAnalysisService }] = await Promise.all([

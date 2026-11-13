@@ -59,6 +59,7 @@ test('MapLibre render models retain safe marker details, add lngLat, and exclude
     sourceType: 'Coastal',
     pH: 6.8,
     pHCategory: 'Acidic',
+    pHDisplay: '6.8',
     nitriteDisplay: '>1 ppm',
     nitriteStatus: 'Dangerous',
     user: { email: 'private@example.test' },
@@ -85,6 +86,7 @@ test('MapLibre render models retain safe marker details, add lngLat, and exclude
     sourceType: 'Coastal',
     pH: 6.8,
     pHCategory: 'Acidic',
+    pHDisplay: '6.8',
     nitriteDisplay: '>1 ppm',
     nitriteStatus: 'Dangerous',
   }]);
@@ -101,6 +103,18 @@ test('MapLibre detail model normalizes missing measurement displays without inve
   assert.equal(marker.pHCategory, null);
   assert.equal(marker.nitriteDisplay, 'Unavailable');
   assert.equal(marker.nitriteClassification, undefined);
+});
+
+test('MapLibre detail model carries grouped pH display text without a numeric pH', () => {
+  const [marker] = buildMapLibreMarkers([{
+    id: 'grouped-ph',
+    coordinate: { latitude: 1, longitude: 2 },
+    pH: null,
+    pHDisplay: '9-14',
+  }]);
+
+  assert.equal(marker.pH, null);
+  assert.equal(marker.pHDisplay, '9-14');
 });
 
 test('MapLibre render models support one and multiple sanitized markers', () => {

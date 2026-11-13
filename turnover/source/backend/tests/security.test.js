@@ -197,6 +197,7 @@ test('authenticated map feed contains only anonymous marker data', async () => {
     siteName: 'Pawikan',
     sourceType: 'Coastal / Pawikan',
     pH: 6.8,
+    pHDisplay: '6.8',
     nitriteDisplay: '>1 ppm',
   }]);
   assert.equal('user' in response.body.items[0], false);

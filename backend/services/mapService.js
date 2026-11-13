@@ -34,6 +34,8 @@ export function createMapService({ waterTestModel }) {
             siteName: nullableText(marker.siteName),
             sourceType: nullableText(marker.sourceType),
             pH: nullableNumber(marker.pH),
+            pHDisplay: nullableText(marker.pHDisplay)
+              || (nullableNumber(marker.pH) == null ? 'Unavailable' : nullableNumber(marker.pH).toFixed(1)),
             nitriteDisplay: nullableText(marker.nitriteDisplay) || 'Unavailable',
             ...(nitriteStatus ? { nitriteStatus } : {}),
           };

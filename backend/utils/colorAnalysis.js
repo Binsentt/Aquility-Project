@@ -350,6 +350,140 @@ export function matchPHClientColor(measuredRGB, clientRgbRanges) {
   return matchClientColorByCentroid(measuredRGB, clientRgbRanges, { parameter: 'pH' });
 }
 
+/** Match pH against the client workbook's individual RGB observations. */
+export function matchPHWorkbookSamples(measuredRGB, references) {
+  const invalidMeasurement = !Array.isArray(measuredRGB) || measuredRGB.length !== 3
+    || measuredRGB.some((channel) => !Number.isFinite(channel) || channel < 0 || channel > 255);
+  if (invalidMeasurement || !Array.isArray(references)) {
+    return {
+      accepted: false,
+      reference: null,
+      value: null,
+      displayValue: null,
+      groupedReference: false,
+      matchState: 'OUTSIDE_REFERENCE_SPACE',
+      blocksFallback: false,
+      diagnostics: {
+        parameter: 'pH',
+        distanceMetric: 'CIEDE2000_NEAREST_WORKBOOK_SAMPLE',
+        accepted: false,
+        reason: 'INVALID_MEASUREMENT_OR_REFERENCES',
+        candidateDistances: [],
+      },
+    };
+  }
+
+  const measuredLab = rgbToLab(measuredRGB);
+  const candidates = references
+    .filter((reference) => reference && reference.enabled !== false && Array.isArray(reference.samples))
+    .map((reference) => {
+      const sampleDistances = reference.samples
+        .filter((sample) => Array.isArray(sample) && sample.length === 3
+          && sample.every((channel) => Number.isFinite(channel) && channel >= 0 && channel <= 255))
+        .map((sampleRGB) => ({
+          sampleRGB,
+          distance: deltaE00(measuredLab, rgbToLab(sampleRGB)),
+        }))
+        .sort((left, right) => left.distance - right.distance);
+      if (!sampleDistances.length) return null;
+      const channelRanges = [0, 1, 2].map((channel) => [
+        Math.floor(Math.min(...sampleDistances.map(({ sampleRGB }) => sampleRGB[channel]))),
+        Math.ceil(Math.max(...sampleDistances.map(({ sampleRGB }) => sampleRGB[channel]))),
+      ]);
+      return {
+        reference,
+        distance: sampleDistances[0].distance,
+        nearestSampleRGB: sampleDistances[0].sampleRGB,
+        channelRanges,
+        withinRgbEnvelope: measuredRGB.every((channel, index) => (
+          channel >= channelRanges[index][0] && channel <= channelRanges[index][1]
+        )),
+      };
+    })
+    .filter(Boolean)
+    .sort((left, right) => left.distance - right.distance);
+
+  const best = candidates[0] || null;
+  const second = candidates[1] || null;
+  const margin = best && second ? second.distance - best.distance : null;
+  const supportedCandidates = candidates.filter(({ reference, distance, withinRgbEnvelope }) => (
+    Number.isFinite(reference.maximumDeltaE00)
+      && distance <= reference.maximumDeltaE00
+      && withinRgbEnvelope
+  ));
+  const withinClassDistance = Boolean(best
+    && Number.isFinite(best.reference.maximumDeltaE00)
+    && best.distance <= best.reference.maximumDeltaE00);
+  const withinClassRGBEnvelope = best?.withinRgbEnvelope ?? false;
+  const meetsClassMargin = Boolean(best && second
+    && Number.isFinite(best.reference.minimumMargin)
+    && margin >= best.reference.minimumMargin);
+  const accepted = withinClassDistance && withinClassRGBEnvelope && meetsClassMargin;
+  const ambiguous = supportedCandidates.length > 0 && !accepted;
+  const reference = accepted ? best.reference : null;
+  const groupedReference = accepted && reference.groupedReference === true;
+  const value = accepted && !groupedReference ? reference.value : null;
+  const displayValue = !accepted
+    ? null
+    : (reference.displayValue ?? (groupedReference ? reference.label : String(reference.value)));
+  const reason = accepted
+    ? 'ACCEPTED_WITHIN_WORKBOOK_DISTANCE_AND_MARGIN'
+    : ambiguous
+      ? 'AMBIGUOUS_REFERENCE_MATCH'
+      : best
+        ? 'OUTSIDE_WORKBOOK_CLASS_SUPPORT'
+        : 'NO_VALID_WORKBOOK_REFERENCES';
+  const matchState = accepted
+    ? groupedReference ? 'GROUPED_REFERENCE_MATCH' : 'WORKBOOK_REFERENCE_MATCH'
+    : ambiguous ? 'AMBIGUOUS_REFERENCE_MATCH' : 'OUTSIDE_REFERENCE_SPACE';
+  const candidateDistances = candidates.map(({
+    reference: candidate,
+    distance,
+    nearestSampleRGB,
+    withinRgbEnvelope,
+    channelRanges,
+  }) => ({
+    label: candidate.label,
+    value: candidate.value ?? null,
+    distance,
+    withinRgbEnvelope,
+    rgbEnvelope: channelRanges,
+    maximumDeltaE00: Number.isFinite(candidate.maximumDeltaE00) ? candidate.maximumDeltaE00 : null,
+    minimumMargin: Number.isFinite(candidate.minimumMargin) ? candidate.minimumMargin : null,
+    nearestSampleRGB,
+  }));
+
+  return {
+    accepted,
+    reference,
+    value,
+    displayValue,
+    groupedReference,
+    matchMethod: accepted ? 'WORKBOOK_CIEDE2000_NEAREST_SAMPLE' : null,
+    matchState,
+    blocksFallback: supportedCandidates.length > 0,
+    distance: best?.distance ?? null,
+    margin,
+    closestReference: best?.reference || null,
+    diagnostics: {
+      parameter: 'pH',
+      distanceMetric: 'CIEDE2000_NEAREST_WORKBOOK_SAMPLE',
+      bestReference: best ? { label: best.reference.label, value: best.reference.value ?? null } : null,
+      secondBestReference: second ? { label: second.reference.label, value: second.reference.value ?? null } : null,
+      bestDistance: best?.distance ?? null,
+      secondBestDistance: second?.distance ?? null,
+      margin,
+      withinClassDistance,
+      withinClassRGBEnvelope,
+      meetsClassMargin,
+      supportedCandidateCount: supportedCandidates.length,
+      accepted,
+      reason,
+      candidateDistances,
+    },
+  };
+}
+
 export function interpolateNitriteHue(hue, huePoints, ppmValues) {
   if (!Array.isArray(huePoints) || !Array.isArray(ppmValues) || huePoints.length !== ppmValues.length || huePoints.length === 0) {
     throw new TypeError('Nitrite hue interpolation requires matching hue and ppm arrays with at least one entry.');

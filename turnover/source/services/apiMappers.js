@@ -96,7 +96,13 @@ export function toScanResult(waterTest = {}, apiBaseUrl) {
   const hasMeasuredRgb = (value) => Array.isArray(value?.measuredRGB)
     && value.measuredRGB.length === 3
     && value.measuredRGB.every((channel) => Number.isFinite(Number(channel)));
-  const pHDisplay = typeof pH === 'number' ? pH.toFixed(1) : (hasMeasuredRgb(pHResult) ? 'No reference match' : 'Unavailable');
+  const pHDisplayInput = [
+    pHResult?.displayValue,
+    waterTest.pHDisplay,
+    waterTest.resultData?.pH,
+  ].find((value) => typeof value === 'string' && value.trim());
+  const pHDisplay = pHDisplayInput?.trim()
+    || (typeof pH === 'number' ? pH.toFixed(1) : (hasMeasuredRgb(pHResult) ? 'No reference match' : 'Unavailable'));
   const nitriteHasDisplayValue = typeof waterTest.nitrite?.displayValue === 'string' && waterTest.nitrite.displayValue.trim().length > 0;
   const nitriteHasLowConfidenceDisplay = typeof waterTest.nitrite?.lowConfidenceDisplay === 'string'
     && waterTest.nitrite.lowConfidenceDisplay.trim().length > 0;
@@ -210,6 +216,13 @@ export function toMapMarker(payload = {}) {
   const sampleCode = canonicalizeSampleCode(sampleCodeInput) || sampleCodeInput;
   const siteName = payload.siteName || null;
   const pH = finiteMeasurement(payload.pH);
+  const pHDisplayInput = [
+    payload.pHDisplay,
+    payload.pHResult?.displayValue,
+    payload.resultData?.pH,
+  ].find((value) => typeof value === 'string' && value.trim());
+  const pHDisplay = pHDisplayInput?.trim()
+    || (pH == null ? 'Unavailable' : pH.toFixed(1));
   const nitriteDisplayInput = [
     payload.nitriteDisplay,
     payload.nitrite?.displayValue,
@@ -242,6 +255,7 @@ export function toMapMarker(payload = {}) {
     siteName,
     sourceType: payload.sourceType || null,
     pH,
+    pHDisplay,
     pHCategory: pHCategoryFor(pH),
     nitriteDisplay,
     nitriteStatus,

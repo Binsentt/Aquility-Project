@@ -203,6 +203,27 @@ test('measured but unmatched ROIs show a reference-match state instead of generi
   assert.doesNotMatch(JSON.stringify(scan.resultData), /NaN|null ppm|undefined/);
 });
 
+test('a grouped pH workbook reference keeps its bounded display without inventing a numeric pH', () => {
+  const scan = toScanResult({
+    analysisId: 'grouped-ph-range',
+    pH: null,
+    pHResult: {
+      value: null,
+      displayValue: '9-14',
+      groupedReference: true,
+      matchedReference: { label: '9-14', source: 'client-workbook-rgb-sample' },
+      measuredRGB: [177, 181, 175],
+    },
+    resultData: { pH: '9-14' },
+  }, 'https://aquality-api.example.test/api');
+
+  assert.equal(scan.pH, null);
+  assert.equal(scan.pHCategory, null);
+  assert.equal(scan.resultData.pH, '9-14');
+  assert.equal(scan.resultData['pH Category'], undefined);
+  assert.equal(scan.pHResult.groupedReference, true);
+});
+
 test('unmatched measured colors are not mislabeled as awaiting classification limits or exposed as diagnostics', () => {
   const scan = toScanResult({
     analysisId: 'unmatched-client-scan',
@@ -344,4 +365,17 @@ test('map marker includes persisted pH and qualified Nitrite display, but unavai
   assert.equal(unavailable.pH, null);
   assert.equal(unavailable.pHCategory, null);
   assert.equal(unavailable.nitriteDisplay, 'Unavailable');
+});
+
+test('map marker preserves an accepted grouped pH display when no individual pH exists', () => {
+  const marker = toMapMarker({
+    id: 'grouped-ph-marker',
+    latitude: 14.6,
+    longitude: 120.98,
+    pH: null,
+    pHResult: { value: null, displayValue: '9-14', groupedReference: true },
+  });
+
+  assert.equal(marker.pH, null);
+  assert.equal(marker.pHDisplay, '9-14');
 });
